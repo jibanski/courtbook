@@ -22,7 +22,8 @@ var isPostgres = connectionString.StartsWith("postgresql://")
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     if (isPostgres)
-        options.UseNpgsql(connectionString);
+        options.UseNpgsql(connectionString)
+               .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
     else
         options.UseSqlite(connectionString)
                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
