@@ -4,6 +4,10 @@ html {
     min-height: 100%;
 }
 
+.bg-purple        { background-color: #6f42c1 !important; }
+.text-purple      { color: #6f42c1 !important; }
+.bg-purple-subtle { background-color: #e9d8fd !important; }
+
 body {
     background-color: #f8f9fa;
 }

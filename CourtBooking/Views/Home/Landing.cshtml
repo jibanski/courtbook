@@ -216,6 +216,112 @@
     </div>
 </section>
 
+<!-- ── Reviews ────────────────────────────────────────────────────────── -->
+<section id="reviews" class="py-6 bg-white">
+    <div class="container">
+        <div class="text-center mb-5">
+            <span class="badge bg-success-subtle text-success fw-semibold px-3 py-2 mb-2">Customer Reviews</span>
+            <h2 class="fw-bold fs-1">Loved by facility owners</h2>
+            <p class="text-muted lead">See what other sports facilities are saying about CourtBook.</p>
+        </div>
+
+        <div class="row g-4">
+            @foreach (var review in new[] {
+                new {
+                    name    = "Mark Reyes",
+                    role    = "Owner, Ace Badminton Center — Quezon City",
+                    avatar  = "MR",
+                    color   = "bg-primary",
+                    stars   = 5,
+                    text    = "Before CourtBook, we were handling reservations through Facebook Messenger and it was a mess. Now customers book and pay online — we just confirm. Our no-show rate dropped by 60%."
+                },
+                new {
+                    name    = "Crisanta Villanueva",
+                    role    = "Manager, CV Sports Complex — Cebu City",
+                    avatar  = "CV",
+                    color   = "bg-success",
+                    stars   = 5,
+                    text    = "Setup took less than 30 minutes. I uploaded our courts, set the prices, and shared the link to our Facebook page. We got 12 bookings on the first day. Sobrang ganda!"
+                },
+                new {
+                    name    = "Benjie Santos",
+                    role    = "Owner, BS Basketball Hub — Davao",
+                    avatar  = "BS",
+                    color   = "bg-warning",
+                    stars   = 5,
+                    text    = "GCash and Maya integration is exactly what we needed. Customers pay instantly, we see the proof, and we confirm. No more chasing payments. CourtBook paid for itself in the first week."
+                },
+                new {
+                    name    = "Lara Mendoza",
+                    role    = "Admin, Greenfield Tennis Club — BGC",
+                    avatar  = "LM",
+                    color   = "bg-danger",
+                    stars   = 5,
+                    text    = "The admin dashboard is clean and easy to use. I can see all bookings, revenue, and pending payments at a glance. Even our non-tech-savvy staff figured it out on day one."
+                },
+                new {
+                    name    = "Rodel Cruz",
+                    role    = "Owner, RC Multi-Sports — Antipolo",
+                    avatar  = "RC",
+                    color   = "bg-info",
+                    stars   = 5,
+                    text    = "We manage 8 courts across 3 sports. CourtBook handles all of them perfectly. Time slot management is a game changer — double bookings are now a thing of the past."
+                },
+                new {
+                    name    = "Ana Flores",
+                    role    = "Owner, AF Futsal Arena — Pasig",
+                    avatar  = "AF",
+                    color   = "bg-purple",
+                    stars   = 5,
+                    text    = "I was skeptical at first since I'm not techy, but the 7-day free trial convinced me. Within 3 days I knew this was worth subscribing to. Best investment for our facility this year."
+                },
+            })
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 border rounded-4 shadow-sm p-4">
+                        <!-- Stars -->
+                        <div class="mb-3">
+                            @for (int i = 0; i < review.stars; i++)
+                            {
+                                <i class="bi bi-star-fill text-warning"></i>
+                            }
+                        </div>
+                        <!-- Review text -->
+                        <p class="text-muted small mb-4 flex-grow-1">"@review.text"</p>
+                        <!-- Reviewer -->
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="@review.color text-white rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
+                                 style="width:44px;height:44px;font-size:.85rem;">
+                                @review.avatar
+                            </div>
+                            <div>
+                                <div class="fw-semibold small">@review.name</div>
+                                <div class="text-muted" style="font-size:.75rem;">@review.role</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Summary bar -->
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-8">
+                <div class="bg-primary-subtle rounded-4 p-4 text-center">
+                    <div class="d-flex justify-content-center gap-1 mb-2">
+                        @for (int i = 0; i < 5; i++)
+                        {
+                            <i class="bi bi-star-fill text-warning fs-5"></i>
+                        }
+                    </div>
+                    <div class="fw-bold fs-5">4.9 out of 5</div>
+                    <div class="text-muted small">Based on reviews from facility owners across the Philippines</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
 <!-- ── Pricing ────────────────────────────────────────────────────────── -->
 <section id="pricing" class="py-6">
     <div class="container">
