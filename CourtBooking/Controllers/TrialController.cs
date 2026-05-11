@@ -83,6 +83,12 @@ public class TrialController : Controller
             await _userManager.AddToRoleAsync(user, "Customer");
             await _signInManager.SignInAsync(user, isPersistent: false);
             TempData["Success"] = $"Welcome, {user.FirstName}! Browse courts and make your first booking.";
+
+            // If they arrived via a facility-specific URL, send them back there
+            var facilitySlug = Request.Cookies["facilitySlug"];
+            if (!string.IsNullOrEmpty(facilitySlug))
+                return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
+
             return RedirectToAction("Index", "Courts");
         }
     }

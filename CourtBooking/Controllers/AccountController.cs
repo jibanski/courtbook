@@ -37,6 +37,11 @@ public class AccountController : Controller
         {
             await _userManager.AddToRoleAsync(user, "Customer");
             await _signInManager.SignInAsync(user, isPersistent: false);
+
+            var facilitySlug = Request.Cookies["facilitySlug"];
+            if (!string.IsNullOrEmpty(facilitySlug))
+                return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
+
             return RedirectToAction("Index", "Home");
         }
 
@@ -59,7 +64,19 @@ public class AccountController : Controller
 
         var result = await _signInManager.PasswordSignInAsync(vm.Email, vm.Password, vm.RememberMe, lockoutOnFailure: false);
         if (result.Succeeded)
-            return LocalRedirect(returnUrl ?? "/");
+        {
+            // If a specific page was requested (e.g. from a booking link), go there.
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)
+                && !returnUrl.StartsWith("/Account") && !returnUrl.StartsWith("/Trial"))
+                return LocalRedirect(returnUrl);
+
+            // Otherwise, if the user arrived via a facility-specific URL, return them there.
+            var facilitySlug = Request.Cookies["facilitySlug"];
+            if (!string.IsNullOrEmpty(facilitySlug))
+                return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
+
+            return LocalRedirect("/");
+        }
 
         ModelState.AddModelError("", "Invalid email or password.");
         return View(vm);

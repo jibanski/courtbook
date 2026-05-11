@@ -32,6 +32,14 @@ public class FacilityController : Controller
 
         if (settings is null) return NotFound();
 
+        // Remember this facility so we can redirect back here after login / registration
+        Response.Cookies.Append("facilitySlug", slug, new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            MaxAge   = TimeSpan.FromHours(2)
+        });
+
         var query = _db.Courts.Where(c => c.OwnerId == settings.OwnerId && c.IsActive);
 
         if (!string.IsNullOrWhiteSpace(sport))

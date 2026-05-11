@@ -92,7 +92,8 @@
                     else
                     {
                         <li class="nav-item">
-                            <a class="nav-link" asp-controller="Account" asp-action="Login">
+                            <a class="nav-link" asp-controller="Account" asp-action="Login"
+                               asp-route-returnUrl="@(Context.Request.Path + Context.Request.QueryString)">
                                 <i class="bi bi-box-arrow-in-right me-1"></i>Login
                             </a>
                         </li>
