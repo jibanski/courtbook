@@ -1,21 +1,33 @@
+using CourtBooking.Data;
+using CourtBooking.Models;
 using CourtBooking.Services;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CourtBooking.Controllers;
 
 /// <summary>
-/// Developer-only tool for generating CourtBook Pro activation keys.
-/// Not linked from any nav; access via /Dev/KeyGen.
+/// Developer-only tools: activation key generator + subscription approval.
+/// Not linked from any nav; access via /Dev/KeyGen or /Dev/Subscriptions.
 /// Protected by a plain password stored in appsettings.json → Dev:Password.
 /// </summary>
 public class DevController : Controller
 {
     private readonly KeyGeneratorService _keyGen;
+    private readonly ApplicationDbContext _db;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly string _devPassword;
 
-    public DevController(KeyGeneratorService keyGen, IConfiguration config)
+    public DevController(
+        KeyGeneratorService keyGen,
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        IConfiguration config)
     {
         _keyGen      = keyGen;
+        _db          = db;
+        _userManager = userManager;
         _devPassword = config["Dev:Password"]
             ?? throw new InvalidOperationException("Dev:Password is not configured.");
     }
@@ -54,4 +66,70 @@ public class DevController : Controller
         ViewBag.Plan         = plan.Trim();
         return View();
     }
+
+    // GET /Dev/Subscriptions
+    public IActionResult Subscriptions() => View();
+
+    // POST /Dev/Subscriptions  — password check, then show pending submissions
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Subscriptions(string password)
+    {
+        if (!IsValidPassword(password))
+        {
+            ViewBag.Error = "Incorrect developer password.";
+            return View();
+        }
+
+        var settings  = await _db.FacilitySettings.FirstOrDefaultAsync();
+        var adminUser = (await _userManager.GetUsersInRoleAsync("Admin")).FirstOrDefault();
+
+        ViewBag.Password  = password;   // pass through to approve/reject forms
+        ViewBag.Settings  = settings;
+        ViewBag.AdminEmail = adminUser?.Email ?? "(no admin registered yet)";
+        return View();
+    }
+
+    // POST /Dev/ApproveSubscription
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApproveSubscription(string password, int id)
+    {
+        if (!IsValidPassword(password))
+            return Unauthorized("Invalid developer password.");
+
+        var settings = await _db.FacilitySettings.FindAsync(id);
+        if (settings is null) return NotFound();
+
+        settings.IsSubscribed            = true;
+        settings.SubscriptionActivatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Subscription for \"{settings.FacilityName}\" approved and activated.";
+        return RedirectToAction(nameof(Subscriptions));
+    }
+
+    // POST /Dev/RejectSubscription
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RejectSubscription(string password, int id)
+    {
+        if (!IsValidPassword(password))
+            return Unauthorized("Invalid developer password.");
+
+        var settings = await _db.FacilitySettings.FindAsync(id);
+        if (settings is null) return NotFound();
+
+        settings.SubscriptionPlan            = null;
+        settings.SubscriptionPaymentRef      = null;
+        settings.SubscriptionProofPath       = null;
+        settings.SubscriptionSubmittedAt     = null;
+        await _db.SaveChangesAsync();
+
+        TempData["Error"] = $"Subscription submission for \"{settings.FacilityName}\" rejected and cleared.";
+        return RedirectToAction(nameof(Subscriptions));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private bool IsValidPassword(string? password) =>
+        !string.IsNullOrWhiteSpace(password) &&
+        string.Equals(password.Trim(), _devPassword, StringComparison.Ordinal);
 }
