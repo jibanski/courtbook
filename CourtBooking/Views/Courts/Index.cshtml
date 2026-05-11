@@ -1,31 +1,57 @@
 @model IEnumerable<CourtBooking.Models.Court>
-@using Microsoft.EntityFrameworkCore
-@inject CourtBooking.Data.ApplicationDbContext _courtsDb
+@using CourtBooking.Models
 @{
     ViewData["Title"] = "Courts";
-    var sports        = ViewBag.Sports as List<string> ?? new List<string>();
-    var selectedSport = ViewBag.SelectedSport as string;
-    var _cfs          = await _courtsDb.FacilitySettings.FirstOrDefaultAsync();
-    var pageHeader    = _cfs?.DisplayName    ?? "CourtBook";
-    var pageTagline   = _cfs?.DisplayTagline ?? "Browse all available courts and check real-time availability";
+    var sports           = ViewBag.Sports           as List<string>           ?? new List<string>();
+    var selectedSport    = ViewBag.SelectedSport    as string;
+    var selectedFacility = ViewBag.SelectedFacility as string;
+    var facilityMap      = ViewBag.FacilityMap      as Dictionary<string, FacilitySettings> ?? new();
+    var activeFacilities = ViewBag.ActiveFacilities as List<FacilitySettings> ?? new();
 }
 
 <div class="bg-primary text-white py-4 mb-4">
     <div class="container">
-        <h1 class="fw-bold mb-1"><i class="bi bi-buildings me-2"></i>@pageHeader</h1>
-        <p class="mb-0 opacity-75">@pageTagline</p>
+        <h1 class="fw-bold mb-1"><i class="bi bi-buildings me-2"></i>Browse Courts</h1>
+        <p class="mb-0 opacity-75">Find and book courts from verified facilities near you</p>
     </div>
 </div>
 
 <div class="container">
+
+    <!-- Facility Tabs (only when there are multiple facilities) -->
+    @if (activeFacilities.Count > 1)
+    {
+        <div class="mb-3">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="text-muted fw-semibold me-1 small">Facility:</span>
+                <a asp-action="Index" asp-route-sport="@selectedSport"
+                   class="btn btn-sm @(selectedFacility == null ? "btn-dark" : "btn-outline-secondary")">
+                    All Facilities
+                </a>
+                @foreach (var fs in activeFacilities)
+                {
+                    <a asp-action="Index" asp-route-sport="@selectedSport" asp-route-facility="@fs.DisplayName"
+                       class="btn btn-sm @(selectedFacility == fs.DisplayName ? "btn-dark" : "btn-outline-secondary") d-flex align-items-center gap-1">
+                        @fs.DisplayName
+                        @if (fs.IsSubscribed)
+                        {
+                            <span class="badge bg-warning text-dark ms-1" style="font-size:.6rem;">PRO</span>
+                        }
+                    </a>
+                }
+            </div>
+        </div>
+    }
+
     <!-- Sport Filter -->
     <div class="mb-4">
         <div class="d-flex flex-wrap gap-2 align-items-center">
-            <span class="text-muted fw-semibold me-2">Filter:</span>
-            <a asp-action="Index" class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-primary")">All</a>
+            <span class="text-muted fw-semibold me-2 small">Sport:</span>
+            <a asp-action="Index" asp-route-facility="@selectedFacility"
+               class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-primary")">All</a>
             @foreach (var sport in sports)
             {
-                <a asp-action="Index" asp-route-sport="@sport"
+                <a asp-action="Index" asp-route-sport="@sport" asp-route-facility="@selectedFacility"
                    class="btn btn-sm @(selectedSport == sport ? "btn-primary" : "btn-outline-primary")">@sport</a>
             }
         </div>
@@ -40,8 +66,12 @@
         <div class="row g-4">
             @foreach (var court in Model)
             {
+                var fs = court.OwnerId != null && facilityMap.TryGetValue(court.OwnerId, out var f) ? f : null;
+
                 <div class="col-sm-6 col-lg-4">
                     <div class="card h-100 shadow-sm court-card">
+
+                        @* Court image / placeholder *@
                         @if (!string.IsNullOrWhiteSpace(court.ImageUrl))
                         {
                             <div class="position-relative">
@@ -57,14 +87,34 @@
                         {
                             <div class="court-placeholder d-flex flex-column align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()">
                                 <i class="bi @CourtHelpers.SportIcon(court.SportType) display-2 text-white"></i>
-                                <span class="text-white fw-semibold mt-2 small text-uppercase letter-spacing-1 opacity-75">@court.SportType</span>
+                                <span class="text-white fw-semibold mt-2 small text-uppercase opacity-75">@court.SportType</span>
                                 @if (court.IsIndoor)
                                 {
                                     <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
                                 }
                             </div>
                         }
+
                         <div class="card-body">
+                            @* Facility name row *@
+                            @if (fs != null)
+                            {
+                                <div class="d-flex align-items-center gap-1 mb-2">
+                                    <i class="bi bi-buildings text-muted" style="font-size:.8rem;"></i>
+                                    <span class="small text-muted">@fs.DisplayName</span>
+                                    @if (fs.IsSubscribed)
+                                    {
+                                        <span class="badge bg-warning text-dark ms-1" style="font-size:.6rem;">
+                                            <i class="bi bi-patch-check-fill me-1"></i>PRO
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary ms-1" style="font-size:.6rem;">Trial</span>
+                                    }
+                                </div>
+                            }
+
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <h5 class="card-title mb-0">@court.Name</h5>
                                 <span class="badge bg-secondary">@court.SportType</span>
@@ -74,6 +124,7 @@
                                 <i class="bi bi-clock me-1"></i>@court.OpeningHour:00 – @court.ClosingHour:00
                             </div>
                         </div>
+
                         <div class="card-footer d-flex justify-content-between align-items-center">
                             <span class="fw-bold text-primary fs-5">₱@court.PricePerHour.ToString("N0")<small class="fs-6 fw-normal text-muted">/hr</small></span>
                             <a asp-controller="Courts" asp-action="Details" asp-route-id="@court.Id"
@@ -93,17 +144,17 @@
     {
         public static string SportIcon(string sport) => sport?.ToLower() switch
         {
-            "tennis"      => "bi-dribbble",
-            "badminton"   => "bi-feather",
-            "basketball"  => "bi-bullseye",
-            "volleyball"  => "bi-circle-fill",
-            "football"    => "bi-globe2",
-            "futsal"      => "bi-lightning-charge-fill",
-            "swimming"    => "bi-water",
-            "table tennis"=> "bi-record-circle",
-            "billiards"   => "bi-circle",
-            "pickleball"  => "bi-record2-fill",
-            _             => "bi-trophy-fill"
+            "tennis"       => "bi-dribbble",
+            "badminton"    => "bi-feather",
+            "basketball"   => "bi-bullseye",
+            "volleyball"   => "bi-circle-fill",
+            "football"     => "bi-globe2",
+            "futsal"       => "bi-lightning-charge-fill",
+            "swimming"     => "bi-water",
+            "table tennis" => "bi-record-circle",
+            "billiards"    => "bi-circle",
+            "pickleball"   => "bi-record2-fill",
+            _              => "bi-trophy-fill"
         };
     }
 }

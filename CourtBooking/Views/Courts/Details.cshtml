@@ -1,6 +1,8 @@
 @model CourtBooking.ViewModels.CourtAvailabilityViewModel
+@using CourtBooking.Models
 @{
     ViewData["Title"] = $"Book {Model.Court.Name}";
+    var fs = ViewBag.FacilitySettings as FacilitySettings;
 }
 
 <div class="bg-primary text-white py-4 mb-4">
@@ -9,11 +11,29 @@
             <ol class="breadcrumb mb-2">
                 <li class="breadcrumb-item"><a href="/" class="text-white-50">Home</a></li>
                 <li class="breadcrumb-item"><a asp-controller="Courts" asp-action="Index" class="text-white-50">Courts</a></li>
+                @if (fs != null)
+                {
+                    <li class="breadcrumb-item text-white-50">@fs.DisplayName</li>
+                }
                 <li class="breadcrumb-item active text-white">@Model.Court.Name</li>
             </ol>
         </nav>
         <h1 class="fw-bold mb-1">@Model.Court.Name</h1>
-        <p class="mb-0 opacity-75">@Model.Court.SportType &bull; @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")</p>
+        <p class="mb-0 opacity-75">
+            @Model.Court.SportType &bull; @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")
+            @if (fs != null)
+            {
+                <span class="ms-2 opacity-75">
+                    &bull; <i class="bi bi-buildings me-1"></i>@fs.DisplayName
+                    @if (fs.IsSubscribed)
+                    {
+                        <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">
+                            <i class="bi bi-patch-check-fill me-1"></i>PRO
+                        </span>
+                    }
+                </span>
+            }
+        </p>
     </div>
 </div>
 

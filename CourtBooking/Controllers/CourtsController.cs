@@ -18,24 +18,58 @@ public class CourtsController : Controller
         _bookingService = bookingService;
     }
 
-    public async Task<IActionResult> Index(string? sport)
+    public async Task<IActionResult> Index(string? sport, string? facility)
     {
-        var query = _db.Courts.Where(c => c.IsActive);
+        var query = _db.Courts.Where(c => c.IsActive && c.OwnerId != null);
+
         if (!string.IsNullOrWhiteSpace(sport))
             query = query.Where(c => c.SportType == sport);
 
-        var courts = await query.ToListAsync();
-        var sports = await _db.Courts.Where(c => c.IsActive).Select(c => c.SportType).Distinct().ToListAsync();
+        // Load facility settings for all owners — keyed by OwnerId
+        var facilityMap = await _db.FacilitySettings
+            .Where(s => s.OwnerId != null)
+            .ToDictionaryAsync(s => s.OwnerId!);
 
-        ViewBag.Sports = sports;
-        ViewBag.SelectedSport = sport;
+        // Optionally filter by facility
+        if (!string.IsNullOrWhiteSpace(facility) && facilityMap.Values.Any(s => s.DisplayName == facility))
+        {
+            var ownerIds = facilityMap.Values
+                .Where(s => s.DisplayName == facility)
+                .Select(s => s.OwnerId)
+                .ToList();
+            query = query.Where(c => ownerIds.Contains(c.OwnerId));
+        }
+
+        var courts = await query.ToListAsync();
+        var sports  = await _db.Courts
+            .Where(c => c.IsActive && c.OwnerId != null)
+            .Select(c => c.SportType).Distinct().ToListAsync();
+
+        // Facilities with at least one active court (subscribed shown first)
+        var activeFacilities = facilityMap.Values
+            .Where(s => courts.Any(c => c.OwnerId == s.OwnerId))
+            .OrderByDescending(s => s.IsSubscribed)
+            .ThenBy(s => s.DisplayName)
+            .ToList();
+
+        ViewBag.Sports           = sports;
+        ViewBag.SelectedSport    = sport;
+        ViewBag.SelectedFacility = facility;
+        ViewBag.FacilityMap      = facilityMap;
+        ViewBag.ActiveFacilities = activeFacilities;
         return View(courts);
     }
 
     public async Task<IActionResult> Details(int id, DateTime? date)
     {
-        var court = await _db.Courts.FirstOrDefaultAsync(c => c.Id == id && c.IsActive);
+        var court = await _db.Courts.FirstOrDefaultAsync(c => c.Id == id && c.IsActive && c.OwnerId != null);
         if (court is null) return NotFound();
+
+        // Load the facility's settings for branding on the details page
+        var facilitySettings = court.OwnerId != null
+            ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == court.OwnerId)
+            : null;
+        ViewBag.FacilitySettings = facilitySettings;
 
         var selectedDate = date.HasValue ? DateOnly.FromDateTime(date.Value) : DateOnly.FromDateTime(DateTime.Today);
 
