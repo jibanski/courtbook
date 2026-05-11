@@ -1,0 +1,138 @@
+@model IEnumerable<CourtBooking.Models.Court>
+@using CourtBooking.Models
+@{
+    var fs           = ViewBag.FacilitySettings as FacilitySettings;
+    var sports       = ViewBag.Sports           as List<string> ?? new List<string>();
+    var selectedSport= ViewBag.SelectedSport    as string;
+    var slug         = ViewBag.Slug             as string;
+
+    ViewData["Title"] = fs?.DisplayName ?? "Courts";
+}
+
+<!-- Facility Hero Banner -->
+<div class="py-4 mb-4 text-white" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
+    <div class="container">
+        <div class="d-flex align-items-center gap-3 mb-2">
+            @if (fs != null && !string.IsNullOrWhiteSpace(fs.BrandLogoUrl) && fs.IsSubscribed)
+            {
+                <img src="@fs.BrandLogoUrl" alt="@fs.DisplayName" style="height:48px;object-fit:contain;" />
+            }
+            else
+            {
+                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center"
+                     style="width:48px;height:48px;flex-shrink:0;">
+                    <i class="bi bi-buildings-fill fs-4"></i>
+                </div>
+            }
+            <div>
+                <h1 class="fw-bold mb-0">@(fs?.DisplayName ?? "Courts")</h1>
+                @if (fs != null)
+                {
+                    <p class="mb-0 opacity-75 small">@fs.DisplayTagline</p>
+                }
+            </div>
+            @if (fs?.IsSubscribed == true)
+            {
+                <span class="badge bg-warning text-dark ms-auto align-self-start" style="font-size:.7rem;">
+                    <i class="bi bi-patch-check-fill me-1"></i>PRO
+                </span>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- Sport Filter -->
+    @if (sports.Any())
+    {
+        <div class="mb-4">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="text-muted fw-semibold me-2 small">Sport:</span>
+                <a href="/f/@slug" class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-primary")">All</a>
+                @foreach (var sport in sports)
+                {
+                    <a href="/f/@slug?sport=@Uri.EscapeDataString(sport)"
+                       class="btn btn-sm @(selectedSport == sport ? "btn-primary" : "btn-outline-primary")">@sport</a>
+                }
+            </div>
+        </div>
+    }
+
+    @if (!Model.Any())
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>No courts available at this facility yet. Check back soon!
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var court in Model)
+            {
+                <div class="col-sm-6 col-lg-4">
+                    <div class="card h-100 shadow-sm court-card">
+
+                        @if (!string.IsNullOrWhiteSpace(court.ImageUrl))
+                        {
+                            <div class="position-relative">
+                                <img src="@court.ImageUrl" alt="@court.Name"
+                                     class="card-img-top" style="height:180px; object-fit:cover;" />
+                                @if (court.IsIndoor)
+                                {
+                                    <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="court-placeholder d-flex flex-column align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()">
+                                <i class="bi @SportIcon(court.SportType) display-2 text-white"></i>
+                                <span class="text-white fw-semibold mt-2 small text-uppercase opacity-75">@court.SportType</span>
+                                @if (court.IsIndoor)
+                                {
+                                    <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
+                                }
+                            </div>
+                        }
+
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">@court.Name</h5>
+                                <span class="badge bg-secondary">@court.SportType</span>
+                            </div>
+                            <p class="card-text text-muted small">@court.Description</p>
+                            <div class="small text-muted">
+                                <i class="bi bi-clock me-1"></i>@court.OpeningHour:00 – @court.ClosingHour:00
+                            </div>
+                        </div>
+
+                        <div class="card-footer d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-primary fs-5">₱@court.PricePerHour.ToString("N0")<small class="fs-6 fw-normal text-muted">/hr</small></span>
+                            <a href="/f/@slug/book/@court.Id" class="btn btn-primary">
+                                <i class="bi bi-calendar-plus me-1"></i>Book
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@functions {
+    static string SportIcon(string sport) => sport?.ToLower() switch
+    {
+        "tennis"       => "bi-dribbble",
+        "badminton"    => "bi-feather",
+        "basketball"   => "bi-bullseye",
+        "volleyball"   => "bi-circle-fill",
+        "football"     => "bi-globe2",
+        "futsal"       => "bi-lightning-charge-fill",
+        "swimming"     => "bi-water",
+        "table tennis" => "bi-record-circle",
+        "billiards"    => "bi-circle",
+        "pickleball"   => "bi-record2-fill",
+        _              => "bi-trophy-fill"
+    };
+}

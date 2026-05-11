@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 
 namespace CourtBooking.Controllers;
 
@@ -331,6 +332,18 @@ public class AdminController : Controller
             settings.MayaName            = model.MayaName;
             settings.PaymentInstructions = model.PaymentInstructions;
 
+            // Slug update — sanitize and ensure uniqueness
+            if (!string.IsNullOrWhiteSpace(model.Slug))
+            {
+                var newSlug = SanitizeSlug(model.Slug);
+                var taken   = await _db.FacilitySettings
+                    .AnyAsync(s => s.Slug == newSlug && s.OwnerId != CurrentUserId);
+                if (taken)
+                    ModelState.AddModelError(nameof(model.Slug), "That URL is already taken. Please choose another.");
+                else
+                    settings.Slug = newSlug;
+            }
+
             // Custom branding — only applied for subscribed users
             if (settings.IsSubscribed)
             {
@@ -341,6 +354,9 @@ public class AdminController : Controller
                     settings.BrandLogoUrl = await SaveBrandLogoAsync(logo, settings.BrandLogoUrl);
             }
         }
+
+        if (!ModelState.IsValid) return View(await GetMySettingsAsync() ?? model);
+
         await _db.SaveChangesAsync();
         TempData["Success"] = "Settings saved.";
         return RedirectToAction(nameof(Settings));
@@ -384,6 +400,11 @@ public class AdminController : Controller
     private static string UploadsRoot =>
         Environment.GetEnvironmentVariable("UPLOADS_ROOT")
         ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+
+    private static string SanitizeSlug(string input) =>
+        Regex.Replace(
+            Regex.Replace(input.ToLowerInvariant().Replace(" ", "-"), @"[^a-z0-9\-]", ""),
+            @"-+", "-").Trim('-');
 
     private async Task PopulateSportsAsync()
     {

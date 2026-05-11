@@ -105,6 +105,35 @@
                     </div>
                 </div>
 
+                <!-- Shareable URL -->
+                @if (!string.IsNullOrWhiteSpace(Model.Slug))
+                {
+                    var shareUrl = $"{Context.Request.Scheme}://{Context.Request.Host}/f/{Model.Slug}";
+                    <div class="card shadow-sm mb-4 border-primary-subtle">
+                        <div class="card-header bg-primary-subtle fw-bold text-primary">
+                            <i class="bi bi-link-45deg me-2"></i>Your Shareable Booking URL
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-2">
+                                Share this link with your customers so they can browse and book your courts directly.
+                            </p>
+                            <div class="input-group">
+                                <input type="text" id="shareUrl" class="form-control font-monospace small bg-light"
+                                       value="@shareUrl" readonly />
+                                <button class="btn btn-outline-primary" type="button" onclick="copyShareUrl()">
+                                    <i class="bi bi-clipboard me-1"></i>Copy
+                                </button>
+                                <a href="/f/@Model.Slug" target="_blank" class="btn btn-primary">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Open
+                                </a>
+                            </div>
+                            <div id="copySuccess" class="text-success small mt-1 d-none">
+                                <i class="bi bi-check-circle me-1"></i>Copied to clipboard!
+                            </div>
+                        </div>
+                    </div>
+                }
+
                 <!-- Facility Name -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white fw-bold">
@@ -115,6 +144,20 @@
                             <label asp-for="FacilityName" class="form-label fw-semibold">Facility Name</label>
                             <input asp-for="FacilityName" class="form-control" placeholder="e.g. City Sports Complex" />
                             <span asp-validation-for="FacilityName" class="text-danger small"></span>
+                        </div>
+                        <div class="mb-0">
+                            <label asp-for="Slug" class="form-label fw-semibold">
+                                URL Slug
+                                <span class="fw-normal text-muted small">— the <code>/f/your-slug</code> part of your booking link</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text text-muted small">/f/</span>
+                                <input asp-for="Slug" class="form-control font-monospace"
+                                       placeholder="e.g. city-sports-complex"
+                                       pattern="[a-z0-9\-]+" title="Lowercase letters, numbers, and hyphens only" />
+                            </div>
+                            <span asp-validation-for="Slug" class="text-danger small"></span>
+                            <div class="form-text">Lowercase letters, numbers, and hyphens only. Changing this will break existing shared links.</div>
                         </div>
                     </div>
                 </div>
@@ -294,6 +337,15 @@
                 };
                 reader.readAsDataURL(input.files[0]);
             }
+        }
+
+        function copyShareUrl() {
+            const input = document.getElementById('shareUrl');
+            navigator.clipboard.writeText(input.value).then(() => {
+                const msg = document.getElementById('copySuccess');
+                msg.classList.remove('d-none');
+                setTimeout(() => msg.classList.add('d-none'), 2500);
+            });
         }
     </script>
 }

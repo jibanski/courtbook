@@ -4,6 +4,7 @@ using CourtBooking.ViewModels;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace CourtBooking.Controllers;
 
@@ -61,12 +62,14 @@ public class TrialController : Controller
             await _userManager.AddToRoleAsync(user, "Admin");
 
             // Each admin gets their own FacilitySettings record
+            var slug = await GenerateUniqueSlugAsync(model.FacilityName!);
             var settings = new FacilitySettings
             {
-                OwnerId              = user.Id,
-                FacilityName         = model.FacilityName!,
-                TrialStartedAt       = DateTime.UtcNow,
-                PaymentInstructions  = "Please send the exact amount and include your booking reference in the notes."
+                OwnerId             = user.Id,
+                FacilityName        = model.FacilityName!,
+                Slug                = slug,
+                TrialStartedAt      = DateTime.UtcNow,
+                PaymentInstructions = "Please send the exact amount and include your booking reference in the notes."
             };
             _db.FacilitySettings.Add(settings);
             await _db.SaveChangesAsync();
@@ -86,4 +89,23 @@ public class TrialController : Controller
 
     // GET /Trial/Expired
     public IActionResult Expired() => View();
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<string> GenerateUniqueSlugAsync(string name)
+    {
+        var base_slug = Regex.Replace(
+            Regex.Replace(name.ToLowerInvariant().Replace(" ", "-"), @"[^a-z0-9\-]", ""),
+            @"-+", "-").Trim('-');
+
+        if (string.IsNullOrEmpty(base_slug)) base_slug = "facility";
+
+        var slug    = base_slug;
+        var counter = 2;
+        while (await _db.FacilitySettings.AnyAsync(s => s.Slug == slug))
+        {
+            slug = $"{base_slug}-{counter++}";
+        }
+        return slug;
+    }
 }

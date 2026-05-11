@@ -11,6 +11,10 @@ public class FacilitySettings
     public string? OwnerId { get; set; }
     public ApplicationUser? Owner { get; set; }
 
+    /// <summary>URL-friendly identifier, e.g. "greenfield-sports". Used for /f/{slug}.</summary>
+    [MaxLength(100)]
+    public string? Slug { get; set; }
+
     [MaxLength(100)]
     public string FacilityName { get; set; } = "CourtBook";
 
