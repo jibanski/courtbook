@@ -42,7 +42,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             new Sport { Id = 3, Name = "Basketball", Description = "Team sport played on a rectangular court.",       IsActive = true, DisplayOrder = 3 },
             new Sport { Id = 4, Name = "Volleyball", Description = "Team sport played over a net.",                   IsActive = true, DisplayOrder = 4 },
             new Sport { Id = 5, Name = "Football",   Description = "Team sport played on a grass or turf field.",     IsActive = true, DisplayOrder = 5 },
-            new Sport { Id = 6, Name = "Futsal",     Description = "Indoor variant of football on a smaller court.",  IsActive = true, DisplayOrder = 6 }
+            new Sport { Id = 6, Name = "Futsal",      Description = "Indoor variant of football on a smaller court.",    IsActive = true, DisplayOrder = 6 },
+            new Sport { Id = 7, Name = "Pickleball", Description = "Fast-growing paddle sport combining tennis, badminton, and ping-pong.", IsActive = true, DisplayOrder = 7 }
         );
 
         builder.Entity<FacilitySettings>().HasData(

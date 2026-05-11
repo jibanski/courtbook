@@ -54,7 +54,8 @@ body {
 .court-bg-volleyball{ background: linear-gradient(135deg, #dc3545, #f1aeb5); }
 .court-bg-football  { background: linear-gradient(135deg, #20c997, #0dcaf0); }
 .court-bg-futsal    { background: linear-gradient(135deg, #6f42c1, #a98eda); }
-.court-bg-other     { background: linear-gradient(135deg, #6c757d, #adb5bd); }
+.court-bg-other      { background: linear-gradient(135deg, #6c757d, #adb5bd); }
+.court-bg-pickleball { background: linear-gradient(135deg, #d4a017, #f5c842); }
 
 /* Time slot buttons */
 .time-slot-btn {
