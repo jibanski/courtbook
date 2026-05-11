@@ -35,8 +35,24 @@
                     {
                         <tr>
                             <td>
-                                <div class="fw-semibold">@court.Name</div>
-                                <small class="text-muted">@court.Description</small>
+                                <div class="d-flex align-items-center gap-3">
+                                    @if (!string.IsNullOrWhiteSpace(court.ImageUrl))
+                                    {
+                                        <img src="@court.ImageUrl" alt="@court.Name"
+                                             class="rounded" style="width:48px;height:48px;object-fit:cover;flex-shrink:0;" />
+                                    }
+                                    else
+                                    {
+                                        <div class="rounded d-flex align-items-center justify-content-center court-bg-@court.SportType.ToLower()"
+                                             style="width:48px;height:48px;flex-shrink:0;">
+                                            <i class="bi @AdminCourtHelpers.SportIcon(court.SportType) text-white fs-5"></i>
+                                        </div>
+                                    }
+                                    <div>
+                                        <div class="fw-semibold">@court.Name</div>
+                                        <small class="text-muted">@court.Description</small>
+                                    </div>
+                                </div>
                             </td>
                             <td><span class="badge bg-secondary">@court.SportType</span></td>
                             <td>@(court.IsIndoor ? "Indoor" : "Outdoor")</td>
@@ -67,3 +83,22 @@
         </div>
     </div>
 </div>
+
+@functions {
+    static class AdminCourtHelpers
+    {
+        public static string SportIcon(string sport) => sport?.ToLower() switch
+        {
+            "tennis"       => "bi-dribbble",
+            "badminton"    => "bi-feather",
+            "basketball"   => "bi-bullseye",
+            "volleyball"   => "bi-circle-fill",
+            "football"     => "bi-globe2",
+            "futsal"       => "bi-lightning-charge-fill",
+            "swimming"     => "bi-water",
+            "table tennis" => "bi-record-circle",
+            "billiards"    => "bi-circle",
+            _              => "bi-trophy-fill"
+        };
+    }
+}

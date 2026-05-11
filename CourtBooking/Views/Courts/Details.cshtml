@@ -22,6 +22,28 @@
         <!-- Court Info -->
         <div class="col-lg-4">
             <div class="card shadow-sm mb-4">
+                @if (!string.IsNullOrWhiteSpace(Model.Court.ImageUrl))
+                {
+                    <div class="position-relative">
+                        <img src="@Model.Court.ImageUrl" alt="@Model.Court.Name"
+                             class="card-img-top" style="height:200px; object-fit:cover;" />
+                        @if (Model.Court.IsIndoor)
+                        {
+                            <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="court-placeholder-lg d-flex flex-column align-items-center justify-content-center position-relative court-bg-@Model.Court.SportType.ToLower()">
+                        <i class="bi @SportIcon(Model.Court.SportType) display-1 text-white"></i>
+                        <span class="text-white fw-bold mt-2 text-uppercase opacity-75">@Model.Court.SportType</span>
+                        @if (Model.Court.IsIndoor)
+                        {
+                            <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
+                        }
+                    </div>
+                }
                 <div class="card-body">
                     <h5 class="card-title"><i class="bi bi-info-circle me-2 text-primary"></i>Court Details</h5>
                     <hr />
@@ -147,3 +169,19 @@
         </div>
     </div>
 </div>
+
+@functions {
+    static string SportIcon(string sport) => sport?.ToLower() switch
+    {
+        "tennis"       => "bi-dribbble",
+        "badminton"    => "bi-feather",
+        "basketball"   => "bi-bullseye",
+        "volleyball"   => "bi-circle-fill",
+        "football"     => "bi-globe2",
+        "futsal"       => "bi-lightning-charge-fill",
+        "swimming"     => "bi-water",
+        "table tennis" => "bi-record-circle",
+        "billiards"    => "bi-circle",
+        _              => "bi-trophy-fill"
+    };
+}

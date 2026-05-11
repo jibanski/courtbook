@@ -55,8 +55,9 @@
                         }
                         else
                         {
-                            <div class="card-img-placeholder d-flex align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()">
-                                <i class="bi bi-trophy display-3 text-white opacity-50"></i>
+                            <div class="court-placeholder d-flex flex-column align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()">
+                                <i class="bi @CourtHelpers.SportIcon(court.SportType) display-2 text-white"></i>
+                                <span class="text-white fw-semibold mt-2 small text-uppercase letter-spacing-1 opacity-75">@court.SportType</span>
                                 @if (court.IsIndoor)
                                 {
                                     <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
@@ -86,3 +87,22 @@
         </div>
     }
 </div>
+
+@functions {
+    static class CourtHelpers
+    {
+        public static string SportIcon(string sport) => sport?.ToLower() switch
+        {
+            "tennis"      => "bi-dribbble",
+            "badminton"   => "bi-feather",
+            "basketball"  => "bi-bullseye",
+            "volleyball"  => "bi-circle-fill",
+            "football"    => "bi-globe2",
+            "futsal"      => "bi-lightning-charge-fill",
+            "swimming"    => "bi-water",
+            "table tennis"=> "bi-record-circle",
+            "billiards"   => "bi-circle",
+            _             => "bi-trophy-fill"
+        };
+    }
+}
