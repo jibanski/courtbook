@@ -78,7 +78,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ConfirmPayment(int id)
     {
-        var booking = await _db.Bookings.FindAsync(id);
+        var courtIds = await GetMyCourtIdsAsync();
+        var booking  = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
         if (booking is null) return NotFound();
 
         booking.Status        = BookingStatus.Confirmed;
@@ -92,7 +93,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> RejectPayment(int id)
     {
-        var booking = await _db.Bookings.FindAsync(id);
+        var courtIds = await GetMyCourtIdsAsync();
+        var booking  = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
         if (booking is null) return NotFound();
 
         booking.Status           = BookingStatus.Cancelled;
@@ -253,7 +255,7 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> AddCourtSlot(int courtId, DateOnly slotDate, int startHour, int endHour)
     {
-        var court = await _db.Courts.FindAsync(courtId);
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
 
         if (endHour <= startHour || startHour < 0 || endHour > 24)
@@ -286,7 +288,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteCourtSlot(int id, int courtId, DateOnly slotDate)
     {
-        var slot = await _db.CourtTimeSlots.FindAsync(id);
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var slot = await _db.CourtTimeSlots.FirstOrDefaultAsync(s => s.Id == id && myCourtIds.Contains(s.CourtId));
         if (slot is null) return NotFound();
         _db.CourtTimeSlots.Remove(slot);
         await _db.SaveChangesAsync();
@@ -297,7 +300,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleCourtSlot(int id, int courtId, DateOnly slotDate)
     {
-        var slot = await _db.CourtTimeSlots.FindAsync(id);
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var slot = await _db.CourtTimeSlots.FirstOrDefaultAsync(s => s.Id == id && myCourtIds.Contains(s.CourtId));
         if (slot is null) return NotFound();
         slot.IsActive = !slot.IsActive;
         await _db.SaveChangesAsync();
@@ -428,7 +432,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateBookingStatus(int id, BookingStatus status)
     {
-        var booking = await _db.Bookings.FindAsync(id);
+        var courtIds = await GetMyCourtIdsAsync();
+        var booking  = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
         if (booking is null) return NotFound();
         booking.Status = status;
         await _db.SaveChangesAsync();
