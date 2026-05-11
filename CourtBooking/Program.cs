@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.FileProviders;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,9 +14,19 @@ var railwayPort = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrEmpty(railwayPort))
     builder.WebHost.UseUrls($"http://0.0.0.0:{railwayPort}");
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+var isPostgres = connectionString.StartsWith("postgresql://")
+              || connectionString.StartsWith("postgres://")
+              || connectionString.Contains("Host=");
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"))
-           .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
+{
+    if (isPostgres)
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlite(connectionString)
+               .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+});
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
