@@ -25,12 +25,22 @@ public class CourtsController : Controller
 
     public async Task<IActionResult> Index(string? sport, string? facility)
     {
-        // Customers with a preferred facility always go to their facility's branded page
-        if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Admin"))
+        if (User.Identity?.IsAuthenticated == true)
         {
             var uid  = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var user = uid != null ? await _userManager.FindByIdAsync(uid) : null;
-            if (!string.IsNullOrEmpty(user?.PreferredFacilitySlug))
+
+            // Admins → redirect to their own facility's public page
+            if (User.IsInRole("Admin") && user != null)
+            {
+                var settings = await _db.FacilitySettings
+                    .FirstOrDefaultAsync(s => s.OwnerId == uid);
+                if (!string.IsNullOrEmpty(settings?.Slug))
+                    return RedirectToAction("Index", "Facility", new { slug = settings.Slug });
+            }
+
+            // Customers → redirect to their preferred facility
+            if (!User.IsInRole("Admin") && !string.IsNullOrEmpty(user?.PreferredFacilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = user.PreferredFacilitySlug });
         }
 
