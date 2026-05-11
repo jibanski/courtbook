@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace CourtBooking.Controllers;
 
@@ -29,10 +30,14 @@ public class SubscriptionController : Controller
         _userManager = userManager;
     }
 
+    private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+    private async Task<FacilitySettings?> GetMySettingsAsync() =>
+        await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
+
     // GET /Subscription/Upgrade
     public async Task<IActionResult> Upgrade()
     {
-        var settings = await _db.FacilitySettings.FirstOrDefaultAsync();
+        var settings = await GetMySettingsAsync();
 
         // Already subscribed — go back to dashboard
         if (settings?.IsSubscribed == true)
@@ -67,10 +72,10 @@ public class SubscriptionController : Controller
         var proofPath = await SaveProofAsync(model.Proof!);
 
         // Update FacilitySettings
-        var settings = await _db.FacilitySettings.FirstOrDefaultAsync();
+        var settings = await GetMySettingsAsync();
         if (settings is null)
         {
-            settings = new FacilitySettings { Id = 1 };
+            settings = new FacilitySettings { OwnerId = CurrentUserId };
             _db.FacilitySettings.Add(settings);
         }
 
@@ -88,7 +93,7 @@ public class SubscriptionController : Controller
     // GET /Subscription/Pending
     public async Task<IActionResult> Pending()
     {
-        var settings = await _db.FacilitySettings.FirstOrDefaultAsync();
+        var settings = await GetMySettingsAsync();
         if (settings?.IsSubscribed == true)
             return RedirectToAction("Index", "Admin");
 
@@ -116,7 +121,7 @@ public class SubscriptionController : Controller
             return RedirectToAction("Settings", "Admin");
         }
 
-        var settings = await _db.FacilitySettings.FirstOrDefaultAsync();
+        var settings = await GetMySettingsAsync();
         var plan     = settings?.SubscriptionPlan;   // may be null if skipping payment flow
 
         if (!_keyGen.VerifyKey(model.Key, adminUser.Email!, plan))
@@ -127,7 +132,7 @@ public class SubscriptionController : Controller
 
         if (settings is null)
         {
-            settings = new FacilitySettings { Id = 1 };
+            settings = new FacilitySettings { OwnerId = CurrentUserId };
             _db.FacilitySettings.Add(settings);
         }
 

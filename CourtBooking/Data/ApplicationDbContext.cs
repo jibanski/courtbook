@@ -46,9 +46,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             new Sport { Id = 7, Name = "Pickleball", Description = "Fast-growing paddle sport combining tennis, badminton, and ping-pong.", IsActive = true, DisplayOrder = 7 }
         );
 
-        builder.Entity<FacilitySettings>().HasData(
-            new FacilitySettings { Id = 1, FacilityName = "CourtBook", PaymentInstructions = "Please send the exact amount and include your booking reference in the notes." }
-        );
+        // FacilitySettings — one record per Admin user, linked by OwnerId
+        builder.Entity<FacilitySettings>()
+            .HasOne(s => s.Owner)
+            .WithMany()
+            .HasForeignKey(s => s.OwnerId)
+            .OnDelete(DeleteBehavior.SetNull);
 
+        // Courts — owned by the Admin who created them
+        builder.Entity<Court>()
+            .HasOne(c => c.Owner)
+            .WithMany()
+            .HasForeignKey(c => c.OwnerId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

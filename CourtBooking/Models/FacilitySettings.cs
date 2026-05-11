@@ -5,7 +5,11 @@ namespace CourtBooking.Models;
 
 public class FacilitySettings
 {
-    public int Id { get; set; } = 1;
+    public int Id { get; set; }
+
+    /// <summary>The admin user who owns this facility's settings.</summary>
+    public string? OwnerId { get; set; }
+    public ApplicationUser? Owner { get; set; }
 
     [MaxLength(100)]
     public string FacilityName { get; set; } = "CourtBook";

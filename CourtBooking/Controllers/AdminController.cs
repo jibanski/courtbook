@@ -4,6 +4,7 @@ using CourtBooking.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace CourtBooking.Controllers;
 
@@ -15,13 +16,23 @@ public class AdminController : Controller
 
     public AdminController(ApplicationDbContext db) => _db = db;
 
+    // ── Current-owner helpers ─────────────────────────────────────────────────
+    private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+    private IQueryable<Court> MyCourts => _db.Courts.Where(c => c.OwnerId == CurrentUserId);
+    private async Task<FacilitySettings?> GetMySettingsAsync() =>
+        await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
+    private async Task<List<int>> GetMyCourtIdsAsync() =>
+        await MyCourts.Select(c => c.Id).ToListAsync();
+
     public async Task<IActionResult> Index()
     {
-        var totalBookings    = await _db.Bookings.CountAsync(b => b.Status != BookingStatus.Cancelled);
-        var todayBookings    = await _db.Bookings.CountAsync(b => b.BookingDate == DateOnly.FromDateTime(DateTime.Today) && b.Status != BookingStatus.Cancelled);
-        var totalRevenue     = await _db.Bookings.Where(b => b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed).SumAsync(b => b.TotalPrice);
-        var activeCourts     = await _db.Courts.CountAsync(c => c.IsActive);
-        var awaitingPayment  = await _db.Bookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentReference != null);
+        var courtIds = await GetMyCourtIdsAsync();
+
+        var totalBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status != BookingStatus.Cancelled);
+        var todayBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == DateOnly.FromDateTime(DateTime.Today) && b.Status != BookingStatus.Cancelled);
+        var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
+        var activeCourts    = await MyCourts.CountAsync(c => c.IsActive);
+        var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentReference != null);
 
         ViewBag.TotalBookings   = totalBookings;
         ViewBag.TodayBookings   = todayBookings;
@@ -30,6 +41,7 @@ public class AdminController : Controller
         ViewBag.AwaitingPayment = awaitingPayment;
 
         var recentBookings = await _db.Bookings
+            .Where(b => courtIds.Contains(b.CourtId))
             .Include(b => b.Court)
             .Include(b => b.User)
             .OrderByDescending(b => b.CreatedAt)
@@ -41,7 +53,10 @@ public class AdminController : Controller
 
     public async Task<IActionResult> Bookings(string? status, DateOnly? date, bool? awaitingConfirmation)
     {
-        var query = _db.Bookings.Include(b => b.Court).Include(b => b.User).AsQueryable();
+        var courtIds = await GetMyCourtIdsAsync();
+        var query = _db.Bookings
+            .Where(b => courtIds.Contains(b.CourtId))
+            .Include(b => b.Court).Include(b => b.User).AsQueryable();
 
         if (awaitingConfirmation == true)
             query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentReference != null);
@@ -52,10 +67,10 @@ public class AdminController : Controller
             query = query.Where(b => b.BookingDate == date.Value);
 
         var bookings = await query.OrderByDescending(b => b.PaymentProofSubmittedAt ?? b.CreatedAt).ToListAsync();
-        ViewBag.SelectedStatus            = status;
-        ViewBag.SelectedDate              = date;
-        ViewBag.AwaitingConfirmation      = awaitingConfirmation;
-        ViewBag.PendingPaymentCount       = await _db.Bookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentReference != null);
+        ViewBag.SelectedStatus       = status;
+        ViewBag.SelectedDate         = date;
+        ViewBag.AwaitingConfirmation = awaitingConfirmation;
+        ViewBag.PendingPaymentCount  = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentReference != null);
         return View(bookings);
     }
 
@@ -89,7 +104,7 @@ public class AdminController : Controller
 
     public async Task<IActionResult> Courts()
     {
-        var courts = await _db.Courts.ToListAsync();
+        var courts = await MyCourts.ToListAsync();
         return View(courts);
     }
 
@@ -103,6 +118,7 @@ public class AdminController : Controller
     public async Task<IActionResult> CreateCourt(Court court, IFormFile? photo)
     {
         if (!ModelState.IsValid) { await PopulateSportsAsync(); return View(court); }
+        court.OwnerId = CurrentUserId;
         _db.Courts.Add(court);
         await _db.SaveChangesAsync();
         court.ImageUrl = await SaveCourtPhotoAsync(photo, court.Id, null);
@@ -113,7 +129,7 @@ public class AdminController : Controller
 
     public async Task<IActionResult> EditCourt(int id)
     {
-        var court = await _db.Courts.FindAsync(id);
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == id);
         if (court is null) return NotFound();
         await PopulateSportsAsync();
         return View(court);
@@ -121,7 +137,7 @@ public class AdminController : Controller
 
     public async Task<IActionResult> ManageSlots(int id, DateOnly? date)
     {
-        var court = await _db.Courts.FindAsync(id);
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == id);
         if (court is null) return NotFound();
 
         var selectedDate = date ?? DateOnly.FromDateTime(DateTime.Today);
@@ -140,7 +156,7 @@ public class AdminController : Controller
     {
         if (!ModelState.IsValid) { await PopulateSportsAsync(); return View(court); }
 
-        var existing = await _db.Courts.FindAsync(court.Id);
+        var existing = await MyCourts.FirstOrDefaultAsync(c => c.Id == court.Id);
         if (existing is null) return NotFound();
 
         existing.Name         = court.Name;
@@ -291,7 +307,7 @@ public class AdminController : Controller
 
     public async Task<IActionResult> Settings()
     {
-        var settings = await _db.FacilitySettings.FirstOrDefaultAsync() ?? new FacilitySettings();
+        var settings = await GetMySettingsAsync() ?? new FacilitySettings();
         return View(settings);
     }
 
@@ -300,10 +316,10 @@ public class AdminController : Controller
     {
         if (!ModelState.IsValid) return View(model);
 
-        var settings = await _db.FacilitySettings.FirstOrDefaultAsync();
+        var settings = await GetMySettingsAsync();
         if (settings is null)
         {
-            model.Id = 1;
+            model.OwnerId = CurrentUserId;
             _db.FacilitySettings.Add(model);
         }
         else
@@ -381,7 +397,7 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleCourt(int id)
     {
-        var court = await _db.Courts.FindAsync(id);
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == id);
         if (court is null) return NotFound();
         court.IsActive = !court.IsActive;
         await _db.SaveChangesAsync();

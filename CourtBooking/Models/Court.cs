@@ -26,6 +26,10 @@ public class Court
     public int OpeningHour { get; set; } = 6;
     public int ClosingHour { get; set; } = 22;
 
+    /// <summary>The admin user who created/owns this court.</summary>
+    public string? OwnerId { get; set; }
+    public ApplicationUser? Owner { get; set; }
+
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public ICollection<CourtTimeSlot> TimeSlots { get; set; } = new List<CourtTimeSlot>();
 }

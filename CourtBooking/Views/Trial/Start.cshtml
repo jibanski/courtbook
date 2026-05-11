@@ -2,7 +2,6 @@
 @{
     ViewData["Title"] = "Create Account";
     Layout = "_LandingLayout";
-    bool adminExists = ViewBag.AdminExists == true;
 }
 
 <section class="py-5 bg-light min-vh-100 d-flex align-items-center">
@@ -45,30 +44,18 @@
                             <!-- Facility Owner card -->
                             <div class="col-6">
                                 <div id="cardAdmin"
-                                     class="role-card @(Model.Role == "Admin" ? "role-card-active" : "") @(adminExists ? "role-card-disabled" : "")"
-                                     onclick="@(adminExists ? "" : "selectRole('Admin')")">
+                                     class="role-card @(Model.Role == "Admin" ? "role-card-active" : "")"
+                                     onclick="selectRole('Admin')">
                                     <div class="role-icon bg-primary-subtle text-primary mb-2">
                                         <i class="bi bi-buildings fs-4"></i>
                                     </div>
                                     <div class="fw-bold small">Facility Owner</div>
-                                    <div class="text-muted" style="font-size:.72rem;">
-                                        @if (adminExists)
-                                        {
-                                            <span class="text-danger"><i class="bi bi-lock-fill me-1"></i>Already registered</span>
-                                        }
-                                        else
-                                        {
-                                            <span>Manage courts &amp; bookings</span>
-                                        }
+                                    <div class="text-muted" style="font-size:.72rem;">Manage courts &amp; bookings</div>
+                                    <div class="mt-2">
+                                        <span class="badge bg-success-subtle text-success" style="font-size:.65rem;">
+                                            <i class="bi bi-gift me-1"></i>7-Day Free Trial
+                                        </span>
                                     </div>
-                                    @if (!adminExists)
-                                    {
-                                        <div class="mt-2">
-                                            <span class="badge bg-success-subtle text-success" style="font-size:.65rem;">
-                                                <i class="bi bi-gift me-1"></i>7-Day Free Trial
-                                            </span>
-                                        </div>
-                                    }
                                 </div>
                             </div>
 

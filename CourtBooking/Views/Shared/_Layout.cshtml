@@ -1,10 +1,16 @@
 @using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
 @inject CourtBooking.Data.ApplicationDbContext _layoutDb
 @{
-    var _fs        = await _layoutDb.FacilitySettings.FirstOrDefaultAsync();
-    var _brand     = _fs?.DisplayName    ?? "CourtBook";
-    var _tagline   = _fs?.DisplayTagline ?? "Book your court anytime, anywhere.";
-    var _logoUrl   = (_fs?.IsSubscribed == true) ? _fs.BrandLogoUrl : null;
+    // For admin users: show their own facility branding & trial banner.
+    // For customers/guests: fall back to the first facility or defaults.
+    var _uid    = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var _fs     = User.IsInRole("Admin") && _uid != null
+                    ? await _layoutDb.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == _uid)
+                    : await _layoutDb.FacilitySettings.FirstOrDefaultAsync();
+    var _brand   = _fs?.DisplayName    ?? "CourtBook";
+    var _tagline = _fs?.DisplayTagline ?? "Book your court anytime, anywhere.";
+    var _logoUrl = (_fs?.IsSubscribed == true) ? _fs.BrandLogoUrl : null;
 }
 <!DOCTYPE html>
 <html lang="en">

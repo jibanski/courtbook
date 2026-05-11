@@ -23,14 +23,9 @@ public class TrialController : Controller
     }
 
     // GET /Trial/Start
-    public async Task<IActionResult> Start(string? role)
+    public IActionResult Start(string? role)
     {
-        bool adminExists = (await _userManager.GetUsersInRoleAsync("Admin")).Any();
-        ViewBag.AdminExists = adminExists;
-
-        // If the admin slot is already taken, pre-select Customer so the form is usable
-        var effectiveRole = (role == "Admin" && !adminExists) ? "Admin" : "Customer";
-
+        var effectiveRole = role == "Admin" ? "Admin" : "Customer";
         return View(new TrialRegistrationViewModel { Role = effectiveRole });
     }
 
@@ -38,16 +33,8 @@ public class TrialController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Start(TrialRegistrationViewModel model)
     {
-        ViewBag.AdminExists = (await _userManager.GetUsersInRoleAsync("Admin")).Any();
-
-        // Facility name is required for the Admin (owner) role
         if (model.Role == "Admin" && string.IsNullOrWhiteSpace(model.FacilityName))
             ModelState.AddModelError(nameof(model.FacilityName), "Facility name is required for facility owners.");
-
-        // Only one admin per instance
-        if (model.Role == "Admin" && (bool)ViewBag.AdminExists)
-            ModelState.AddModelError(string.Empty,
-                "A facility owner account already exists for this installation. Please log in or contact your administrator.");
 
         if (!ModelState.IsValid)
             return View(model);
@@ -73,15 +60,15 @@ public class TrialController : Controller
         {
             await _userManager.AddToRoleAsync(user, "Admin");
 
-            // Record trial start in FacilitySettings
-            var settings = await _db.FacilitySettings.FirstOrDefaultAsync();
-            if (settings is null)
+            // Each admin gets their own FacilitySettings record
+            var settings = new FacilitySettings
             {
-                settings = new FacilitySettings { Id = 1 };
-                _db.FacilitySettings.Add(settings);
-            }
-            settings.FacilityName   = model.FacilityName!;
-            settings.TrialStartedAt = DateTime.UtcNow;
+                OwnerId              = user.Id,
+                FacilityName         = model.FacilityName!,
+                TrialStartedAt       = DateTime.UtcNow,
+                PaymentInstructions  = "Please send the exact amount and include your booking reference in the notes."
+            };
+            _db.FacilitySettings.Add(settings);
             await _db.SaveChangesAsync();
 
             await _signInManager.SignInAsync(user, isPersistent: false);
