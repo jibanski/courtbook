@@ -92,17 +92,37 @@ app.MapControllerRoute(
 // Seed roles and admin user on startup
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.Migrate();
-
+    var db          = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+    db.Database.Migrate();
 
     foreach (var role in new[] { "Admin", "Customer" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
 
-    // Admin account is created via the /Trial/Start self-service registration flow.
+    // ── One-time data fix: assign orphaned records (OwnerId = NULL) to the
+    //    first admin. Handles courts/settings created before multi-tenant migration.
+    var admins = await userManager.GetUsersInRoleAsync("Admin");
+    if (admins.Count == 1)
+    {
+        // Only auto-assign when there is exactly one admin — unambiguous.
+        var firstAdmin = admins[0];
+
+        var orphanSettings = await db.FacilitySettings
+            .Where(s => s.OwnerId == null).ToListAsync();
+        foreach (var s in orphanSettings)
+            s.OwnerId = firstAdmin.Id;
+
+        var orphanCourts = await db.Courts
+            .Where(c => c.OwnerId == null).ToListAsync();
+        foreach (var c in orphanCourts)
+            c.OwnerId = firstAdmin.Id;
+
+        if (orphanSettings.Any() || orphanCourts.Any())
+            await db.SaveChangesAsync();
+    }
 }
 
 app.Run();
