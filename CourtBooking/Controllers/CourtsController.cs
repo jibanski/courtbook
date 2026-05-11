@@ -2,8 +2,10 @@ using CourtBooking.Data;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using CourtBooking.ViewModels;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace CourtBooking.Controllers;
 
@@ -11,15 +13,32 @@ public class CourtsController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly BookingService _bookingService;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public CourtsController(ApplicationDbContext db, BookingService bookingService)
+    public CourtsController(ApplicationDbContext db, BookingService bookingService,
+                            UserManager<ApplicationUser> userManager)
     {
-        _db = db;
+        _db          = db;
         _bookingService = bookingService;
+        _userManager = userManager;
     }
 
     public async Task<IActionResult> Index(string? sport, string? facility)
     {
+        // Customers with a preferred facility always go to their facility's branded page
+        if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Admin"))
+        {
+            var uid  = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = uid != null ? await _userManager.FindByIdAsync(uid) : null;
+            if (!string.IsNullOrEmpty(user?.PreferredFacilitySlug))
+                return RedirectToAction("Index", "Facility", new { slug = user.PreferredFacilitySlug });
+        }
+
+        // Unauthenticated visitor who arrived via a shared facility link
+        var cookieSlug = Request.Cookies["facilitySlug"];
+        if (!string.IsNullOrEmpty(cookieSlug))
+            return RedirectToAction("Index", "Facility", new { slug = cookieSlug });
+
         var query = _db.Courts.Where(c => c.IsActive && c.OwnerId != null);
 
         if (!string.IsNullOrWhiteSpace(sport))
