@@ -1,0 +1,28 @@
+﻿using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace CourtBooking.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddPreferredFacilitySlug : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<string>(
+                name: "PreferredFacilitySlug",
+                table: "AspNetUsers",
+                type: "text",
+                nullable: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropColumn(
+                name: "PreferredFacilitySlug",
+                table: "AspNetUsers");
+        }
+    }
+}

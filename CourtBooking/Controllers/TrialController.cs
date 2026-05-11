@@ -81,11 +81,18 @@ public class TrialController : Controller
         else
         {
             await _userManager.AddToRoleAsync(user, "Customer");
+
+            // Pin this customer to the facility they came from so every future login lands here
+            var facilitySlug = Request.Cookies["facilitySlug"];
+            if (!string.IsNullOrEmpty(facilitySlug))
+            {
+                user.PreferredFacilitySlug = facilitySlug;
+                await _userManager.UpdateAsync(user);
+            }
+
             await _signInManager.SignInAsync(user, isPersistent: false);
             TempData["Success"] = $"Welcome, {user.FirstName}! Browse courts and make your first booking.";
 
-            // If they arrived via a facility-specific URL, send them back there
-            var facilitySlug = Request.Cookies["facilitySlug"];
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
 

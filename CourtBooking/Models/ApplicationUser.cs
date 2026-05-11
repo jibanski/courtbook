@@ -10,5 +10,11 @@ public class ApplicationUser : IdentityUser
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
 
+    /// <summary>
+    /// Slug of the facility this customer was onboarded from.
+    /// After login, customers are always sent to /f/{PreferredFacilitySlug}.
+    /// </summary>
+    public string? PreferredFacilitySlug { get; set; }
+
     public string FullName => $"{FirstName} {LastName}".Trim();
 }

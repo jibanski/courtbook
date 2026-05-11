@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Security.Claims;
 using CourtBooking.Data;
 using CourtBooking.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,8 +11,13 @@ namespace CourtBooking.Controllers;
 public class HomeController : Controller
 {
     private readonly ApplicationDbContext _db;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public HomeController(ApplicationDbContext db) => _db = db;
+    public HomeController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
+    {
+        _db          = db;
+        _userManager = userManager;
+    }
 
     public async Task<IActionResult> Index()
     {
@@ -22,9 +29,17 @@ public class HomeController : Controller
         if (User.IsInRole("Admin"))
             return RedirectToAction("Index", "Admin");
 
-        // Customers see the courts listing
-        var courts = await _db.Courts.Where(c => c.IsActive).ToListAsync();
-        return View(courts);
+        // Customers: always send them to their preferred facility if one is set
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId != null)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (!string.IsNullOrEmpty(user?.PreferredFacilitySlug))
+                return RedirectToAction("Index", "Facility", new { slug = user.PreferredFacilitySlug });
+        }
+
+        // No preferred facility — show the generic courts browser
+        return RedirectToAction("Index", "Courts");
     }
 
     public IActionResult Privacy() => View();

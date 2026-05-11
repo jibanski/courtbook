@@ -36,9 +36,16 @@ public class AccountController : Controller
         if (result.Succeeded)
         {
             await _userManager.AddToRoleAsync(user, "Customer");
-            await _signInManager.SignInAsync(user, isPersistent: false);
 
             var facilitySlug = Request.Cookies["facilitySlug"];
+            if (!string.IsNullOrEmpty(facilitySlug))
+            {
+                user.PreferredFacilitySlug = facilitySlug;
+                await _userManager.UpdateAsync(user);
+            }
+
+            await _signInManager.SignInAsync(user, isPersistent: false);
+
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
 
@@ -65,22 +72,31 @@ public class AccountController : Controller
         var result = await _signInManager.PasswordSignInAsync(vm.Email, vm.Password, vm.RememberMe, lockoutOnFailure: false);
         if (result.Succeeded)
         {
-            // Admins always go to their dashboard — ignore returnUrl / facility cookie for them
             var user = await _userManager.FindByEmailAsync(vm.Email);
+
+            // Admins always go to their dashboard — ignore returnUrl / facility cookie
             if (user != null && await _userManager.IsInRoleAsync(user, "Admin"))
                 return RedirectToAction("Index", "Admin");
 
-            // For customers: if a specific page was requested (e.g. a booking form link), honour it
+            // Persist the facility the customer arrived from (once — never overwrite an existing preference)
+            var cookieSlug = Request.Cookies["facilitySlug"];
+            if (user != null && !string.IsNullOrEmpty(cookieSlug)
+                && string.IsNullOrEmpty(user.PreferredFacilitySlug))
+            {
+                user.PreferredFacilitySlug = cookieSlug;
+                await _userManager.UpdateAsync(user);
+            }
+
+            // Determine redirect: booking deep-link → facility home → generic courts
+            var preferredSlug = user?.PreferredFacilitySlug;
+
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)
                 && !returnUrl.StartsWith("/Account") && !returnUrl.StartsWith("/Trial"))
                 return LocalRedirect(returnUrl);
 
-            // Otherwise send them back to the facility page they came from
-            var facilitySlug = Request.Cookies["facilitySlug"];
-            if (!string.IsNullOrEmpty(facilitySlug))
-                return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
+            if (!string.IsNullOrEmpty(preferredSlug))
+                return RedirectToAction("Index", "Facility", new { slug = preferredSlug });
 
-            // Final fallback — generic courts browser
             return RedirectToAction("Index", "Courts");
         }
 
