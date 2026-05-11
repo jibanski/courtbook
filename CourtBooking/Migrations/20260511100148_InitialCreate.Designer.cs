@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CourtBooking.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260511095050_InitialCreate")]
+    [Migration("20260511100148_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
