@@ -1,6 +1,7 @@
 @model IEnumerable<CourtBooking.Models.Booking>
 @{
     ViewData["Title"] = "My Bookings";
+    var facilityMap = ViewBag.FacilityMap as Dictionary<string, string> ?? new();
 }
 
 <div class="bg-primary text-white py-4 mb-4">
@@ -50,7 +51,19 @@
                                 @(isAwaitingConfirm ? "border-info border-2" : "")">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="fw-bold mb-0">@booking.Court.Name</h6>
+                                <div>
+                                    <h6 class="fw-bold mb-0">@booking.Court.Name</h6>
+                                    @{
+                                        var ownerId = booking.Court?.OwnerId;
+                                        var facName = ownerId != null && facilityMap.TryGetValue(ownerId, out var fn) ? fn : null;
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(facName))
+                                    {
+                                        <div class="text-muted" style="font-size:.75rem;">
+                                            <i class="bi bi-buildings me-1"></i>@facName
+                                        </div>
+                                    }
+                                </div>
                                 <div class="d-flex flex-column gap-1 align-items-end">
                                     <span class="badge @badgeClass">@booking.Status</span>
                                     @if (booking.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid)

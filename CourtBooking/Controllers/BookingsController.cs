@@ -32,6 +32,18 @@ public class BookingsController : Controller
             .OrderByDescending(b => b.BookingDate)
             .ThenByDescending(b => b.StartTime)
             .ToListAsync();
+
+        // Build a facility name map keyed by OwnerId for display in the list
+        var ownerIds = bookings
+            .Where(b => b.Court?.OwnerId != null)
+            .Select(b => b.Court!.OwnerId!)
+            .Distinct()
+            .ToList();
+        var facilityMap = await _db.FacilitySettings
+            .Where(s => ownerIds.Contains(s.OwnerId!))
+            .ToDictionaryAsync(s => s.OwnerId!, s => s.FacilityName);
+        ViewBag.FacilityMap = facilityMap;
+
         return View(bookings);
     }
 
@@ -39,6 +51,15 @@ public class BookingsController : Controller
     {
         var court = await _db.Courts.FirstOrDefaultAsync(c => c.Id == courtId && c.IsActive);
         if (court is null) return NotFound();
+
+        // Load the facility name for this court's owner
+        var facilityName = court.OwnerId != null
+            ? (await _db.FacilitySettings
+                .Where(s => s.OwnerId == court.OwnerId)
+                .Select(s => s.FacilityName)
+                .FirstOrDefaultAsync())
+            : null;
+        ViewBag.FacilityName = facilityName;
 
         var vm = new BookingViewModel
         {
@@ -105,7 +126,11 @@ public class BookingsController : Controller
 
         if (booking is null) return NotFound();
 
-        var settings = await _db.FacilitySettings.FirstOrDefaultAsync() ?? new FacilitySettings();
+        // Load the correct facility's settings (the court owner's), not just the first row
+        var settings = (booking.Court?.OwnerId != null
+            ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == booking.Court.OwnerId)
+            : await _db.FacilitySettings.FirstOrDefaultAsync())
+            ?? new FacilitySettings();
         ViewBag.Settings = settings;
         return View(booking);
     }
