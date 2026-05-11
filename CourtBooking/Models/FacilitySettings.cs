@@ -18,6 +18,9 @@ public class FacilitySettings
     [MaxLength(100)]
     public string FacilityName { get; set; } = "CourtBook";
 
+    [MaxLength(300)]
+    public string? Address { get; set; }
+
     [MaxLength(20)]
     public string? GCashNumber { get; set; }
 

@@ -29,6 +29,12 @@
                 @if (fs != null)
                 {
                     <p class="mb-0 opacity-75 small">@fs.DisplayTagline</p>
+                    @if (!string.IsNullOrWhiteSpace(fs.Address))
+                    {
+                        <p class="mb-0 opacity-75 small">
+                            <i class="bi bi-geo-alt me-1"></i>@fs.Address
+                        </p>
+                    }
                 }
             </div>
             @if (fs?.IsSubscribed == true)

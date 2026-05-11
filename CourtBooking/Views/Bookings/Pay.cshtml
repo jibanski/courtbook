@@ -30,6 +30,13 @@
                             <div class="col-6 fw-semibold">
                                 <i class="bi bi-buildings me-1 text-primary"></i>@settings.FacilityName
                             </div>
+                            @if (!string.IsNullOrWhiteSpace(settings.Address))
+                            {
+                                <div class="col-6 text-muted small">Address</div>
+                                <div class="col-6 fw-semibold small">
+                                    <i class="bi bi-geo-alt me-1 text-muted"></i>@settings.Address
+                                </div>
+                            }
                         }
                         <div class="col-6 text-muted small">Court</div>
                         <div class="col-6 fw-semibold">@Model.Court.Name (@Model.Court.SportType)</div>

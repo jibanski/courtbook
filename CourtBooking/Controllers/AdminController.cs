@@ -330,6 +330,7 @@ public class AdminController : Controller
         else
         {
             settings.FacilityName        = model.FacilityName;
+            settings.Address             = model.Address;
             settings.GCashNumber         = model.GCashNumber;
             settings.GCashName           = model.GCashName;
             settings.MayaNumber          = model.MayaNumber;

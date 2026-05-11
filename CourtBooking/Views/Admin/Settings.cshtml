@@ -145,6 +145,13 @@
                             <input asp-for="FacilityName" class="form-control" placeholder="e.g. City Sports Complex" />
                             <span asp-validation-for="FacilityName" class="text-danger small"></span>
                         </div>
+                        <div class="mb-3">
+                            <label asp-for="Address" class="form-label fw-semibold">Address</label>
+                            <input asp-for="Address" class="form-control"
+                                   placeholder="e.g. 123 Rizal St., Cebu City, 6000 Cebu" />
+                            <span asp-validation-for="Address" class="text-danger small"></span>
+                            <div class="form-text">Shown to customers on the booking and payment pages.</div>
+                        </div>
                         <div class="mb-0">
                             <label asp-for="Slug" class="form-label fw-semibold">
                                 URL Slug
