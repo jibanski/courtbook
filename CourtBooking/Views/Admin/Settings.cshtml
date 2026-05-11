@@ -1,0 +1,299 @@
+@model CourtBooking.Models.FacilitySettings
+@using CourtBooking.ViewModels
+@{
+    ViewData["Title"] = "Facility Settings";
+}
+
+<div class="bg-dark text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1"><i class="bi bi-gear-fill me-2"></i>Facility Settings</h1>
+        <p class="mb-0 opacity-75">Configure payment details shown to customers</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <form asp-action="Settings" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+
+                <!-- ── Custom Branding (Pro only) ──────────────────── -->
+                <div class="card shadow-sm mb-4 @(Model.IsSubscribed ? "" : "opacity-75")">
+                    <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-palette me-2 text-primary"></i>Custom Branding</span>
+                        @if (Model.IsSubscribed)
+                        {
+                            <span class="badge bg-success-subtle text-success">Pro Feature</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Pro Only</span>
+                        }
+                    </div>
+                    <div class="card-body">
+                        @if (!Model.IsSubscribed)
+                        {
+                            <div class="alert alert-secondary small mb-3 d-flex align-items-center gap-2">
+                                <i class="bi bi-lock-fill fs-5 text-muted"></i>
+                                <div>
+                                    <strong>Unlock custom branding</strong> by upgrading to CourtBook Pro.
+                                    Replace "CourtBook" with your facility name across the entire site.
+                                    <a asp-controller="Subscription" asp-action="Upgrade" class="ms-1 fw-semibold">Upgrade Now →</a>
+                                </div>
+                            </div>
+                        }
+
+                        @if (Model.IsSubscribed)
+                        {
+                            <div class="mb-3">
+                                <label asp-for="BrandName" class="form-label fw-semibold small">
+                                    Site Name <span class="text-muted fw-normal">(replaces "CourtBook" everywhere)</span>
+                                </label>
+                                <input asp-for="BrandName" class="form-control"
+                                       placeholder="e.g. Greenfield Sports Complex" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="BrandTagline" class="form-label fw-semibold small">
+                                    Tagline <span class="text-muted fw-normal">(shown in the footer)</span>
+                                </label>
+                                <input asp-for="BrandTagline" class="form-control"
+                                       placeholder="e.g. Your premier sports destination" />
+                            </div>
+
+                            <div class="mb-0">
+                                <label class="form-label fw-semibold small">
+                                    Logo <span class="text-muted fw-normal">(shown in navbar instead of the text name)</span>
+                                </label>
+                                @if (!string.IsNullOrWhiteSpace(Model.BrandLogoUrl))
+                                {
+                                    <div class="mb-2 p-2 bg-primary d-inline-block rounded">
+                                        <img src="@Model.BrandLogoUrl" alt="Current logo" id="logoPreview"
+                                             style="height:36px;max-width:180px;object-fit:contain;" />
+                                    </div>
+                                    <br />
+                                }
+                                else
+                                {
+                                    <img src="" id="logoPreview" class="d-none mb-2"
+                                         style="height:36px;max-width:180px;object-fit:contain;" />
+                                }
+                                <input type="file" name="logo" class="form-control"
+                                       accept=".jpg,.jpeg,.png,.webp,.svg"
+                                       onchange="previewLogo(this)" />
+                                <div class="form-text">PNG, JPG, SVG. Recommended: transparent background, min 200px wide.</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <!-- Locked preview -->
+                            <div class="pe-none opacity-50">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold small">Site Name</label>
+                                    <input type="text" class="form-control" disabled placeholder="e.g. Greenfield Sports Complex" />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold small">Tagline</label>
+                                    <input type="text" class="form-control" disabled placeholder="e.g. Your premier sports destination" />
+                                </div>
+                                <div class="mb-0">
+                                    <label class="form-label fw-semibold small">Logo</label>
+                                    <input type="file" class="form-control" disabled />
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Facility Name -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-building me-2"></i>Facility Info
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label asp-for="FacilityName" class="form-label fw-semibold">Facility Name</label>
+                            <input asp-for="FacilityName" class="form-control" placeholder="e.g. City Sports Complex" />
+                            <span asp-validation-for="FacilityName" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GCash -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-phone me-2 text-primary"></i>GCash
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label asp-for="GCashNumber" class="form-label fw-semibold">GCash Number</label>
+                            <input asp-for="GCashNumber" class="form-control" placeholder="09XXXXXXXXX" />
+                            <span asp-validation-for="GCashNumber" class="text-danger small"></span>
+                        </div>
+                        <div class="mb-0">
+                            <label asp-for="GCashName" class="form-label fw-semibold">Account Name</label>
+                            <input asp-for="GCashName" class="form-control" placeholder="Full name on GCash account" />
+                            <span asp-validation-for="GCashName" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maya -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-phone me-2 text-success"></i>Maya
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label asp-for="MayaNumber" class="form-label fw-semibold">Maya Number</label>
+                            <input asp-for="MayaNumber" class="form-control" placeholder="09XXXXXXXXX" />
+                            <span asp-validation-for="MayaNumber" class="text-danger small"></span>
+                        </div>
+                        <div class="mb-0">
+                            <label asp-for="MayaName" class="form-label fw-semibold">Account Name</label>
+                            <input asp-for="MayaName" class="form-control" placeholder="Full name on Maya account" />
+                            <span asp-validation-for="MayaName" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Instructions -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-chat-text me-2"></i>Payment Instructions
+                    </div>
+                    <div class="card-body">
+                        <textarea asp-for="PaymentInstructions" class="form-control" rows="3"
+                                  placeholder="e.g. Please send the exact amount and include your booking reference in the notes."></textarea>
+                        <span asp-validation-for="PaymentInstructions" class="text-danger small"></span>
+                        <div class="form-text">Shown to customers on the payment page.</div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1"></i>Save Settings
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </form>
+
+            <!-- ── Subscription ──────────────────────────────────────── -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-trophy-fill text-warning me-2"></i>Subscription</span>
+                    @if (Model.IsSubscribed)
+                    {
+                        <span class="badge bg-success">Active</span>
+                    }
+                    else if (Model.IsSubscriptionPending)
+                    {
+                        <span class="badge bg-warning text-dark">Pending Verification</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Free Trial</span>
+                    }
+                </div>
+                <div class="card-body">
+
+                    @if (Model.IsSubscribed)
+                    {
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="bg-success-subtle rounded-circle d-flex align-items-center justify-content-center"
+                                 style="width:52px;height:52px;flex-shrink:0;">
+                                <i class="bi bi-check-circle-fill text-success fs-4"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold">CourtBook Pro — Active</div>
+                                <div class="text-muted small">
+                                    Activated on @(Model.SubscriptionActivatedAt?.ToLocalTime().ToString("MMMM d, yyyy") ?? "—")
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mb-0">
+                            <i class="bi bi-shield-check me-1 text-success"></i>
+                            Your subscription is active. All features are fully unlocked.
+                        </p>
+                    }
+                    else if (Model.IsSubscriptionPending)
+                    {
+                        <div class="alert alert-warning small mb-3">
+                            <i class="bi bi-hourglass-split me-2"></i>
+                            <strong>Payment submitted</strong> — awaiting verification.
+                            We'll email your activation key within 24 hours.
+                        </div>
+                        <div class="bg-light rounded-3 p-3 small mb-3">
+                            <div class="row g-2">
+                                <div class="col-5 text-muted">Plan</div>
+                                <div class="col-7 fw-semibold text-capitalize">
+                                    @(Model.SubscriptionPlan == "annual" ? "Annual" : "Monthly")
+                                </div>
+                                <div class="col-5 text-muted">Reference #</div>
+                                <div class="col-7 fw-semibold">@Model.SubscriptionPaymentRef</div>
+                                <div class="col-5 text-muted">Submitted</div>
+                                <div class="col-7 fw-semibold">
+                                    @Model.SubscriptionSubmittedAt?.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
+                                </div>
+                            </div>
+                        </div>
+                        <a asp-controller="Subscription" asp-action="Pending" class="btn btn-outline-warning btn-sm me-2">
+                            <i class="bi bi-clock me-1"></i>View Status
+                        </a>
+                        <a asp-controller="Subscription" asp-action="Upgrade" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-repeat me-1"></i>Resubmit
+                        </a>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-3">
+                            You are currently on a <strong>Free Trial</strong>.
+                            Upgrade to CourtBook Pro for uninterrupted access.
+                        </p>
+                        <a asp-controller="Subscription" asp-action="Upgrade"
+                           class="btn btn-primary fw-semibold mb-4">
+                            <i class="bi bi-arrow-up-circle me-2"></i>Upgrade to Pro
+                        </a>
+                    }
+
+                    @if (!Model.IsSubscribed)
+                    {
+                        <hr />
+                        <h6 class="fw-bold mb-2"><i class="bi bi-key me-2"></i>Enter Activation Key</h6>
+                        <p class="text-muted small mb-3">
+                            Received your activation key by email? Enter it below to instantly unlock CourtBook Pro.
+                        </p>
+                        <form asp-controller="Subscription" asp-action="Activate" method="post" class="d-flex gap-2">
+                            @Html.AntiForgeryToken()
+                            <input type="text" name="Key" class="form-control form-control-sm font-monospace"
+                                   placeholder="e.g. COURTBOOK-ACTIVATE-XXXX"
+                                   style="max-width:300px;" required />
+                            <button type="submit" class="btn btn-success btn-sm fw-semibold text-nowrap">
+                                <i class="bi bi-unlock me-1"></i>Activate
+                            </button>
+                        </form>
+                    }
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function previewLogo(input) {
+            const preview = document.getElementById('logoPreview');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    preview.src = e.target.result;
+                    preview.classList.remove('d-none');
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+}

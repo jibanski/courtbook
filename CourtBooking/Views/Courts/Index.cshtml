@@ -1,0 +1,88 @@
+@model IEnumerable<CourtBooking.Models.Court>
+@using Microsoft.EntityFrameworkCore
+@inject CourtBooking.Data.ApplicationDbContext _courtsDb
+@{
+    ViewData["Title"] = "Courts";
+    var sports        = ViewBag.Sports as List<string> ?? new List<string>();
+    var selectedSport = ViewBag.SelectedSport as string;
+    var _cfs          = await _courtsDb.FacilitySettings.FirstOrDefaultAsync();
+    var pageHeader    = _cfs?.DisplayName    ?? "CourtBook";
+    var pageTagline   = _cfs?.DisplayTagline ?? "Browse all available courts and check real-time availability";
+}
+
+<div class="bg-primary text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1"><i class="bi bi-buildings me-2"></i>@pageHeader</h1>
+        <p class="mb-0 opacity-75">@pageTagline</p>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Sport Filter -->
+    <div class="mb-4">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="text-muted fw-semibold me-2">Filter:</span>
+            <a asp-action="Index" class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-primary")">All</a>
+            @foreach (var sport in sports)
+            {
+                <a asp-action="Index" asp-route-sport="@sport"
+                   class="btn btn-sm @(selectedSport == sport ? "btn-primary" : "btn-outline-primary")">@sport</a>
+            }
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="alert alert-info">No courts found.</div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var court in Model)
+            {
+                <div class="col-sm-6 col-lg-4">
+                    <div class="card h-100 shadow-sm court-card">
+                        @if (!string.IsNullOrWhiteSpace(court.ImageUrl))
+                        {
+                            <div class="position-relative">
+                                <img src="@court.ImageUrl" alt="@court.Name"
+                                     class="card-img-top" style="height:180px; object-fit:cover;" />
+                                @if (court.IsIndoor)
+                                {
+                                    <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="card-img-placeholder d-flex align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()">
+                                <i class="bi bi-trophy display-3 text-white opacity-50"></i>
+                                @if (court.IsIndoor)
+                                {
+                                    <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
+                                }
+                            </div>
+                        }
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">@court.Name</h5>
+                                <span class="badge bg-secondary">@court.SportType</span>
+                            </div>
+                            <p class="card-text text-muted small">@court.Description</p>
+                            <div class="small text-muted">
+                                <i class="bi bi-clock me-1"></i>@court.OpeningHour:00 – @court.ClosingHour:00
+                            </div>
+                        </div>
+                        <div class="card-footer d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-primary fs-5">₱@court.PricePerHour.ToString("N0")<small class="fs-6 fw-normal text-muted">/hr</small></span>
+                            <a asp-controller="Courts" asp-action="Details" asp-route-id="@court.Id"
+                               class="btn btn-primary">
+                                <i class="bi bi-calendar-plus me-1"></i>Book
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

@@ -1,0 +1,242 @@
+@model CourtBooking.ViewModels.SubscriptionUpgradeViewModel
+@{
+    ViewData["Title"] = "Upgrade to CourtBook Pro";
+    int annualMonthly = (int)Math.Round(Model.AnnualPrice / 12.0);
+    int annualSavings = (Model.MonthlyPrice * 12) - Model.AnnualPrice;
+}
+
+<div class="bg-primary text-white py-4 mb-0">
+    <div class="container">
+        <h1 class="fw-bold mb-1"><i class="bi bi-arrow-up-circle me-2"></i>Upgrade to CourtBook Pro</h1>
+        <p class="mb-0 opacity-75">Choose a plan and send your payment to activate your subscription.</p>
+    </div>
+</div>
+
+<div class="container py-5">
+    <div class="row justify-content-center g-5">
+
+        <!-- ── Left: Plan + Form ─────────────────────────────────── -->
+        <div class="col-lg-6">
+
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="alert alert-danger small mb-4">
+                    <ul class="mb-0 ps-3">
+                        @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <li>@err.ErrorMessage</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <form asp-action="Upgrade" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+
+                <!-- Plan selector -->
+                <h5 class="fw-bold mb-3">1. Choose Your Plan</h5>
+                <input type="hidden" asp-for="Plan" id="planInput" />
+
+                <div class="row g-3 mb-4">
+                    <div class="col-6">
+                        <div id="planMonthly" class="sub-plan-card sub-plan-active" onclick="selectPlan('monthly')">
+                            <div class="fw-bold mb-1">Monthly</div>
+                            <div class="display-6 fw-bold text-primary">₱@Model.MonthlyPrice.ToString("N0")</div>
+                            <div class="text-muted small">per month</div>
+                            <div class="mt-2">
+                                <span class="badge bg-primary-subtle text-primary" style="font-size:.7rem;">Flexible</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div id="planAnnual" class="sub-plan-card position-relative" onclick="selectPlan('annual')">
+                            <span class="badge bg-success position-absolute top-0 end-0 m-2" style="font-size:.65rem;">
+                                Save ₱@annualSavings.ToString("N0")
+                            </span>
+                            <div class="fw-bold mb-1">Annual</div>
+                            <div class="display-6 fw-bold text-primary">₱@annualMonthly.ToString("N0")</div>
+                            <div class="text-muted small">per month · billed ₱@Model.AnnualPrice.ToString("N0")/yr</div>
+                            <div class="mt-2">
+                                <span class="badge bg-success-subtle text-success" style="font-size:.7rem;">Best Value</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment method -->
+                <h5 class="fw-bold mb-3">2. Choose Payment Method</h5>
+                <input type="hidden" asp-for="PaymentMethod" id="methodInput" />
+
+                <div class="row g-3 mb-4">
+                    <div class="col-6">
+                        <div id="methodGcash" class="sub-method-card sub-method-active" onclick="selectMethod('gcash')">
+                            <div class="fw-bold text-primary">GCash</div>
+                            <div class="text-muted small">via GCash transfer</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div id="methodMaya" class="sub-method-card" onclick="selectMethod('maya')">
+                            <div class="fw-bold text-success">Maya</div>
+                            <div class="text-muted small">via Maya transfer</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment details panel -->
+                <div id="payDetailsGcash" class="sub-pay-detail mb-4">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="bg-primary text-white rounded-2 px-2 py-1 small fw-bold">GCash</div>
+                        <span class="fw-semibold">Send payment to:</span>
+                    </div>
+                    <div class="bg-white border rounded-3 p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">Number</span>
+                            <strong class="fs-5 text-primary" id="gcashNum">@Model.GCashNumber</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">Account Name</span>
+                            <strong>@Model.GCashName</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Amount</span>
+                            <strong class="text-success" id="gcashAmt">₱@Model.MonthlyPrice.ToString("N0")</strong>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Include your facility name in the GCash note/message.
+                    </p>
+                </div>
+
+                <div id="payDetailsMaya" class="sub-pay-detail mb-4 d-none">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="bg-success text-white rounded-2 px-2 py-1 small fw-bold">Maya</div>
+                        <span class="fw-semibold">Send payment to:</span>
+                    </div>
+                    <div class="bg-white border rounded-3 p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">Number</span>
+                            <strong class="fs-5 text-success" id="mayaNum">@Model.MayaNumber</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">Account Name</span>
+                            <strong>@Model.MayaName</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Amount</span>
+                            <strong class="text-success" id="mayaAmt">₱@Model.MonthlyPrice.ToString("N0")</strong>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Include your facility name in the Maya note/message.
+                    </p>
+                </div>
+
+                <!-- Reference + proof -->
+                <h5 class="fw-bold mb-3">3. Submit Your Payment Proof</h5>
+
+                <div class="mb-3">
+                    <label asp-for="ReferenceNumber" class="form-label fw-semibold small">
+                        <i class="bi bi-hash me-1 text-primary"></i>Reference / Transaction Number
+                    </label>
+                    <input asp-for="ReferenceNumber" class="form-control form-control-lg"
+                           placeholder="e.g. 1234567890" />
+                    <span asp-validation-for="ReferenceNumber" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-4">
+                    <label asp-for="Proof" class="form-label fw-semibold small">
+                        <i class="bi bi-image me-1 text-primary"></i>Payment Screenshot
+                    </label>
+                    <input asp-for="Proof" type="file" class="form-control"
+                           accept=".jpg,.jpeg,.png,.webp" onchange="previewProof(this)" />
+                    <span asp-validation-for="Proof" class="text-danger small"></span>
+                    <div class="form-text">Upload a screenshot of your successful payment (JPG or PNG).</div>
+                    <img id="proofPreview" src="" alt="" class="img-thumbnail mt-2 d-none" style="max-height:160px;object-fit:cover;" />
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold">
+                    <i class="bi bi-send-check me-2"></i>Submit Payment for Verification
+                </button>
+            </form>
+        </div>
+
+        <!-- ── Right: What you get ───────────────────────────────── -->
+        <div class="col-lg-4 d-none d-lg-block">
+            <div class="bg-white rounded-4 shadow-sm border p-4 mb-4">
+                <h6 class="fw-bold mb-3">
+                    <i class="bi bi-trophy-fill text-warning me-2"></i>CourtBook Pro Includes
+                </h6>
+                <ul class="list-unstyled mb-0">
+                    @foreach (var f in new[] {
+                        new { icon = "bi-calendar-check text-primary",  text = "Unlimited online bookings" },
+                        new { icon = "bi-buildings text-info",          text = "Unlimited courts" },
+                        new { icon = "bi-phone text-success",           text = "GCash & Maya payments" },
+                        new { icon = "bi-speedometer2 text-warning",    text = "Full admin dashboard" },
+                        new { icon = "bi-clock text-danger",            text = "Time slot management" },
+                        new { icon = "bi-image text-secondary",         text = "Court photo uploads" },
+                        new { icon = "bi-headset text-primary",         text = "Priority support" },
+                        new { icon = "bi-arrow-up-circle text-success", text = "All future updates" },
+                    })
+                    {
+                        <li class="d-flex align-items-center gap-2 mb-3">
+                            <i class="bi @f.icon fs-5" style="min-width:22px;"></i>
+                            <span class="small text-muted">@f.text</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <div class="bg-primary-subtle rounded-4 p-4">
+                <h6 class="fw-bold mb-2"><i class="bi bi-question-circle me-2"></i>How does activation work?</h6>
+                <ol class="text-muted small ps-3 mb-0">
+                    <li class="mb-2">Send payment via GCash or Maya to the number shown.</li>
+                    <li class="mb-2">Submit your reference number and screenshot above.</li>
+                    <li class="mb-2">We'll verify and email you an <strong>activation key</strong> within 24 hours.</li>
+                    <li>Enter the key in your Admin → Settings page to unlock Pro.</li>
+                </ol>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        const monthlyPrice = @Model.MonthlyPrice;
+        const annualPrice  = @Model.AnnualPrice;
+
+        function selectPlan(plan) {
+            document.getElementById('planInput').value = plan;
+            document.getElementById('planMonthly').classList.toggle('sub-plan-active', plan === 'monthly');
+            document.getElementById('planAnnual').classList.toggle('sub-plan-active',  plan === 'annual');
+            updateAmounts();
+        }
+
+        function selectMethod(method) {
+            document.getElementById('methodInput').value = method;
+            document.getElementById('methodGcash').classList.toggle('sub-method-active', method === 'gcash');
+            document.getElementById('methodMaya').classList.toggle('sub-method-active',  method === 'maya');
+            document.getElementById('payDetailsGcash').classList.toggle('d-none', method !== 'gcash');
+            document.getElementById('payDetailsMaya').classList.toggle('d-none',  method !== 'maya');
+        }
+
+        function updateAmounts() {
+            const plan    = document.getElementById('planInput').value;
+            const amount  = plan === 'annual' ? '₱' + annualPrice.toLocaleString() : '₱' + monthlyPrice.toLocaleString();
+            document.getElementById('gcashAmt').textContent = amount;
+            document.getElementById('mayaAmt').textContent  = amount;
+        }
+
+        function previewProof(input) {
+            const preview = document.getElementById('proofPreview');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => { preview.src = e.target.result; preview.classList.remove('d-none'); };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+}

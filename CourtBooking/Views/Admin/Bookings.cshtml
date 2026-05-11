@@ -1,0 +1,228 @@
+@model IEnumerable<CourtBooking.Models.Booking>
+@{
+    ViewData["Title"] = "All Bookings";
+    var selectedStatus       = ViewBag.SelectedStatus as string;
+    var selectedDate         = ViewBag.SelectedDate as DateOnly?;
+    bool awaitingMode        = ViewBag.AwaitingConfirmation == true;
+    int  pendingPaymentCount = (int)(ViewBag.PendingPaymentCount ?? 0);
+}
+
+<div class="bg-dark text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1"><i class="bi bi-calendar3 me-2"></i>All Bookings</h1>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- Tab bar -->
+    <div class="d-flex gap-2 mb-4 flex-wrap">
+        <a asp-action="Bookings" class="btn @(!awaitingMode ? "btn-primary" : "btn-outline-secondary")">
+            <i class="bi bi-list-ul me-1"></i>All Bookings
+        </a>
+        <a asp-action="Bookings" asp-route-awaitingConfirmation="true"
+           class="btn @(awaitingMode ? "btn-danger" : "btn-outline-danger") position-relative">
+            <i class="bi bi-hourglass-split me-1"></i>Awaiting Confirmation
+            @if (pendingPaymentCount > 0)
+            {
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    @pendingPaymentCount
+                </span>
+            }
+        </a>
+    </div>
+
+    @if (!awaitingMode)
+    {
+        <!-- Filters (shown only in all-bookings mode) -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form method="get" class="row g-3 align-items-end">
+                    <div class="col-sm-4">
+                        <label class="form-label fw-semibold">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">All Statuses</option>
+                            @foreach (var s in Enum.GetNames<CourtBooking.Models.BookingStatus>())
+                            {
+                                <option value="@s" selected="@(selectedStatus == s)">@s</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="form-label fw-semibold">Date</label>
+                        <input type="date" name="date" class="form-control" value="@selectedDate?.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="col-sm-4">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-funnel me-1"></i>Filter
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+
+    @if (awaitingMode && !Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="bi bi-check-circle display-1 text-success opacity-50"></i>
+            <h4 class="mt-3 text-muted">No pending confirmations</h4>
+            <p class="text-muted">All payment submissions have been reviewed.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between">
+                <span class="fw-bold">@Model.Count() booking(s) found</span>
+            </div>
+
+            @if (awaitingMode)
+            {
+                <!-- Card layout for awaiting confirmation -->
+                <div class="card-body">
+                    <div class="row g-3">
+                        @foreach (var b in Model)
+                        {
+                            <div class="col-lg-6">
+                                <div class="card border-warning border-2 h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <div>
+                                                <span class="fw-bold">Booking #@b.Id</span>
+                                                <span class="badge bg-warning text-dark ms-2">Pending</span>
+                                            </div>
+                                            <span class="fw-bold text-success">₱@b.TotalPrice.ToString("N0")</span>
+                                        </div>
+                                        <div class="mb-2 small">
+                                            <div><i class="bi bi-person me-1 text-muted"></i><strong>@b.User.FullName</strong> (@b.User.Email)</div>
+                                            <div><i class="bi bi-buildings me-1 text-muted"></i>@b.Court.Name — @b.Court.SportType</div>
+                                            <div><i class="bi bi-calendar me-1 text-muted"></i>@b.BookingDate.ToString("MMM d, yyyy") @b.StartTime.ToString("hh:mm tt")–@b.EndTime.ToString("hh:mm tt")</div>
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(b.PaymentMethod) || !string.IsNullOrWhiteSpace(b.PaymentReference))
+                                        {
+                                            <div class="border rounded p-2 bg-light mb-2 small">
+                                                @if (!string.IsNullOrWhiteSpace(b.PaymentMethod))
+                                                {
+                                                    <div><i class="bi bi-phone me-1"></i><strong>Method:</strong> @b.PaymentMethod</div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(b.PaymentReference))
+                                                {
+                                                    <div><i class="bi bi-hash me-1"></i><strong>Ref:</strong> @b.PaymentReference</div>
+                                                }
+                                                @if (b.PaymentProofSubmittedAt.HasValue)
+                                                {
+                                                    <div class="text-muted"><i class="bi bi-clock me-1"></i>Submitted @b.PaymentProofSubmittedAt.Value.ToLocalTime().ToString("MMM d, h:mm tt")</div>
+                                                }
+                                            </div>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
+                                        {
+                                            <div class="mb-2">
+                                                <a href="@b.PaymentProofPath" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                    <i class="bi bi-image me-1"></i>View Screenshot
+                                                </a>
+                                            </div>
+                                        }
+
+                                        <div class="d-flex gap-2">
+                                            <form asp-action="ConfirmPayment" asp-route-id="@b.Id" method="post" class="flex-fill">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-success btn-sm w-100"
+                                                        onclick="return confirm('Confirm payment for Booking #@b.Id?')">
+                                                    <i class="bi bi-check-circle me-1"></i>Confirm
+                                                </button>
+                                            </form>
+                                            <form asp-action="RejectPayment" asp-route-id="@b.Id" method="post" class="flex-fill">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-danger btn-sm w-100"
+                                                        onclick="return confirm('Reject and cancel Booking #@b.Id?')">
+                                                    <i class="bi bi-x-circle me-1"></i>Reject
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Table layout for all bookings -->
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Customer</th>
+                                <th>Court</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Amount</th>
+                                <th>Booking</th>
+                                <th>Payment</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in Model)
+                            {
+                                var cls = b.Status switch {
+                                    CourtBooking.Models.BookingStatus.Confirmed => "bg-success",
+                                    CourtBooking.Models.BookingStatus.Cancelled => "bg-danger",
+                                    CourtBooking.Models.BookingStatus.Completed => "bg-secondary",
+                                    _ => "bg-warning text-dark"
+                                };
+                                <tr>
+                                    <td class="text-muted small">@b.Id</td>
+                                    <td>
+                                        <div class="fw-semibold">@b.User.FullName</div>
+                                        <small class="text-muted">@b.User.PhoneNumber</small>
+                                    </td>
+                                    <td>@b.Court.Name</td>
+                                    <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
+                                    <td>@b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")</td>
+                                    <td>₱@b.TotalPrice.ToString("N0")</td>
+                                    <td><span class="badge @cls">@b.Status</span></td>
+                                    <td>
+                                        @if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid)
+                                        {
+                                            <span class="badge bg-success"><i class="bi bi-check me-1"></i>Paid</span>
+                                        }
+                                        else if (b.HasPaymentProof)
+                                        {
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Submitted</span>
+                                        }
+                                        else if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded)
+                                        {
+                                            <span class="badge bg-secondary">Refunded</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">Unpaid</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <form asp-action="UpdateBookingStatus" asp-route-id="@b.Id" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <select name="status" class="form-select form-select-sm d-inline w-auto" onchange="this.form.submit()">
+                                                @foreach (var s in Enum.GetValues<CourtBooking.Models.BookingStatus>())
+                                                {
+                                                    <option value="@s" selected="@(b.Status == s)">@s</option>
+                                                }
+                                            </select>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+</div>

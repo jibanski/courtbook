@@ -1,0 +1,70 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace CourtBooking.Models;
+
+public class FacilitySettings
+{
+    public int Id { get; set; } = 1;
+
+    [MaxLength(100)]
+    public string FacilityName { get; set; } = "CourtBook";
+
+    [MaxLength(20)]
+    public string? GCashNumber { get; set; }
+
+    [MaxLength(100)]
+    public string? GCashName { get; set; }
+
+    [MaxLength(20)]
+    public string? MayaNumber { get; set; }
+
+    [MaxLength(100)]
+    public string? MayaName { get; set; }
+
+    [MaxLength(500)]
+    public string? PaymentInstructions { get; set; }
+
+    // ── Trial ─────────────────────────────────────────────────────────────────
+    public DateTime? TrialStartedAt { get; set; }
+    public bool IsSubscribed { get; set; } = false;
+
+    [NotMapped] public DateTime? TrialExpiresAt    => TrialStartedAt?.AddDays(7);
+    [NotMapped] public bool      IsTrialActive     => TrialStartedAt.HasValue && DateTime.UtcNow < TrialExpiresAt && !IsSubscribed;
+    [NotMapped] public bool      IsTrialExpired    => TrialStartedAt.HasValue && DateTime.UtcNow >= TrialExpiresAt && !IsSubscribed;
+    [NotMapped] public int       TrialDaysRemaining => TrialExpiresAt.HasValue
+        ? Math.Max(0, (int)Math.Ceiling((TrialExpiresAt.Value - DateTime.UtcNow).TotalDays))
+        : 0;
+
+    // ── Custom Branding (Pro only) ────────────────────────────────────────────
+    [MaxLength(100)]
+    public string? BrandName { get; set; }       // Replaces "CourtBook" site-wide
+
+    [MaxLength(200)]
+    public string? BrandTagline { get; set; }    // Short line shown under the name / in footer
+
+    public string? BrandLogoUrl { get; set; }    // Path to uploaded logo image
+
+    [NotMapped]
+    public string DisplayName => IsSubscribed && !string.IsNullOrWhiteSpace(BrandName)
+        ? BrandName : "CourtBook";
+
+    [NotMapped]
+    public string DisplayTagline => IsSubscribed && !string.IsNullOrWhiteSpace(BrandTagline)
+        ? BrandTagline : "Book your court anytime, anywhere.";
+
+    // ── Subscription Payment ──────────────────────────────────────────────────
+    [MaxLength(20)]
+    public string? SubscriptionPlan { get; set; }          // "monthly" | "annual"
+
+    [MaxLength(100)]
+    public string? SubscriptionPaymentRef { get; set; }
+
+    [MaxLength(500)]
+    public string? SubscriptionProofPath { get; set; }
+
+    public DateTime? SubscriptionSubmittedAt { get; set; }
+    public DateTime? SubscriptionActivatedAt { get; set; }
+
+    [NotMapped] public bool IsSubscriptionPending => SubscriptionSubmittedAt.HasValue && !IsSubscribed;
+}

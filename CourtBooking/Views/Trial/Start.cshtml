@@ -1,0 +1,277 @@
+@model CourtBooking.ViewModels.TrialRegistrationViewModel
+@{
+    ViewData["Title"] = "Create Account";
+    Layout = "_LandingLayout";
+    bool adminExists = ViewBag.AdminExists == true;
+}
+
+<section class="py-5 bg-light min-vh-100 d-flex align-items-center">
+    <div class="container">
+        <div class="row justify-content-center">
+
+            <!-- ── Registration card ──────────────────────────────────── -->
+            <div class="col-lg-5 col-md-7">
+                <div class="mb-4">
+                    <a asp-controller="Home" asp-action="Index" class="text-muted small text-decoration-none">
+                        <i class="bi bi-arrow-left me-1"></i>Back to home
+                    </a>
+                </div>
+
+                <div class="bg-white rounded-4 shadow p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <h2 class="fw-bold mb-1">Create Your Account</h2>
+                        <p class="text-muted small">Choose how you'll use CourtBook.</p>
+                    </div>
+
+                    @if (!ViewData.ModelState.IsValid)
+                    {
+                        <div class="alert alert-danger small">
+                            <ul class="mb-0 ps-3">
+                                @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                                {
+                                    <li>@err.ErrorMessage</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <form asp-action="Start" method="post" id="regForm">
+                        @Html.AntiForgeryToken()
+
+                        <!-- ── Role selector ─────────────────────────── -->
+                        <input type="hidden" asp-for="Role" id="roleInput" />
+
+                        <div class="row g-3 mb-4">
+                            <!-- Facility Owner card -->
+                            <div class="col-6">
+                                <div id="cardAdmin"
+                                     class="role-card @(Model.Role == "Admin" ? "role-card-active" : "") @(adminExists ? "role-card-disabled" : "")"
+                                     onclick="@(adminExists ? "" : "selectRole('Admin')")">
+                                    <div class="role-icon bg-primary-subtle text-primary mb-2">
+                                        <i class="bi bi-buildings fs-4"></i>
+                                    </div>
+                                    <div class="fw-bold small">Facility Owner</div>
+                                    <div class="text-muted" style="font-size:.72rem;">
+                                        @if (adminExists)
+                                        {
+                                            <span class="text-danger"><i class="bi bi-lock-fill me-1"></i>Already registered</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Manage courts &amp; bookings</span>
+                                        }
+                                    </div>
+                                    @if (!adminExists)
+                                    {
+                                        <div class="mt-2">
+                                            <span class="badge bg-success-subtle text-success" style="font-size:.65rem;">
+                                                <i class="bi bi-gift me-1"></i>7-Day Free Trial
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Customer card -->
+                            <div class="col-6">
+                                <div id="cardCustomer"
+                                     class="role-card @(Model.Role == "Customer" ? "role-card-active" : "")"
+                                     onclick="selectRole('Customer')">
+                                    <div class="role-icon bg-success-subtle text-success mb-2">
+                                        <i class="bi bi-person-running fs-4"></i>
+                                    </div>
+                                    <div class="fw-bold small">Player / Customer</div>
+                                    <div class="text-muted" style="font-size:.72rem;">Browse &amp; book courts</div>
+                                    <div class="mt-2">
+                                        <span class="badge bg-primary-subtle text-primary" style="font-size:.65rem;">
+                                            <i class="bi bi-check-circle me-1"></i>Free Forever
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ── Facility name (Admin only) ─────────────── -->
+                        <div id="facilityNameGroup" class="mb-3 @(Model.Role != "Admin" ? "d-none" : "")">
+                            <label asp-for="FacilityName" class="form-label fw-semibold small">
+                                <i class="bi bi-buildings me-1 text-primary"></i>Facility / Business Name
+                            </label>
+                            <input asp-for="FacilityName" class="form-control"
+                                   placeholder="e.g. Greenfield Sports Complex" />
+                            <span asp-validation-for="FacilityName" class="text-danger small"></span>
+                        </div>
+
+                        <!-- ── Common fields ──────────────────────────── -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label asp-for="FirstName" class="form-label fw-semibold small">First Name</label>
+                                <input asp-for="FirstName" class="form-control" placeholder="Juan" />
+                                <span asp-validation-for="FirstName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-6">
+                                <label asp-for="LastName" class="form-label fw-semibold small">Last Name</label>
+                                <input asp-for="LastName" class="form-control" placeholder="Dela Cruz" />
+                                <span asp-validation-for="LastName" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Email" class="form-label fw-semibold small">
+                                <i class="bi bi-envelope me-1 text-primary"></i>Email Address
+                            </label>
+                            <input asp-for="Email" type="email" class="form-control"
+                                   placeholder="you@example.com" />
+                            <span asp-validation-for="Email" class="text-danger small"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Password" class="form-label fw-semibold small">
+                                <i class="bi bi-lock me-1 text-primary"></i>Password
+                            </label>
+                            <input asp-for="Password" type="password" class="form-control"
+                                   placeholder="At least 6 characters" />
+                            <span asp-validation-for="Password" class="text-danger small"></span>
+                        </div>
+
+                        <div class="mb-4">
+                            <label asp-for="ConfirmPassword" class="form-label fw-semibold small">Confirm Password</label>
+                            <input asp-for="ConfirmPassword" type="password" class="form-control"
+                                   placeholder="Repeat your password" />
+                            <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold" id="submitBtn">
+                            <i class="bi bi-rocket-takeoff me-2" id="submitIcon"></i>
+                            <span id="submitText">Create Account</span>
+                        </button>
+
+                        <p class="text-muted text-center small mt-3 mb-0">
+                            Already have an account?
+                            <a asp-controller="Account" asp-action="Login">Login here</a>
+                        </p>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ── Side panel ─────────────────────────────────────────── -->
+            <div class="col-lg-4 d-none d-lg-block ps-lg-5 pt-2">
+
+                <!-- Admin benefits -->
+                <div id="panelAdmin" class="@(Model.Role != "Admin" ? "d-none" : "")">
+                    <div class="d-flex align-items-center gap-2 mb-4">
+                        <div class="bg-primary text-white rounded-3 d-flex align-items-center justify-content-center"
+                             style="width:40px;height:40px;flex-shrink:0;">
+                            <i class="bi bi-buildings"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold">Facility Owner Trial</div>
+                            <div class="text-muted small">7 days, full access, no credit card</div>
+                        </div>
+                    </div>
+                    <ul class="list-unstyled">
+                        @foreach (var item in new[] {
+                            new { icon = "bi-calendar-check text-primary",   text = "Online court booking system" },
+                            new { icon = "bi-phone text-success",            text = "GCash & Maya payments" },
+                            new { icon = "bi-speedometer2 text-warning",     text = "Admin dashboard & reports" },
+                            new { icon = "bi-buildings text-info",           text = "Unlimited court listings" },
+                            new { icon = "bi-clock text-danger",             text = "Time slot management" },
+                            new { icon = "bi-image text-secondary",          text = "Court photo uploads" },
+                        })
+                        {
+                            <li class="d-flex align-items-start mb-3">
+                                <i class="bi @item.icon me-3 mt-1 fs-5"></i>
+                                <span class="text-muted small">@item.text</span>
+                            </li>
+                        }
+                    </ul>
+                    <div class="bg-success-subtle rounded-3 p-3 mt-3">
+                        <div class="fw-semibold text-success small mb-1">
+                            <i class="bi bi-shield-check me-1"></i>No risk, no commitment
+                        </div>
+                        <p class="text-muted small mb-0">
+                            Full access for 7 days. No credit card required. Cancel anytime.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Customer benefits -->
+                <div id="panelCustomer" class="@(Model.Role == "Admin" ? "d-none" : "")">
+                    <div class="d-flex align-items-center gap-2 mb-4">
+                        <div class="bg-success text-white rounded-3 d-flex align-items-center justify-content-center"
+                             style="width:40px;height:40px;flex-shrink:0;">
+                            <i class="bi bi-person-running"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold">Player Account</div>
+                            <div class="text-muted small">Free forever — book courts instantly</div>
+                        </div>
+                    </div>
+                    <ul class="list-unstyled">
+                        @foreach (var item in new[] {
+                            new { icon = "bi-search text-primary",           text = "Browse available courts" },
+                            new { icon = "bi-calendar-plus text-success",    text = "Book any time slot online" },
+                            new { icon = "bi-phone text-warning",            text = "Pay via GCash or Maya" },
+                            new { icon = "bi-receipt text-info",             text = "View all your bookings" },
+                            new { icon = "bi-bell text-danger",              text = "Instant booking confirmation" },
+                        })
+                        {
+                            <li class="d-flex align-items-start mb-3">
+                                <i class="bi @item.icon me-3 mt-1 fs-5"></i>
+                                <span class="text-muted small">@item.text</span>
+                            </li>
+                        }
+                    </ul>
+                    <div class="bg-primary-subtle rounded-3 p-3 mt-3">
+                        <div class="fw-semibold text-primary small mb-1">
+                            <i class="bi bi-gift me-1"></i>Completely Free
+                        </div>
+                        <p class="text-muted small mb-0">
+                            Creating a player account is always free. Book courts at any facility using CourtBook.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function selectRole(role) {
+            document.getElementById('roleInput').value = role;
+
+            const cardAdmin    = document.getElementById('cardAdmin');
+            const cardCustomer = document.getElementById('cardCustomer');
+            const facilityGrp  = document.getElementById('facilityNameGroup');
+            const panelAdmin   = document.getElementById('panelAdmin');
+            const panelCustomer= document.getElementById('panelCustomer');
+            const submitIcon   = document.getElementById('submitIcon');
+            const submitText   = document.getElementById('submitText');
+
+            if (role === 'Admin') {
+                cardAdmin.classList.add('role-card-active');
+                cardCustomer.classList.remove('role-card-active');
+                facilityGrp.classList.remove('d-none');
+                panelAdmin.classList.remove('d-none');
+                panelCustomer.classList.add('d-none');
+                submitIcon.className = 'bi bi-rocket-takeoff me-2';
+                submitText.textContent = 'Start Free Trial';
+            } else {
+                cardCustomer.classList.add('role-card-active');
+                cardAdmin.classList.remove('role-card-active');
+                facilityGrp.classList.add('d-none');
+                panelAdmin.classList.add('d-none');
+                panelCustomer.classList.remove('d-none');
+                submitIcon.className = 'bi bi-person-check me-2';
+                submitText.textContent = 'Create Player Account';
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            selectRole(document.getElementById('roleInput').value || 'Customer');
+        });
+    </script>
+}

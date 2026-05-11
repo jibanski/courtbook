@@ -1,0 +1,149 @@
+@model CourtBooking.Models.Booking
+@{
+    ViewData["Title"] = "Complete Payment";
+    var settings = ViewBag.Settings as CourtBooking.Models.FacilitySettings ?? new CourtBooking.Models.FacilitySettings();
+    bool hasGCash = !string.IsNullOrWhiteSpace(settings.GCashNumber);
+    bool hasMaya  = !string.IsNullOrWhiteSpace(settings.MayaNumber);
+}
+
+<div class="bg-primary text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1"><i class="bi bi-credit-card me-2"></i>Complete Your Payment</h1>
+        <p class="mb-0 opacity-75">Booking #@Model.Id — @Model.Court.Name</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            <!-- Booking Summary -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-receipt me-2 text-primary"></i>Booking Summary
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6 text-muted small">Court</div>
+                        <div class="col-6 fw-semibold">@Model.Court.Name (@Model.Court.SportType)</div>
+                        <div class="col-6 text-muted small">Date</div>
+                        <div class="col-6 fw-semibold">@Model.BookingDate.ToString("MMMM d, yyyy")</div>
+                        <div class="col-6 text-muted small">Time</div>
+                        <div class="col-6 fw-semibold">@Model.StartTime.ToString("hh:mm tt") – @Model.EndTime.ToString("hh:mm tt")</div>
+                        <div class="col-6 text-muted small">Duration</div>
+                        <div class="col-6 fw-semibold">@Model.DurationHours hrs</div>
+                        <div class="col-12"><hr class="my-2"></div>
+                        <div class="col-6 fw-bold">Total Amount</div>
+                        <div class="col-6 fw-bold text-success fs-5">₱@Model.TotalPrice.ToString("N0")</div>
+                    </div>
+                </div>
+            </div>
+
+            @if (!hasGCash && !hasMaya)
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Payment details have not been set up yet. Please contact the facility to arrange payment.
+                </div>
+            }
+            else
+            {
+                <!-- Payment Instructions -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-send me-2 text-success"></i>Send Payment To
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrWhiteSpace(settings.PaymentInstructions))
+                        {
+                            <div class="alert alert-info py-2 mb-3">
+                                <i class="bi bi-info-circle me-1"></i>@settings.PaymentInstructions
+                            </div>
+                        }
+
+                        <div class="row g-3">
+                            @if (hasGCash)
+                            {
+                                <div class="col-sm-6">
+                                    <div class="border rounded p-3 text-center bg-light h-100">
+                                        <div class="fw-bold text-primary mb-1">
+                                            <i class="bi bi-phone me-1"></i>GCash
+                                        </div>
+                                        <div class="fs-5 fw-bold">@settings.GCashNumber</div>
+                                        @if (!string.IsNullOrWhiteSpace(settings.GCashName))
+                                        {
+                                            <div class="text-muted small">@settings.GCashName</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            @if (hasMaya)
+                            {
+                                <div class="col-sm-6">
+                                    <div class="border rounded p-3 text-center bg-light h-100">
+                                        <div class="fw-bold text-success mb-1">
+                                            <i class="bi bi-phone me-1"></i>Maya
+                                        </div>
+                                        <div class="fs-5 fw-bold">@settings.MayaNumber</div>
+                                        @if (!string.IsNullOrWhiteSpace(settings.MayaName))
+                                        {
+                                            <div class="text-muted small">@settings.MayaName</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        <div class="alert alert-warning mt-3 py-2 mb-0 small">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Send exactly <strong>₱@Model.TotalPrice.ToString("N0")</strong> and include your booking reference in the notes/remarks.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Proof Form -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-check2-circle me-2 text-primary"></i>Submit Payment Proof
+                    </div>
+                    <div class="card-body">
+                        <form asp-action="SubmitProof" method="post" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="bookingId" value="@Model.Id" />
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Payment Method</label>
+                                <select name="method" class="form-select" required>
+                                    @if (hasGCash) { <option value="GCash">GCash</option> }
+                                    @if (hasMaya)  { <option value="Maya">Maya</option> }
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Transaction / Reference Number <span class="text-danger">*</span></label>
+                                <input type="text" name="reference" class="form-control" placeholder="e.g. 1234567890"
+                                       required maxlength="100" />
+                                <div class="form-text">Enter the reference number from your GCash/Maya transaction.</div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Screenshot (optional)</label>
+                                <input type="file" name="screenshot" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
+                                <div class="form-text">Upload a screenshot of your payment confirmation (JPG, PNG, or WebP).</div>
+                            </div>
+
+                            <button type="submit" class="btn btn-success btn-lg w-100">
+                                <i class="bi bi-check-circle me-2"></i>Submit Payment Proof
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            }
+
+            <div class="text-center">
+                <a asp-action="My" class="btn btn-link text-muted">
+                    <i class="bi bi-arrow-left me-1"></i>Back to My Bookings
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

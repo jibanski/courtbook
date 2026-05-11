@@ -1,0 +1,80 @@
+@model CourtBooking.Models.Court
+
+<div class="mb-3">
+    <label asp-for="Name" class="form-label fw-semibold">Court Name</label>
+    <input asp-for="Name" class="form-control" placeholder="e.g. Court A" />
+    <span asp-validation-for="Name" class="text-danger small"></span>
+</div>
+<div class="mb-3">
+    <label asp-for="SportType" class="form-label fw-semibold">Sport Type</label>
+    <select asp-for="SportType" class="form-select">
+        <option value="">-- Select Sport --</option>
+        @foreach (var name in (ViewBag.SportOptions as List<string> ?? new List<string>()))
+        {
+            <option value="@name" selected="@(Model.SportType == name)">@name</option>
+        }
+    </select>
+    <span asp-validation-for="SportType" class="text-danger small"></span>
+    <div class="form-text">
+        <a asp-action="Sports" class="small">Manage sports list</a>
+    </div>
+</div>
+<div class="mb-3">
+    <label asp-for="Description" class="form-label fw-semibold">Description</label>
+    <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+</div>
+<div class="row g-3 mb-3">
+    <div class="col-6">
+        <label asp-for="PricePerHour" class="form-label fw-semibold">Price per Hour (₱)</label>
+        <input asp-for="PricePerHour" type="number" class="form-control" min="0" />
+        <span asp-validation-for="PricePerHour" class="text-danger small"></span>
+    </div>
+    <div class="col-3">
+        <label asp-for="OpeningHour" class="form-label fw-semibold">Opens</label>
+        <select asp-for="OpeningHour" class="form-select">
+            @for (int h = 0; h < 24; h++)
+            {
+                <option value="@h">@h.ToString("D2"):00</option>
+            }
+        </select>
+    </div>
+    <div class="col-3">
+        <label asp-for="ClosingHour" class="form-label fw-semibold">Closes</label>
+        <select asp-for="ClosingHour" class="form-select">
+            @for (int h = 1; h <= 24; h++)
+            {
+                <option value="@h">@h.ToString("D2"):00</option>
+            }
+        </select>
+    </div>
+</div>
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <input asp-for="IsIndoor" class="form-check-input" role="switch" />
+        <label asp-for="IsIndoor" class="form-check-label">Indoor Court</label>
+    </div>
+</div>
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <input asp-for="IsActive" class="form-check-input" role="switch" />
+        <label asp-for="IsActive" class="form-check-label">Active (visible to customers)</label>
+    </div>
+</div>
+<div class="mb-3">
+    <label class="form-label fw-semibold">Court Photo</label>
+    @if (!string.IsNullOrWhiteSpace(Model.ImageUrl))
+    {
+        <div class="mb-2">
+            <img src="@Model.ImageUrl" alt="Current photo" class="img-thumbnail"
+                 style="max-height:160px; object-fit:cover;" id="photoPreview" />
+        </div>
+    }
+    else
+    {
+        <img src="" alt="" class="img-thumbnail mb-2 d-none"
+             style="max-height:160px; object-fit:cover;" id="photoPreview" />
+    }
+    <input type="file" name="photo" class="form-control" accept=".jpg,.jpeg,.png,.webp"
+           onchange="previewPhoto(this)" />
+    <div class="form-text">JPG, PNG, or WebP. Displayed on the courts listing page.</div>
+</div>

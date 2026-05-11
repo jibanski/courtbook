@@ -1,0 +1,30 @@
+## Claude Code session data — not part of the project
+.claude/
+
+## Nested folders that shouldn't be committed
+courtbook/
+
+## .NET / ASP.NET Core
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+*.swp
+
+## SQLite database — never commit the live DB
+*.db
+*.db-shm
+*.db-wal
+
+## Uploaded files (court photos, logos, payment proofs)
+CourtBooking/wwwroot/uploads/
+
+## Secrets / environment overrides — keep out of source control
+appsettings.Production.json
+appsettings.*.local.json
+
+## OS
+.DS_Store
+Thumbs.db

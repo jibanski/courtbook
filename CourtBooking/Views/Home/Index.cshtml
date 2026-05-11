@@ -1,0 +1,229 @@
+﻿@model IEnumerable<CourtBooking.Models.Court>
+@inject Microsoft.Extensions.Configuration.IConfiguration _cfg
+@{
+    ViewData["Title"] = "Home";
+    int monthlyPrice  = int.TryParse(_cfg["Subscription:MonthlyPrice"], out var mp) ? mp : 799;
+    int annualPrice   = int.TryParse(_cfg["Subscription:AnnualPrice"],  out var ap) ? ap : 7588;
+    int annualMonthly = (int)Math.Round(annualPrice / 12.0);
+    int annualSavings = (monthlyPrice * 12) - annualPrice;
+}
+
+<!-- Hero Section -->
+<section class="hero-section text-white text-center py-5">
+    <div class="container py-4">
+        <h1 class="display-4 fw-bold mb-3">Book Your Court Instantly</h1>
+        <p class="lead mb-4">Reserve sports courts online — fast, easy, and available 24/7.</p>
+        <a asp-controller="Courts" asp-action="Index" class="btn btn-warning btn-lg px-5 fw-bold shadow">
+            <i class="bi bi-search me-2"></i>Browse Courts
+        </a>
+    </div>
+</section>
+
+<!-- Stats Bar -->
+<div class="bg-light border-bottom py-3">
+    <div class="container">
+        <div class="row text-center g-3">
+            <div class="col-4">
+                <div class="fw-bold fs-4 text-primary">@Model.Count()</div>
+                <small class="text-muted">Active Courts</small>
+            </div>
+            <div class="col-4">
+                <div class="fw-bold fs-4 text-primary">@Model.Select(c => c.SportType).Distinct().Count()</div>
+                <small class="text-muted">Sport Types</small>
+            </div>
+            <div class="col-4">
+                <div class="fw-bold fs-4 text-primary">7 Days</div>
+                <small class="text-muted">Advance Booking</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Featured Courts -->
+<section class="container py-5">
+    <h2 class="fw-bold mb-4 text-center">Available Courts</h2>
+    <div class="row g-4">
+        @foreach (var court in Model)
+        {
+            <div class="col-sm-6 col-lg-3">
+                <div class="card h-100 shadow-sm court-card">
+                    @if (!string.IsNullOrWhiteSpace(court.ImageUrl))
+                    {
+                        <img src="@court.ImageUrl" alt="@court.Name"
+                             class="card-img-top" style="height:180px; object-fit:cover;" />
+                    }
+                    else
+                    {
+                        <div class="card-img-placeholder d-flex align-items-center justify-content-center court-bg-@court.SportType.ToLower()">
+                            <i class="bi bi-trophy display-3 text-white opacity-50"></i>
+                        </div>
+                    }
+                    <div class="card-body">
+                        <span class="badge bg-secondary mb-2">@court.SportType</span>
+                        @if (court.IsIndoor)
+                        {
+                            <span class="badge bg-info mb-2 ms-1">Indoor</span>
+                        }
+                        <h5 class="card-title">@court.Name</h5>
+                        <p class="card-text text-muted small">@court.Description</p>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-primary">₱@court.PricePerHour.ToString("N0")/hr</span>
+                        <a asp-controller="Courts" asp-action="Details" asp-route-id="@court.Id"
+                           class="btn btn-primary btn-sm">Book Now</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+<!-- How It Works -->
+<section class="bg-light py-5">
+    <div class="container">
+        <h2 class="fw-bold mb-5 text-center">How It Works</h2>
+        <div class="row g-4 text-center">
+            <div class="col-md-4">
+                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px;height:64px">
+                    <i class="bi bi-search fs-4"></i>
+                </div>
+                <h5>1. Browse Courts</h5>
+                <p class="text-muted">Find available courts by sport type and check real-time availability.</p>
+            </div>
+            <div class="col-md-4">
+                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px;height:64px">
+                    <i class="bi bi-calendar-plus fs-4"></i>
+                </div>
+                <h5>2. Pick a Slot</h5>
+                <p class="text-muted">Choose your date, time, and duration. See exactly what's available.</p>
+            </div>
+            <div class="col-md-4">
+                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px;height:64px">
+                    <i class="bi bi-check-circle fs-4"></i>
+                </div>
+                <h5>3. Confirmed!</h5>
+                <p class="text-muted">Your booking is instantly confirmed. Manage it anytime from your account.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pricing -->
+<section id="pricing" class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <span class="badge bg-warning-subtle text-warning fw-semibold px-3 py-2 mb-2">Pricing</span>
+            <h2 class="fw-bold">Start free. Upgrade when you're ready.</h2>
+            <p class="text-muted">No hidden fees. Simple, transparent pricing for every facility.</p>
+        </div>
+
+        <div class="row justify-content-center g-4">
+
+            <!-- Free Trial -->
+            <div class="col-md-4">
+                <div class="card h-100 border rounded-4 shadow-sm d-flex flex-column">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <span class="badge bg-success-subtle text-success fw-semibold mb-3 align-self-start">Free Trial</span>
+                        <div class="display-5 fw-bold mb-1">₱0</div>
+                        <p class="text-muted small mb-3">Full access for 7 days.<br>No credit card required.</p>
+                        <hr />
+                        <ul class="list-unstyled mb-4 flex-grow-1">
+                            @foreach (var f in new[] {
+                                "Unlimited courts",
+                                "Online booking system",
+                                "GCash & Maya payments",
+                                "Admin dashboard",
+                                "Time slot management",
+                                "Mobile-friendly"
+                            })
+                            {
+                                <li class="mb-2 small"><i class="bi bi-check-circle-fill text-success me-2"></i>@f</li>
+                            }
+                        </ul>
+                        <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
+                           class="btn btn-outline-success w-100 fw-semibold mt-auto">
+                            <i class="bi bi-rocket-takeoff me-2"></i>Start Free Trial
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Starter Monthly -->
+            <div class="col-md-4">
+                <div class="card h-100 border rounded-4 shadow-sm d-flex flex-column">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <span class="badge bg-primary-subtle text-primary fw-semibold mb-3 align-self-start">Starter</span>
+                        <div class="display-5 fw-bold mb-1">
+                            ₱@monthlyPrice.ToString("N0")<small class="fs-6 fw-normal text-muted">/mo</small>
+                        </div>
+                        <p class="text-muted small mb-3">Billed monthly. Cancel anytime.</p>
+                        <hr />
+                        <ul class="list-unstyled mb-4 flex-grow-1">
+                            @foreach (var f in new[] {
+                                "Everything in Free Trial",
+                                "Uninterrupted access",
+                                "Custom facility branding",
+                                "Priority support",
+                                "All future updates",
+                                "Flexible month-to-month"
+                            })
+                            {
+                                <li class="mb-2 small"><i class="bi bi-check-circle-fill text-primary me-2"></i>@f</li>
+                            }
+                        </ul>
+                        <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
+                           class="btn btn-primary w-100 fw-semibold mt-auto">
+                            <i class="bi bi-arrow-up-circle me-2"></i>Get Started
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pro Annual -->
+            <div class="col-md-4">
+                <div class="card h-100 border-primary border-2 rounded-4 shadow position-relative d-flex flex-column">
+                    <span class="badge bg-primary position-absolute top-0 start-50 translate-middle px-3 py-2 fw-semibold">
+                        🏆 Best Value
+                    </span>
+                    <div class="card-body p-4 mt-2 d-flex flex-column">
+                        <span class="badge bg-warning text-dark fw-semibold mb-3 align-self-start">Pro Annual</span>
+                        <div class="display-5 fw-bold mb-1">
+                            ₱@annualMonthly.ToString("N0")<small class="fs-6 fw-normal text-muted">/mo</small>
+                        </div>
+                        <p class="text-muted small mb-3">
+                            Billed ₱@annualPrice.ToString("N0")/year.
+                            <span class="text-success fw-semibold">Save ₱@annualSavings.ToString("N0")</span>.
+                        </p>
+                        <hr />
+                        <ul class="list-unstyled mb-4 flex-grow-1">
+                            @foreach (var f in new[] {
+                                "Everything in Starter",
+                                "Lowest price per month",
+                                "Custom facility branding",
+                                "Priority support",
+                                "All future updates",
+                                "2+ months free vs monthly"
+                            })
+                            {
+                                <li class="mb-2 small"><i class="bi bi-check-circle-fill text-warning me-2"></i>@f</li>
+                            }
+                        </ul>
+                        <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
+                           class="btn btn-primary w-100 fw-bold mt-auto">
+                            <i class="bi bi-stars me-2"></i>Get Pro Annual
+                        </a>
+                        <p class="text-center text-muted mt-2 mb-0" style="font-size:.75rem;">
+                            <i class="bi bi-shield-check me-1 text-success"></i>30-day money-back guarantee
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <p class="text-center text-muted small mt-4 mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            All plans include the same full-featured system. Switch billing anytime after your trial.
+        </p>
+    </div>
+</section>

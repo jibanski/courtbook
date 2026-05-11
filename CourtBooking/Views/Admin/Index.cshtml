@@ -1,0 +1,153 @@
+@model IEnumerable<CourtBooking.Models.Booking>
+@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<div class="bg-dark text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1"><i class="bi bi-speedometer2 me-2"></i>Admin Dashboard</h1>
+        <p class="mb-0 opacity-75">Manage your facility from one place</p>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card text-white bg-primary shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fs-2 fw-bold">@ViewBag.TotalBookings</div>
+                            <div class="small opacity-75">Total Bookings</div>
+                        </div>
+                        <i class="bi bi-calendar-check display-5 opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-white bg-success shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fs-2 fw-bold">@ViewBag.TodayBookings</div>
+                            <div class="small opacity-75">Today's Bookings</div>
+                        </div>
+                        <i class="bi bi-calendar-day display-5 opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-white bg-warning shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fs-2 fw-bold">₱@(((decimal)ViewBag.TotalRevenue).ToString("N0"))</div>
+                            <div class="small opacity-75">Total Revenue</div>
+                        </div>
+                        <i class="bi bi-cash-coin display-5 opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-white bg-info shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fs-2 fw-bold">@ViewBag.ActiveCourts</div>
+                            <div class="small opacity-75">Active Courts</div>
+                        </div>
+                        <i class="bi bi-buildings display-5 opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @if ((int)ViewBag.AwaitingPayment > 0)
+        {
+            <div class="col-12 col-md-6">
+                <a asp-action="Bookings" asp-route-awaitingConfirmation="true" class="text-decoration-none">
+                    <div class="card text-white bg-danger shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fs-2 fw-bold">@ViewBag.AwaitingPayment</div>
+                                    <div class="small opacity-75">Awaiting Payment Confirmation</div>
+                                </div>
+                                <i class="bi bi-hourglass-split display-5 opacity-25"></i>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        }
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="d-flex flex-wrap gap-2">
+                <a asp-action="Courts" class="btn btn-outline-primary"><i class="bi bi-buildings me-1"></i>Manage Courts</a>
+                <a asp-action="Bookings" class="btn btn-outline-primary"><i class="bi bi-calendar3 me-1"></i>View All Bookings</a>
+                @if ((int)ViewBag.AwaitingPayment > 0)
+                {
+                    <a asp-action="Bookings" asp-route-awaitingConfirmation="true" class="btn btn-danger">
+                        <i class="bi bi-hourglass-split me-1"></i>Confirm Payments
+                        <span class="badge bg-white text-danger ms-1">@ViewBag.AwaitingPayment</span>
+                    </a>
+                }
+                <a asp-action="CreateCourt" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i>Add New Court</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Bookings -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold">Recent Bookings</h5>
+            <a asp-action="Bookings" class="btn btn-sm btn-outline-primary">View All</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Customer</th>
+                        <th>Court</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in Model)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@b.User.FullName</div>
+                                <small class="text-muted">@b.User.Email</small>
+                            </td>
+                            <td>@b.Court.Name <span class="badge bg-secondary">@b.Court.SportType</span></td>
+                            <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
+                            <td>@b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")</td>
+                            <td>₱@b.TotalPrice.ToString("N0")</td>
+                            <td>
+                                @{
+                                    var cls = b.Status switch {
+                                        CourtBooking.Models.BookingStatus.Confirmed => "bg-success",
+                                        CourtBooking.Models.BookingStatus.Cancelled => "bg-danger",
+                                        CourtBooking.Models.BookingStatus.Completed => "bg-secondary",
+                                        _ => "bg-warning text-dark"
+                                    };
+                                }
+                                <span class="badge @cls">@b.Status</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

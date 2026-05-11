@@ -1,0 +1,149 @@
+@model CourtBooking.ViewModels.CourtAvailabilityViewModel
+@{
+    ViewData["Title"] = $"Book {Model.Court.Name}";
+}
+
+<div class="bg-primary text-white py-4 mb-4">
+    <div class="container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="/" class="text-white-50">Home</a></li>
+                <li class="breadcrumb-item"><a asp-controller="Courts" asp-action="Index" class="text-white-50">Courts</a></li>
+                <li class="breadcrumb-item active text-white">@Model.Court.Name</li>
+            </ol>
+        </nav>
+        <h1 class="fw-bold mb-1">@Model.Court.Name</h1>
+        <p class="mb-0 opacity-75">@Model.Court.SportType &bull; @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row g-4">
+        <!-- Court Info -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-info-circle me-2 text-primary"></i>Court Details</h5>
+                    <hr />
+                    <p class="text-muted">@Model.Court.Description</p>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><i class="bi bi-tag me-2 text-primary"></i><strong>Sport:</strong> @Model.Court.SportType</li>
+                        <li class="mb-2"><i class="bi bi-house me-2 text-primary"></i><strong>Type:</strong> @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")</li>
+                        <li class="mb-2"><i class="bi bi-clock me-2 text-primary"></i><strong>Hours:</strong> @Model.Court.OpeningHour:00 – @Model.Court.ClosingHour:00</li>
+                        <li class="mb-2"><i class="bi bi-currency-dollar me-2 text-primary"></i><strong>Rate:</strong> ₱@Model.Court.PricePerHour.ToString("N0")/hour</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Date Picker -->
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-calendar me-2 text-primary"></i>Select Date</h6>
+                    <form method="get">
+                        <div class="input-group">
+                            <input type="date" name="date" class="form-control"
+                                   value="@Model.Date.ToString("yyyy-MM-dd")"
+                                   min="@DateTime.Today.ToString("yyyy-MM-dd")"
+                                   max="@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")" />
+                            <button type="submit" class="btn btn-primary">Go</button>
+                        </div>
+                    </form>
+                    <small class="text-muted mt-2 d-block">Viewing: <strong>@Model.Date.ToString("dddd, MMMM d, yyyy")</strong></small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Availability Grid -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="fw-bold mb-1"><i class="bi bi-clock me-2 text-primary"></i>Available Time Slots</h5>
+                    <p class="text-muted small mb-3">Click an available slot to start your booking</p>
+
+                    <div class="d-flex flex-wrap gap-2 mb-4">
+                        <span class="badge bg-success px-3 py-2">Available</span>
+                        <span class="badge bg-danger px-3 py-2">Booked</span>
+                    </div>
+
+                    @if (Model.HasSlots)
+                    {
+                        <!-- Defined slot cards -->
+                        <div class="row g-3">
+                            @foreach (var slot in Model.TimeSlots)
+                            {
+                                bool isUnavailable = Model.UnavailableSlotIds.Contains(slot.Id);
+                                decimal price = Model.Court.PricePerHour * slot.DurationHours;
+                                <div class="col-sm-6 col-md-4">
+                                    @if (isUnavailable)
+                                    {
+                                        <div class="card border-danger text-center p-3 opacity-75 h-100">
+                                            <div class="fw-bold text-danger">@slot.TimeLabel</div>
+                                            <div class="small text-muted">@slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull; ₱@price.ToString("N0")</div>
+                                            <div class="badge bg-danger mt-2"><i class="bi bi-x-circle me-1"></i>Booked</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <a asp-controller="Bookings" asp-action="Create"
+                                           asp-route-courtId="@Model.Court.Id"
+                                           asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                           asp-route-startHour="@slot.StartHour"
+                                           asp-route-endHour="@slot.EndHour"
+                                           class="card border-success text-center p-3 text-decoration-none h-100 time-slot-btn d-block">
+                                            <div class="fw-bold text-success">@slot.TimeLabel</div>
+                                            <div class="small text-muted">@slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull; ₱@price.ToString("N0")</div>
+                                            <div class="badge bg-success mt-2"><i class="bi bi-calendar-plus me-1"></i>Book</div>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        @if (Model.TimeSlots.All(s => Model.UnavailableSlotIds.Contains(s.Id)))
+                        {
+                            <div class="alert alert-warning mt-3">
+                                <i class="bi bi-exclamation-triangle me-2"></i>All slots are booked for this date. Try another day.
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <!-- Hourly grid (fallback) -->
+                        <div class="row g-2">
+                            @for (int h = Model.Court.OpeningHour; h < Model.Court.ClosingHour; h++)
+                            {
+                                bool isBooked = Model.BookedHours.Contains(h);
+                                var timeLabel = $"{h:D2}:00 – {h + 1:D2}:00";
+                                <div class="col-6 col-sm-4 col-md-3">
+                                    @if (isBooked)
+                                    {
+                                        <div class="btn btn-danger w-100 disabled opacity-75 small">
+                                            <i class="bi bi-x-circle me-1"></i>@timeLabel
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <a asp-controller="Bookings" asp-action="Create"
+                                           asp-route-courtId="@Model.Court.Id"
+                                           asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                           asp-route-startHour="@h"
+                                           class="btn btn-outline-success w-100 small time-slot-btn">
+                                            <i class="bi bi-calendar-plus me-1"></i>@timeLabel
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        @if (!Model.AvailableHours.Any())
+                        {
+                            <div class="alert alert-warning mt-3">
+                                <i class="bi bi-exclamation-triangle me-2"></i>All slots are booked for this date. Try another day.
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

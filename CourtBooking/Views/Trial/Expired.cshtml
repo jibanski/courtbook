@@ -1,0 +1,78 @@
+@{
+    ViewData["Title"] = "Trial Expired";
+    Layout = "_LandingLayout";
+}
+
+<section class="min-vh-100 d-flex align-items-center bg-light py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8 text-center">
+
+                <div class="mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-warning-subtle rounded-circle mb-3"
+                         style="width:96px;height:96px;">
+                        <i class="bi bi-hourglass-bottom text-warning" style="font-size:3rem;"></i>
+                    </div>
+                    <h1 class="fw-bold mb-2">Your Free Trial Has Ended</h1>
+                    <p class="text-muted lead">
+                        Your 7-day free trial has expired. Upgrade to a paid plan to continue
+                        using CourtBook and keep your bookings running smoothly.
+                    </p>
+                </div>
+
+                <!-- Upgrade card -->
+                <div class="bg-white rounded-4 shadow p-4 mb-4 text-start">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="bg-primary text-white rounded-3 d-flex align-items-center justify-content-center"
+                             style="width:48px;height:48px;flex-shrink:0;">
+                            <i class="bi bi-trophy-fill fs-5"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold fs-5">CourtBook Pro</div>
+                            <div class="text-muted small">Full access · Priority support · All future features</div>
+                        </div>
+                    </div>
+                    <ul class="list-unstyled mb-4">
+                        @foreach (var f in new[] {
+                            "Unlimited courts & bookings",
+                            "GCash & Maya payment collection",
+                            "Full admin dashboard",
+                            "Time slot management",
+                            "Priority support",
+                            "All future updates"
+                        })
+                        {
+                            <li class="mb-2 small"><i class="bi bi-check-circle-fill text-success me-2"></i>@f</li>
+                        }
+                    </ul>
+                    <a asp-controller="Subscription" asp-action="Upgrade"
+                       class="btn btn-primary btn-lg w-100 fw-bold">
+                        <i class="bi bi-arrow-up-circle me-2"></i>Upgrade Now — Pay Online
+                    </a>
+                </div>
+
+                <div class="bg-white rounded-4 border p-4 mb-4">
+                    <h6 class="fw-bold mb-3">Get in touch</h6>
+                    <div class="d-flex flex-column gap-2">
+                        <a href="mailto:sales@courtbook.com" class="d-flex align-items-center gap-2 text-decoration-none text-dark">
+                            <i class="bi bi-envelope-fill text-primary"></i>
+                            <span class="small">sales@courtbook.com</span>
+                        </a>
+                        <a href="tel:+6312345678" class="d-flex align-items-center gap-2 text-decoration-none text-dark">
+                            <i class="bi bi-telephone-fill text-success"></i>
+                            <span class="small">+63 (2) 1234-5678</span>
+                        </a>
+                    </div>
+                </div>
+
+                <form asp-controller="Account" asp-action="Logout" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-secondary">
+                        <i class="bi bi-box-arrow-right me-1"></i>Logout
+                    </button>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</section>

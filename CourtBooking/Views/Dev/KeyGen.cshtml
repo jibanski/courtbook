@@ -1,0 +1,160 @@
+@{
+    Layout = null;   // Standalone page — no nav, no branding
+    ViewData["Title"] = "CourtBook Key Generator";
+
+    var attempted    = ViewBag.Attempted    == true;
+    var generatedKey = ViewBag.GeneratedKey as string;
+    var errorMsg     = ViewBag.Error        as string;
+    var email        = ViewBag.Email        as string ?? "";
+    var plan         = ViewBag.Plan         as string ?? "monthly";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+          crossorigin="anonymous" />
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <style>
+        body { background: #0d1117; color: #e6edf3; }
+        .keygen-card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
+        .key-output  { background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+                       font-family: monospace; font-size: 1.4rem; letter-spacing: .12em;
+                       color: #58a6ff; text-align: center; padding: 1rem 1.5rem; }
+        .form-control, .form-select {
+            background: #0d1117; border-color: #30363d; color: #e6edf3;
+        }
+        .form-control:focus, .form-select:focus {
+            background: #0d1117; border-color: #58a6ff; color: #e6edf3; box-shadow: none;
+        }
+        .form-control::placeholder { color: #6e7681; }
+    </style>
+</head>
+<body>
+<div class="container py-5" style="max-width:520px;">
+
+    <div class="text-center mb-4">
+        <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10
+                    rounded-circle mb-3" style="width:64px;height:64px;">
+            <i class="bi bi-key-fill text-primary fs-2"></i>
+        </div>
+        <h3 class="fw-bold mb-1">CourtBook Key Generator</h3>
+        <p class="text-secondary small mb-0">Developer tool — generate Pro activation keys for subscribers</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            @errorMsg
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(generatedKey))
+    {
+        <div class="keygen-card p-4 mb-4">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-check-circle-fill text-success"></i>
+                <span class="fw-semibold">Activation Key Generated</span>
+            </div>
+
+            <div class="key-output mb-3" id="keyOutput">@generatedKey</div>
+
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary btn-sm flex-fill"
+                        onclick="copyKey()">
+                    <i class="bi bi-clipboard me-1"></i><span id="copyLabel">Copy Key</span>
+                </button>
+            </div>
+
+            <hr class="border-secondary my-3" />
+
+            <div class="small text-secondary">
+                <div class="row g-1">
+                    <div class="col-4">Email</div>
+                    <div class="col-8 text-light font-monospace">@email</div>
+                    <div class="col-4">Plan</div>
+                    <div class="col-8 text-light text-capitalize">@plan</div>
+                </div>
+            </div>
+
+            <div class="alert alert-warning small mt-3 mb-0 py-2">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Send this key directly to the subscriber's registered email. Do not share publicly.
+            </div>
+        </div>
+    }
+
+    <div class="keygen-card p-4">
+        <form method="post" asp-action="KeyGen" asp-controller="Dev">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold small text-secondary">
+                    <i class="bi bi-shield-lock me-1"></i>Developer Password
+                </label>
+                <input type="password" name="password" class="form-control"
+                       placeholder="Enter developer password" autocomplete="current-password" required />
+            </div>
+
+            <hr class="border-secondary my-3" />
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold small text-secondary">
+                    <i class="bi bi-envelope me-1"></i>Subscriber Email
+                </label>
+                <input type="email" name="email" value="@email" class="form-control"
+                       placeholder="admin@subscriberdomain.com" required />
+                <div class="form-text text-secondary" style="font-size:.78rem;">
+                    Must match exactly the email used to register the admin account.
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold small text-secondary">
+                    <i class="bi bi-calendar3 me-1"></i>Plan
+                </label>
+                <select name="plan" class="form-select">
+                    @if (plan == "monthly")
+                    {
+                        <option value="monthly" selected>Monthly</option>
+                        <option value="annual">Annual</option>
+                    }
+                    else
+                    {
+                        <option value="monthly">Monthly</option>
+                        <option value="annual" selected>Annual</option>
+                    }
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 fw-semibold">
+                <i class="bi bi-magic me-2"></i>Generate Activation Key
+            </button>
+        </form>
+    </div>
+
+    <p class="text-center text-secondary small mt-4">
+        <i class="bi bi-info-circle me-1"></i>
+        Keys are deterministic — the same email + plan always produces the same key.
+    </p>
+
+</div>
+
+<script>
+    function copyKey() {
+        const key   = document.getElementById('keyOutput').innerText.trim();
+        const label = document.getElementById('copyLabel');
+        navigator.clipboard.writeText(key).then(() => {
+            label.textContent = 'Copied!';
+            setTimeout(() => label.textContent = 'Copy Key', 2000);
+        });
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+@model IEnumerable<CourtBooking.Models.Booking>
+@{
+    ViewData["Title"] = "My Bookings";
+}
+
+<div class="bg-primary text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1"><i class="bi bi-calendar-check me-2"></i>My Bookings</h1>
+        <p class="mb-0 opacity-75">Manage your upcoming and past reservations</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="d-flex justify-content-end mb-3">
+        <a asp-controller="Courts" asp-action="Index" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i>Book a Court
+        </a>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="bi bi-calendar-x display-1 text-muted opacity-50"></i>
+            <h4 class="mt-3 text-muted">No bookings yet</h4>
+            <p class="text-muted">Start by browsing available courts.</p>
+            <a asp-controller="Courts" asp-action="Index" class="btn btn-primary mt-2">Browse Courts</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var booking in Model)
+            {
+                var isPast = booking.BookingDate < DateOnly.FromDateTime(DateTime.Today);
+                var isPendingPayment   = booking.PaymentStatus == CourtBooking.Models.PaymentStatus.Unpaid
+                                       && booking.Status == CourtBooking.Models.BookingStatus.Pending
+                                       && !booking.HasPaymentProof;
+                var isAwaitingConfirm = booking.HasPaymentProof
+                                       && booking.Status == CourtBooking.Models.BookingStatus.Pending;
+                var badgeClass = booking.Status switch
+                {
+                    CourtBooking.Models.BookingStatus.Confirmed => "bg-success",
+                    CourtBooking.Models.BookingStatus.Cancelled  => "bg-danger",
+                    CourtBooking.Models.BookingStatus.Completed  => "bg-secondary",
+                    _                                            => "bg-warning text-dark"
+                };
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 shadow-sm @(isPast || booking.Status == CourtBooking.Models.BookingStatus.Cancelled ? "opacity-75" : "")
+                                @(isPendingPayment ? "border-warning border-2" : "")
+                                @(isAwaitingConfirm ? "border-info border-2" : "")">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="fw-bold mb-0">@booking.Court.Name</h6>
+                                <div class="d-flex flex-column gap-1 align-items-end">
+                                    <span class="badge @badgeClass">@booking.Status</span>
+                                    @if (booking.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid)
+                                    {
+                                        <span class="badge bg-success bg-opacity-75 small">
+                                            <i class="bi bi-credit-card me-1"></i>Paid
+                                        </span>
+                                    }
+                                    else if (isAwaitingConfirm)
+                                    {
+                                        <span class="badge bg-info text-dark small">
+                                            <i class="bi bi-hourglass-split me-1"></i>Awaiting Confirmation
+                                        </span>
+                                    }
+                                    else if (booking.Status != CourtBooking.Models.BookingStatus.Cancelled)
+                                    {
+                                        <span class="badge bg-warning text-dark small">
+                                            <i class="bi bi-clock me-1"></i>Unpaid
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                            <p class="text-muted small mb-1">
+                                <i class="bi bi-tag me-1"></i>@booking.Court.SportType
+                            </p>
+                            <p class="mb-1">
+                                <i class="bi bi-calendar me-2 text-primary"></i>
+                                <strong>@booking.BookingDate.ToString("MMMM d, yyyy")</strong>
+                            </p>
+                            <p class="mb-1">
+                                <i class="bi bi-clock me-2 text-primary"></i>
+                                @booking.StartTime.ToString("hh:mm tt") – @booking.EndTime.ToString("hh:mm tt")
+                                <span class="text-muted small">(@booking.DurationHours hrs)</span>
+                            </p>
+                            <p class="mb-1">
+                                <i class="bi bi-cash-coin me-2 text-primary"></i>
+                                <strong>₱@booking.TotalPrice.ToString("N0")</strong>
+                            </p>
+                            @if (booking.PaidAt.HasValue)
+                            {
+                                <p class="text-muted small mb-0">
+                                    <i class="bi bi-check-circle text-success me-1"></i>Paid @booking.PaidAt.Value.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
+                                </p>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(booking.Notes))
+                            {
+                                <p class="text-muted small mb-0 mt-1">
+                                    <i class="bi bi-chat-text me-1"></i>@booking.Notes
+                                </p>
+                            }
+                        </div>
+                        @if (isPendingPayment && !isPast)
+                        {
+                            <div class="card-footer bg-white">
+                                <a asp-action="Pay" asp-route-id="@booking.Id" class="btn btn-warning btn-sm w-100 fw-bold">
+                                    <i class="bi bi-credit-card me-1"></i>Pay Now — ₱@booking.TotalPrice.ToString("N0")
+                                </a>
+                            </div>
+                        }
+                        else if (isAwaitingConfirm)
+                        {
+                            <div class="card-footer bg-light text-center small text-muted">
+                                <i class="bi bi-hourglass-split me-1"></i>Payment submitted — waiting for admin approval
+                            </div>
+                        }
+                        else if (booking.Status == CourtBooking.Models.BookingStatus.Confirmed && !isPast)
+                        {
+                            <div class="card-footer bg-white border-top-0">
+                                <form asp-action="Cancel" asp-route-id="@booking.Id" method="post"
+                                      onsubmit="return confirm('Cancel this booking?')">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                                        <i class="bi bi-x-circle me-1"></i>Cancel Booking
+                                    </button>
+                                </form>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

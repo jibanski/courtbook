@@ -1,0 +1,69 @@
+@model IEnumerable<CourtBooking.Models.Court>
+@{
+    ViewData["Title"] = "Manage Courts";
+}
+
+<div class="bg-dark text-white py-4 mb-4">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="fw-bold mb-1"><i class="bi bi-buildings me-2"></i>Manage Courts</h1>
+            <p class="mb-0 opacity-75">Add, edit, or toggle courts</p>
+        </div>
+        <a asp-action="CreateCourt" class="btn btn-warning fw-bold">
+            <i class="bi bi-plus-circle me-1"></i>Add Court
+        </a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Sport</th>
+                        <th>Type</th>
+                        <th>Hours</th>
+                        <th>Rate</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var court in Model)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@court.Name</div>
+                                <small class="text-muted">@court.Description</small>
+                            </td>
+                            <td><span class="badge bg-secondary">@court.SportType</span></td>
+                            <td>@(court.IsIndoor ? "Indoor" : "Outdoor")</td>
+                            <td>@court.OpeningHour:00 – @court.ClosingHour:00</td>
+                            <td>₱@court.PricePerHour.ToString("N0")/hr</td>
+                            <td>
+                                <span class="badge @(court.IsActive ? "bg-success" : "bg-danger")">
+                                    @(court.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a asp-action="EditCourt" asp-route-id="@court.Id" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form asp-action="ToggleCourt" asp-route-id="@court.Id" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm @(court.IsActive ? "btn-outline-danger" : "btn-outline-success")">
+                                            <i class="bi bi-@(court.IsActive ? "toggle-on" : "toggle-off")"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
