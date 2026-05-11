@@ -42,7 +42,7 @@ public class AccountController : Controller
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
 
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Index", "Courts");
         }
 
         foreach (var error in result.Errors)
@@ -65,17 +65,23 @@ public class AccountController : Controller
         var result = await _signInManager.PasswordSignInAsync(vm.Email, vm.Password, vm.RememberMe, lockoutOnFailure: false);
         if (result.Succeeded)
         {
-            // If a specific page was requested (e.g. from a booking link), go there.
+            // Admins always go to their dashboard — ignore returnUrl / facility cookie for them
+            var user = await _userManager.FindByEmailAsync(vm.Email);
+            if (user != null && await _userManager.IsInRoleAsync(user, "Admin"))
+                return RedirectToAction("Index", "Admin");
+
+            // For customers: if a specific page was requested (e.g. a booking form link), honour it
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)
                 && !returnUrl.StartsWith("/Account") && !returnUrl.StartsWith("/Trial"))
                 return LocalRedirect(returnUrl);
 
-            // Otherwise, if the user arrived via a facility-specific URL, return them there.
+            // Otherwise send them back to the facility page they came from
             var facilitySlug = Request.Cookies["facilitySlug"];
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
 
-            return LocalRedirect("/");
+            // Final fallback — generic courts browser
+            return RedirectToAction("Index", "Courts");
         }
 
         ModelState.AddModelError("", "Invalid email or password.");

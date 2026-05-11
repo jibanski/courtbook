@@ -32,13 +32,9 @@ public class FacilityController : Controller
 
         if (settings is null) return NotFound();
 
-        // Remember this facility so we can redirect back here after login / registration
-        Response.Cookies.Append("facilitySlug", slug, new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Lax,
-            MaxAge   = TimeSpan.FromHours(2)
-        });
+        // Remember this facility so we can redirect back here after login / registration.
+        // 7-day lifetime so returning customers still land on the right page.
+        SetFacilityCookie(slug);
 
         var query = _db.Courts.Where(c => c.OwnerId == settings.OwnerId && c.IsActive);
 
@@ -63,6 +59,9 @@ public class FacilityController : Controller
     {
         var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.Slug == slug);
         if (settings is null) return NotFound();
+
+        // Keep the facility cookie fresh even on deep-links to a specific court
+        SetFacilityCookie(slug);
 
         var court = await _db.Courts
             .FirstOrDefaultAsync(c => c.Id == courtId && c.OwnerId == settings.OwnerId && c.IsActive);
@@ -98,4 +97,14 @@ public class FacilityController : Controller
         ViewBag.Slug             = slug;
         return View(vm);
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void SetFacilityCookie(string slug) =>
+        Response.Cookies.Append("facilitySlug", slug, new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            MaxAge   = TimeSpan.FromDays(7)
+        });
 }
