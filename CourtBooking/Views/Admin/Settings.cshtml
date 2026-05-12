@@ -207,6 +207,34 @@
                     </div>
                 </div>
 
+                <!-- Social Media -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-share me-2 text-info"></i>Social Media
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Add your social pages so customers can follow you. Links appear on your facility page.
+                        </p>
+                        <div class="mb-3">
+                            <label asp-for="FacebookUrl" class="form-label fw-semibold">
+                                <i class="bi bi-facebook text-primary me-1"></i>Facebook Page URL
+                            </label>
+                            <input asp-for="FacebookUrl" type="url" class="form-control"
+                                   placeholder="https://facebook.com/your-page" />
+                            <span asp-validation-for="FacebookUrl" class="text-danger small"></span>
+                        </div>
+                        <div class="mb-0">
+                            <label asp-for="InstagramUrl" class="form-label fw-semibold">
+                                <i class="bi bi-instagram text-danger me-1"></i>Instagram Profile URL
+                            </label>
+                            <input asp-for="InstagramUrl" type="url" class="form-control"
+                                   placeholder="https://instagram.com/your-handle" />
+                            <span asp-validation-for="InstagramUrl" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Payment Instructions -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white fw-bold">

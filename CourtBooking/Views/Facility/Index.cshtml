@@ -35,6 +35,27 @@
                             <i class="bi bi-geo-alt me-1"></i>@fs.Address
                         </p>
                     }
+                    @if (!string.IsNullOrWhiteSpace(fs.FacebookUrl) || !string.IsNullOrWhiteSpace(fs.InstagramUrl))
+                    {
+                        <div class="d-flex gap-2 mt-2">
+                            @if (!string.IsNullOrWhiteSpace(fs.FacebookUrl))
+                            {
+                                <a href="@fs.FacebookUrl" target="_blank" rel="noopener"
+                                   class="btn btn-sm btn-outline-light d-inline-flex align-items-center gap-1"
+                                   title="Visit our Facebook page">
+                                    <i class="bi bi-facebook"></i><span class="small">Facebook</span>
+                                </a>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(fs.InstagramUrl))
+                            {
+                                <a href="@fs.InstagramUrl" target="_blank" rel="noopener"
+                                   class="btn btn-sm btn-outline-light d-inline-flex align-items-center gap-1"
+                                   title="Follow us on Instagram">
+                                    <i class="bi bi-instagram"></i><span class="small">Instagram</span>
+                                </a>
+                            }
+                        </div>
+                    }
                 }
             </div>
             @if (fs?.IsSubscribed == true)

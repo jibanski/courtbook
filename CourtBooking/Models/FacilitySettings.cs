@@ -36,6 +36,15 @@ public class FacilitySettings
     [MaxLength(500)]
     public string? PaymentInstructions { get; set; }
 
+    // ── Social Media ──────────────────────────────────────────────────────────
+    [MaxLength(300)]
+    [Url(ErrorMessage = "Please enter a valid Facebook URL (e.g. https://facebook.com/yourpage).")]
+    public string? FacebookUrl { get; set; }
+
+    [MaxLength(300)]
+    [Url(ErrorMessage = "Please enter a valid Instagram URL (e.g. https://instagram.com/yourpage).")]
+    public string? InstagramUrl { get; set; }
+
     // ── Trial ─────────────────────────────────────────────────────────────────
     public DateTime? TrialStartedAt { get; set; }
     public bool IsSubscribed { get; set; } = false;
