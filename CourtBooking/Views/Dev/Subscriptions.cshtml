@@ -3,11 +3,11 @@
     Layout = null;
     ViewData["Title"] = "CourtBook — Subscription Approvals";
 
-    var password   = ViewBag.Password  as string ?? "";
-    var settings   = ViewBag.Settings  as FacilitySettings;
-    var adminEmail = ViewBag.AdminEmail as string ?? "";
-    var errorMsg   = ViewBag.Error     as string;
-    var isUnlocked = !string.IsNullOrEmpty(password);
+    var password       = ViewBag.Password       as string ?? "";
+    var pendingList    = ViewBag.PendingList    as List<FacilitySettings> ?? new List<FacilitySettings>();
+    var emailByOwnerId = ViewBag.EmailByOwnerId as Dictionary<string, string?> ?? new();
+    var errorMsg       = ViewBag.Error          as string;
+    var isUnlocked     = !string.IsNullOrEmpty(password);
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -89,130 +89,136 @@
             </form>
         </div>
     }
-    else if (settings is null)
+    else if (!pendingList.Any())
     {
         <div class="dev-card p-4 text-center">
-            <i class="bi bi-building display-4 text-secondary opacity-50"></i>
-            <h5 class="mt-3 text-secondary">No facility registered yet</h5>
-            <p class="text-secondary small">No FacilitySettings record found in the database.</p>
-        </div>
-    }
-    else if (!settings.IsSubscriptionPending)
-    {
-        <!-- No pending submission -->
-        <div class="dev-card p-4 text-center">
-            @if (settings.IsSubscribed)
-            {
-                <i class="bi bi-check-circle-fill display-4 text-success opacity-75"></i>
-                <h5 class="mt-3">Already Subscribed</h5>
-                <p class="text-secondary small mb-0">
-                    <strong>@settings.FacilityName</strong> has an active subscription
-                    @if (settings.SubscriptionActivatedAt.HasValue)
-                    {
-                        <span>activated on @settings.SubscriptionActivatedAt.Value.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</span>
-                    }
-                </p>
-            }
-            else
-            {
-                <i class="bi bi-inbox display-4 text-secondary opacity-50"></i>
-                <h5 class="mt-3 text-secondary">No Pending Submissions</h5>
-                <p class="text-secondary small mb-0">No payment proof has been submitted yet.</p>
-            }
+            <i class="bi bi-inbox display-4 text-secondary opacity-50"></i>
+            <h5 class="mt-3 text-secondary">No Pending Submissions</h5>
+            <p class="text-secondary small mb-0">All payment proofs have been processed.</p>
         </div>
     }
     else
     {
-        <!-- Pending submission card -->
-        <div class="dev-card p-4">
-            <div class="d-flex justify-content-between align-items-start mb-3">
-                <div>
-                    <h5 class="fw-bold mb-1">@settings.FacilityName</h5>
-                    <span class="badge bg-warning text-dark">
-                        <i class="bi bi-hourglass-split me-1"></i>Awaiting Approval
+        <p class="text-secondary small mb-3">
+            <i class="bi bi-stack me-1"></i>@pendingList.Count submission@(pendingList.Count == 1 ? "" : "s") awaiting review
+        </p>
+
+        @foreach (var settings in pendingList)
+        {
+            var ownerEmail = (settings.OwnerId is not null && emailByOwnerId.TryGetValue(settings.OwnerId, out var e))
+                ? e ?? "(no email)"
+                : "(no owner)";
+            var isRenewal  = settings.IsRenewalPending;
+
+            <!-- Pending submission card -->
+            <div class="dev-card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="fw-bold mb-1">@settings.FacilityName</h5>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-hourglass-split me-1"></i>Awaiting Approval
+                            </span>
+                            @if (isRenewal)
+                            {
+                                <span class="badge bg-info text-dark">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Renewal
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-primary">
+                                    <i class="bi bi-stars me-1"></i>New
+                                </span>
+                            }
+                        </div>
+                    </div>
+                    <span class="text-secondary small">
+                        @settings.SubscriptionSubmittedAt?.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
                     </span>
                 </div>
-                <span class="text-secondary small">
-                    @settings.SubscriptionSubmittedAt?.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
-                </span>
-            </div>
 
-            <hr class="border-secondary" />
+                <hr class="border-secondary" />
 
-            <!-- Details -->
-            <div class="row g-2 mb-3 small">
-                <div class="col-5 text-secondary">Admin Email</div>
-                <div class="col-7 font-monospace text-light">@adminEmail</div>
+                <!-- Details -->
+                <div class="row g-2 mb-3 small">
+                    <div class="col-5 text-secondary">Owner Email</div>
+                    <div class="col-7 font-monospace text-light">@ownerEmail</div>
 
-                <div class="col-5 text-secondary">Plan</div>
-                <div class="col-7 text-capitalize text-light">
-                    <span class="badge @(settings.SubscriptionPlan == "annual" ? "bg-success" : "bg-primary")">
-                        @settings.SubscriptionPlan
-                    </span>
+                    <div class="col-5 text-secondary">Plan</div>
+                    <div class="col-7 text-capitalize text-light">
+                        <span class="badge @(settings.SubscriptionPlan == "annual" ? "bg-success" : "bg-primary")">
+                            @settings.SubscriptionPlan
+                        </span>
+                    </div>
+
+                    <div class="col-5 text-secondary">Reference No.</div>
+                    <div class="col-7 font-monospace text-light">
+                        @(string.IsNullOrWhiteSpace(settings.SubscriptionPaymentRef) ? "—" : settings.SubscriptionPaymentRef)
+                    </div>
+
+                    @if (isRenewal && settings.EffectiveSubscriptionExpiry.HasValue)
+                    {
+                        <div class="col-5 text-secondary">Current Expiry</div>
+                        <div class="col-7 text-light">
+                            @settings.EffectiveSubscriptionExpiry.Value.ToLocalTime().ToString("MMM d, yyyy")
+                            <span class="text-secondary">(extends from this date)</span>
+                        </div>
+                    }
                 </div>
 
-                <div class="col-5 text-secondary">Reference No.</div>
-                <div class="col-7 font-monospace text-light">
-                    @(string.IsNullOrWhiteSpace(settings.SubscriptionPaymentRef) ? "—" : settings.SubscriptionPaymentRef)
-                </div>
+                <!-- Proof image -->
+                @if (!string.IsNullOrWhiteSpace(settings.SubscriptionProofPath))
+                {
+                    <div class="mb-3 text-center">
+                        <p class="text-secondary small mb-2">
+                            <i class="bi bi-image me-1"></i>Payment Screenshot
+                        </p>
+                        <img src="@settings.SubscriptionProofPath" alt="Payment proof" class="proof-img" />
+                        <div class="mt-2">
+                            <a href="@settings.SubscriptionProofPath" target="_blank"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Open Full Size
+                            </a>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-secondary small mb-3">
+                        <i class="bi bi-exclamation-circle me-1"></i>No proof image was uploaded.
+                    </div>
+                }
 
-                <div class="col-5 text-secondary">Submitted</div>
-                <div class="col-7 text-light">
-                    @settings.SubscriptionSubmittedAt?.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
-                </div>
-            </div>
+                <hr class="border-secondary" />
 
-            <!-- Proof image -->
-            @if (!string.IsNullOrWhiteSpace(settings.SubscriptionProofPath))
-            {
-                <div class="mb-3 text-center">
-                    <p class="text-secondary small mb-2">
-                        <i class="bi bi-image me-1"></i>Payment Screenshot
-                    </p>
-                    <img src="@settings.SubscriptionProofPath" alt="Payment proof" class="proof-img" />
-                    <div class="mt-2">
-                        <a href="@settings.SubscriptionProofPath" target="_blank"
-                           class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-box-arrow-up-right me-1"></i>Open Full Size
-                        </a>
+                <!-- Approve / Reject -->
+                <div class="row g-2">
+                    <div class="col-8">
+                        <form asp-action="ApproveSubscription" asp-controller="Dev" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="password" value="@password" />
+                            <input type="hidden" name="id" value="@settings.Id" />
+                            <button type="submit" class="btn btn-success w-100 fw-semibold"
+                                    onclick="return confirm('Approve @(isRenewal ? "renewal" : "subscription") for @Html.Raw(settings.FacilityName)?')">
+                                <i class="bi bi-check-circle-fill me-2"></i>Approve & @(isRenewal ? "Extend" : "Activate")
+                            </button>
+                        </form>
+                    </div>
+                    <div class="col-4">
+                        <form asp-action="RejectSubscription" asp-controller="Dev" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="password" value="@password" />
+                            <input type="hidden" name="id" value="@settings.Id" />
+                            <button type="submit" class="btn btn-outline-danger w-100"
+                                    onclick="return confirm('Reject and clear the submission for @Html.Raw(settings.FacilityName)?')">
+                                <i class="bi bi-x-circle me-1"></i>Reject
+                            </button>
+                        </form>
                     </div>
                 </div>
-            }
-            else
-            {
-                <div class="alert alert-secondary small mb-3">
-                    <i class="bi bi-exclamation-circle me-1"></i>No proof image was uploaded.
-                </div>
-            }
-
-            <hr class="border-secondary" />
-
-            <!-- Approve / Reject -->
-            <div class="row g-2">
-                <div class="col-8">
-                    <form asp-action="ApproveSubscription" asp-controller="Dev" method="post">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="password" value="@password" />
-                        <input type="hidden" name="id" value="@settings.Id" />
-                        <button type="submit" class="btn btn-success w-100 fw-semibold"
-                                onclick="return confirm('Approve subscription for @Html.Raw(settings.FacilityName)?')">
-                            <i class="bi bi-check-circle-fill me-2"></i>Approve & Activate
-                        </button>
-                    </form>
-                </div>
-                <div class="col-4">
-                    <form asp-action="RejectSubscription" asp-controller="Dev" method="post">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="password" value="@password" />
-                        <input type="hidden" name="id" value="@settings.Id" />
-                        <button type="submit" class="btn btn-outline-danger w-100"
-                                onclick="return confirm('Reject and clear the submission for @Html.Raw(settings.FacilityName)?')">
-                            <i class="bi bi-x-circle me-1"></i>Reject
-                        </button>
-                    </form>
-                </div>
             </div>
-        </div>
+        }
     }
 
 </div>

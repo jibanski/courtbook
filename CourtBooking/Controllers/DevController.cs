@@ -80,12 +80,25 @@ public class DevController : Controller
             return View();
         }
 
-        var settings  = await _db.FacilitySettings.FirstOrDefaultAsync();
-        var adminUser = (await _userManager.GetUsersInRoleAsync("Admin")).FirstOrDefault();
+        // Load every facility that has a submitted payment. Filter to pending in
+        // memory because IsSubscriptionPending is a computed property.
+        // Each row pairs with its owner's email so the operator can generate the
+        // right key.
+        var all = await _db.FacilitySettings
+            .Where(s => s.SubscriptionSubmittedAt != null)
+            .OrderByDescending(s => s.SubscriptionSubmittedAt)
+            .ToListAsync();
 
-        ViewBag.Password  = password;   // pass through to approve/reject forms
-        ViewBag.Settings  = settings;
-        ViewBag.AdminEmail = adminUser?.Email ?? "(no admin registered yet)";
+        var pending = all.Where(s => s.IsSubscriptionPending).ToList();
+
+        var ownerIds = pending.Where(s => s.OwnerId != null).Select(s => s.OwnerId!).ToList();
+        var emailByOwnerId = await _db.Users
+            .Where(u => ownerIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.Email);
+
+        ViewBag.Password       = password;
+        ViewBag.PendingList    = pending;
+        ViewBag.EmailByOwnerId = emailByOwnerId;
         return View();
     }
 
@@ -109,7 +122,7 @@ public class DevController : Controller
                        : now;
 
         settings.IsSubscribed                = true;
-        settings.SubscriptionActivatedAt   ??= now;
+        settings.SubscriptionActivatedAt     = now;
         settings.SubscriptionExpiresAt       = baseDate.AddDays(days);
         settings.LastExpiryReminderThreshold = null;
         await _db.SaveChangesAsync();
@@ -128,13 +141,15 @@ public class DevController : Controller
         var settings = await _db.FacilitySettings.FindAsync(id);
         if (settings is null) return NotFound();
 
-        settings.SubscriptionPlan            = null;
+        // Clear only the submission-specific fields. Leave SubscriptionPlan,
+        // IsSubscribed, ActivatedAt, ExpiresAt intact so an existing subscriber
+        // whose renewal is rejected stays on their current paid period.
         settings.SubscriptionPaymentRef      = null;
         settings.SubscriptionProofPath       = null;
         settings.SubscriptionSubmittedAt     = null;
         await _db.SaveChangesAsync();
 
-        TempData["Error"] = $"Subscription submission for \"{settings.FacilityName}\" rejected and cleared.";
+        TempData["Error"] = $"Submission for \"{settings.FacilityName}\" rejected and cleared.";
         return RedirectToAction(nameof(Subscriptions));
     }
 

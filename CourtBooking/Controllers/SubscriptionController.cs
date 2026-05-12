@@ -104,12 +104,17 @@ public class SubscriptionController : Controller
     public async Task<IActionResult> Pending()
     {
         var settings = await GetMySettingsAsync();
-        if (settings?.IsSubscribed == true)
+
+        // Bounce only fully-paid users without a pending submission.
+        // Renewers (already subscribed but with a fresh submission waiting to be
+        // verified) must be allowed in so they see confirmation.
+        if (settings?.IsSubscribed == true && !settings.IsSubscriptionPending)
             return RedirectToAction("Index", "Admin");
 
         ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "sales@courtbook.com";
         ViewBag.ContactPhone = _config["Subscription:ContactPhone"] ?? "";
         ViewBag.Settings     = settings;
+        ViewBag.IsRenewal    = settings?.IsRenewalPending ?? false;
         return View();
     }
 
@@ -161,9 +166,9 @@ public class SubscriptionController : Controller
 
         var wasRenewal = settings.IsSubscribed;
 
-        settings.IsSubscribed              = true;
-        settings.SubscriptionActivatedAt ??= now;          // keep original activation date on renewal
-        settings.SubscriptionExpiresAt     = baseDate.AddDays(days);
+        settings.IsSubscribed                = true;
+        settings.SubscriptionActivatedAt     = now;        // stamp current paid period start (also clears "pending")
+        settings.SubscriptionExpiresAt       = baseDate.AddDays(days);
         settings.LastExpiryReminderThreshold = null;       // reset reminders for the new cycle
         await _db.SaveChangesAsync();
 

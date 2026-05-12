@@ -94,7 +94,19 @@ public class FacilitySettings
     /// </summary>
     public int? LastExpiryReminderThreshold { get; set; }
 
-    [NotMapped] public bool IsSubscriptionPending => SubscriptionSubmittedAt.HasValue && !IsSubscribed;
+    /// <summary>
+    /// True when there's a submitted payment that hasn't been activated yet.
+    /// Covers both initial signup (never activated) and renewals (submitted after
+    /// the most recent activation).
+    /// </summary>
+    [NotMapped]
+    public bool IsSubscriptionPending => SubscriptionSubmittedAt.HasValue
+        && (!SubscriptionActivatedAt.HasValue
+            || SubscriptionSubmittedAt.Value > SubscriptionActivatedAt.Value);
+
+    /// <summary>True only for renewal payments waiting to be verified.</summary>
+    [NotMapped]
+    public bool IsRenewalPending => IsSubscriptionPending && IsSubscribed;
 
     /// <summary>
     /// The effective expiry date — uses the stored <see cref="SubscriptionExpiresAt"/> when set,
