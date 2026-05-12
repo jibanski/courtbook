@@ -49,6 +49,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<KeyGeneratorService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddHttpClient();                                 // for EmailService (Brevo HTTP API)
 builder.Services.AddHostedService<SubscriptionReminderHostedService>();
 builder.Services.AddControllersWithViews();
 
