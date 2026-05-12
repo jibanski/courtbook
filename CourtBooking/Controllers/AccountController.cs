@@ -145,12 +145,15 @@ public class AccountController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel vm)
     {
+        _logger.LogInformation("[ForgotPassword] POST received for {Email} (modelValid={Valid})",
+            vm?.Email ?? "(null)", ModelState.IsValid);
+
         if (!ModelState.IsValid) return View(vm);
 
         var user = await _userManager.FindByEmailAsync(vm.Email.Trim());
         if (user is null)
         {
-            // Don't reveal that the email isn't registered.
+            _logger.LogInformation("[ForgotPassword] no account found for {Email} — silent redirect", vm.Email);
             return RedirectToAction(nameof(ForgotPasswordConfirmation));
         }
 
@@ -162,6 +165,8 @@ public class AccountController : Controller
             _logger.LogWarning("[ForgotPassword] token request blocked for locked-out account {Email}", user.Email);
             return RedirectToAction(nameof(ForgotPasswordConfirmation));
         }
+
+        _logger.LogInformation("[ForgotPassword] generating reset token for {Email}", user.Email);
 
         var rawToken = await _userManager.GeneratePasswordResetTokenAsync(user);
 
