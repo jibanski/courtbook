@@ -113,18 +113,20 @@ public class SubscriptionController : Controller
             return RedirectToAction("Settings", "Admin");
         }
 
-        // Resolve the admin's email for HMAC verification
-        var adminUser = (await _userManager.GetUsersInRoleAsync("Admin")).FirstOrDefault();
-        if (adminUser is null)
+        // Resolve the CURRENT admin's email for HMAC verification.
+        // (Previously this grabbed "the first admin in the DB", which broke
+        //  activation for every owner except the very first registered one.)
+        var currentAdmin = await _userManager.FindByIdAsync(CurrentUserId);
+        if (currentAdmin?.Email is null)
         {
-            TempData["Error"] = "Could not identify the admin account. Please contact support.";
+            TempData["Error"] = "Could not identify your admin account. Please contact support.";
             return RedirectToAction("Settings", "Admin");
         }
 
         var settings = await GetMySettingsAsync();
         var plan     = settings?.SubscriptionPlan;   // may be null if skipping payment flow
 
-        if (!_keyGen.VerifyKey(model.Key, adminUser.Email!, plan))
+        if (!_keyGen.VerifyKey(model.Key, currentAdmin.Email, plan))
         {
             TempData["Error"] = "Activation key is incorrect. Please check and try again.";
             return RedirectToAction("Settings", "Admin");
