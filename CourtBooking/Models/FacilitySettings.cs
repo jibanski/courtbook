@@ -59,10 +59,13 @@ public class FacilitySettings
     public string? SuspendedReason { get; set; }
 
     // ── Trial ─────────────────────────────────────────────────────────────────
+    /// <summary>Length of the free trial in days. Change here to retune.</summary>
+    public const int TrialPeriodDays = 30;
+
     public DateTime? TrialStartedAt { get; set; }
     public bool IsSubscribed { get; set; } = false;
 
-    [NotMapped] public DateTime? TrialExpiresAt    => TrialStartedAt?.AddDays(7);
+    [NotMapped] public DateTime? TrialExpiresAt    => TrialStartedAt?.AddDays(TrialPeriodDays);
     [NotMapped] public bool      IsTrialActive     => TrialStartedAt.HasValue && DateTime.UtcNow < TrialExpiresAt && !IsSubscribed;
     [NotMapped] public bool      IsTrialExpired    => TrialStartedAt.HasValue && DateTime.UtcNow >= TrialExpiresAt && !IsSubscribed;
     [NotMapped] public int       TrialDaysRemaining => TrialExpiresAt.HasValue

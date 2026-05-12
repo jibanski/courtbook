@@ -75,7 +75,7 @@ public class TrialController : Controller
             await _db.SaveChangesAsync();
 
             await _signInManager.SignInAsync(user, isPersistent: false);
-            TempData["Success"] = "Welcome! Your 7-day free trial has started. Set up your courts and go live.";
+            TempData["Success"] = $"Welcome! Your {FacilitySettings.TrialPeriodDays}-day free trial has started. Set up your courts and go live.";
             return RedirectToAction("Index", "Admin");
         }
         else
