@@ -13,19 +13,22 @@ public class AccountController : Controller
     private readonly EmailService _email;
     private readonly IConfiguration _config;
     private readonly ILogger<AccountController> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         EmailService email,
         IConfiguration config,
-        ILogger<AccountController> logger)
+        ILogger<AccountController> logger,
+        IServiceScopeFactory scopeFactory)
     {
         _userManager   = userManager;
         _signInManager = signInManager;
         _email         = email;
         _config        = config;
         _logger        = logger;
+        _scopeFactory  = scopeFactory;
     }
 
     public IActionResult Register() => View();
@@ -207,16 +210,27 @@ Didn't request this? You can safely ignore this email — your password won't ch
 Need help? {contactEmail}
 ";
 
-        try
+        // Fire-and-forget the send so the user gets the confirmation page
+        // immediately. SMTP timeouts can take 30+ seconds and we don't want
+        // the browser to hang on the redirect. Errors are written to the
+        // application log for ops to inspect.
+        var toAddress = user.Email!;
+        var scopeFactory = _scopeFactory;
+        _ = Task.Run(async () =>
         {
-            await _email.SendAsync(user.Email!, "Reset your CourtBook password", html, plain);
-        }
-        catch (Exception ex)
-        {
-            // We still show the generic confirmation to the user — don't leak
-            // mail-server problems to the form, but make sure ops sees them.
-            _logger.LogError(ex, "[ForgotPassword] failed to send reset email to {Email}", user.Email);
-        }
+            using var scope = scopeFactory.CreateScope();
+            var bgEmail  = scope.ServiceProvider.GetRequiredService<EmailService>();
+            var bgLogger = scope.ServiceProvider
+                .GetRequiredService<ILogger<AccountController>>();
+            try
+            {
+                await bgEmail.SendAsync(toAddress, "Reset your CourtBook password", html, plain);
+            }
+            catch (Exception ex)
+            {
+                bgLogger.LogError(ex, "[ForgotPassword] failed to send reset email to {Email}", toAddress);
+            }
+        });
 
         return RedirectToAction(nameof(ForgotPasswordConfirmation));
     }

@@ -64,6 +64,7 @@ public class EmailService
         using var client = new SmtpClient(host!, port)
         {
             EnableSsl   = enableSsl,
+            Timeout     = 30000,   // ms — fail fast instead of hanging for 100s
             Credentials = string.IsNullOrWhiteSpace(user)
                 ? CredentialCache.DefaultNetworkCredentials
                 : new NetworkCredential(user, pass),
