@@ -1,6 +1,7 @@
 using CourtBooking.Data;
 using CourtBooking.Models;
 using CourtBooking.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -52,6 +53,25 @@ builder.Services.AddScoped<EmailService>();
 builder.Services.AddHttpClient();                                 // for EmailService (Brevo HTTP API)
 builder.Services.AddHostedService<SubscriptionReminderHostedService>();
 builder.Services.AddControllersWithViews();
+
+// ── Data Protection key persistence ───────────────────────────────────────
+// Anti-forgery tokens, auth cookies, and password-reset tokens are signed
+// with keys managed by the Data Protection stack. On Railway the default
+// in-container directory is ephemeral, so every deploy invalidates every
+// token and logs every user out. Persist the keys to the mounted volume
+// (UPLOADS_ROOT, /data on Railway) so they survive container restarts.
+// Falls back to the default location locally / in dev.
+{
+    var keysRoot = Environment.GetEnvironmentVariable("UPLOADS_ROOT");
+    if (!string.IsNullOrWhiteSpace(keysRoot))
+    {
+        var keysDir = Path.Combine(keysRoot, "dp-keys");
+        Directory.CreateDirectory(keysDir);
+        builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
+            .SetApplicationName("CourtBook");
+    }
+}
 
 var app = builder.Build();
 
