@@ -18,7 +18,9 @@ public class SubscriptionReminderHostedService : BackgroundService
     private static readonly TimeSpan StartupDelay = TimeSpan.FromMinutes(1);
 
     // Ordered largest → smallest so we always fire the closest unsent threshold.
-    private static readonly int[] Thresholds = { 14, 7, 3, 1, 0 };
+    // Positive = days before expiry. 0 = expiry day (entering grace).
+    // -7 = grace period over (Pro features now locked).
+    private static readonly int[] Thresholds = { 14, 7, 3, 1, 0, -7 };
 
     private readonly IServiceProvider _services;
     private readonly ILogger<SubscriptionReminderHostedService> _logger;
@@ -112,9 +114,11 @@ public class SubscriptionReminderHostedService : BackgroundService
     /// <summary>Returns the threshold this subscription is currently in, or null if none.</summary>
     private static int? ChooseThreshold(FacilitySettings s)
     {
-        var days = s.SubscriptionDaysRemaining;
+        if (s.IsDowngraded)      return -7;   // grace ended → Pro features now locked
+        if (s.IsInGracePeriod)   return 0;    // expired but still in grace
         if (s.IsSubscriptionExpired) return 0;
-        foreach (var t in Thresholds.Where(x => x > 0))
+        var days = s.SubscriptionDaysRemaining;
+        foreach (var t in new[] { 14, 7, 3, 1 })
             if (days <= t) return t;
         return null;
     }
@@ -134,12 +138,21 @@ public class SubscriptionReminderHostedService : BackgroundService
         string lede;
         string ctaColor;
 
-        if (threshold == 0)
+        if (threshold == -7)
         {
-            subject  = $"Your CourtBook Pro subscription has expired";
-            headline = "Subscription Expired";
-            lede     = $"Your CourtBook Pro subscription for <strong>{s.FacilityName}</strong> expired on {expiryStr}. Pro features may now be restricted. Renew today to restore full access.";
+            // Grace period has just ended — Pro features were paused.
+            subject  = "CourtBook Pro features are now paused";
+            headline = "Pro Features Paused";
+            lede     = $"Your <strong>{FacilitySettings.GracePeriodDays}-day grace period</strong> for <strong>{s.FacilityName}</strong> has ended, so custom branding and the PRO badge are now off. Your saved logo, name, and tagline are preserved — renew anytime and everything snaps back instantly.";
             ctaColor = "#dc3545";
+        }
+        else if (threshold == 0)
+        {
+            // Subscription just expired but we're still inside the grace period.
+            subject  = $"Your CourtBook Pro subscription has expired — {FacilitySettings.GracePeriodDays}-day grace started";
+            headline = "Subscription Expired";
+            lede     = $"Your CourtBook Pro subscription for <strong>{s.FacilityName}</strong> expired on {expiryStr}. Pro features remain active for a <strong>{FacilitySettings.GracePeriodDays}-day grace period</strong> — renew before then to avoid losing your branding.";
+            ctaColor = "#f59f00";
         }
         else
         {

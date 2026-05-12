@@ -351,8 +351,11 @@ public class AdminController : Controller
                     settings.Slug = newSlug;
             }
 
-            // Custom branding — only applied for subscribed users
-            if (settings.IsSubscribed)
+            // Custom branding — only applied for subscribers still in good standing
+            // (i.e. paid OR within the post-expiry grace window). Downgraded users
+            // keep their stored values so renewal restores them instantly, but they
+            // can't edit them.
+            if (settings.EffectiveIsSubscribed)
             {
                 settings.BrandName    = string.IsNullOrWhiteSpace(model.BrandName)    ? null : model.BrandName.Trim();
                 settings.BrandTagline = string.IsNullOrWhiteSpace(model.BrandTagline) ? null : model.BrandTagline.Trim();

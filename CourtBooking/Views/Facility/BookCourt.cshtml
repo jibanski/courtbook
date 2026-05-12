@@ -16,7 +16,7 @@
         </nav>
         <div class="d-flex align-items-center gap-2">
             <h1 class="fw-bold mb-1">@Model.Court.Name</h1>
-            @if (fs?.IsSubscribed == true)
+            @if (fs?.EffectiveIsSubscribed == true)
             {
                 <span class="badge bg-warning text-dark" style="font-size:.7rem;">
                     <i class="bi bi-patch-check-fill me-1"></i>PRO

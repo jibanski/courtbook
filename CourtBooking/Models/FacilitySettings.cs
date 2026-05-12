@@ -66,11 +66,11 @@ public class FacilitySettings
     public string? BrandLogoUrl { get; set; }    // Path to uploaded logo image
 
     [NotMapped]
-    public string DisplayName => IsSubscribed && !string.IsNullOrWhiteSpace(BrandName)
+    public string DisplayName => EffectiveIsSubscribed && !string.IsNullOrWhiteSpace(BrandName)
         ? BrandName : "CourtBook";
 
     [NotMapped]
-    public string DisplayTagline => IsSubscribed && !string.IsNullOrWhiteSpace(BrandTagline)
+    public string DisplayTagline => EffectiveIsSubscribed && !string.IsNullOrWhiteSpace(BrandTagline)
         ? BrandTagline : "Book your court anytime, anywhere.";
 
     // ── Subscription Payment ──────────────────────────────────────────────────
@@ -127,4 +127,43 @@ public class FacilitySettings
     public bool IsSubscriptionExpiringSoon => IsSubscribed
         && !IsSubscriptionExpired
         && SubscriptionDaysRemaining <= 14;
+
+    // ── Grace Period ──────────────────────────────────────────────────────────
+    // After expiry we keep Pro features unlocked for a short grace window so
+    // honest renewers don't lose anything if they pay a few days late. Once
+    // grace ends the facility is "Downgraded" — stored IsSubscribed is still
+    // true (so renewal preserves history) but Pro cosmetics revert to free.
+    public const int GracePeriodDays = 7;
+
+    [NotMapped]
+    public DateTime? GraceEndsAt => EffectiveSubscriptionExpiry?.AddDays(GracePeriodDays);
+
+    /// <summary>True between expiry and the end of the grace window. Pro stays on.</summary>
+    [NotMapped]
+    public bool IsInGracePeriod => IsSubscriptionExpired
+        && GraceEndsAt.HasValue
+        && DateTime.UtcNow < GraceEndsAt.Value;
+
+    /// <summary>True once grace ends. Pro cosmetics revert (see <see cref="EffectiveIsSubscribed"/>).</summary>
+    [NotMapped]
+    public bool IsDowngraded => IsSubscriptionExpired
+        && GraceEndsAt.HasValue
+        && DateTime.UtcNow >= GraceEndsAt.Value;
+
+    [NotMapped]
+    public int GraceDaysRemaining => GraceEndsAt.HasValue
+        ? Math.Max(0, (int)Math.Ceiling((GraceEndsAt.Value - DateTime.UtcNow).TotalDays))
+        : 0;
+
+    [NotMapped]
+    public int DaysSinceExpiry => EffectiveSubscriptionExpiry.HasValue
+        ? Math.Max(0, (int)Math.Floor((DateTime.UtcNow - EffectiveSubscriptionExpiry.Value).TotalDays))
+        : 0;
+
+    /// <summary>
+    /// The flag every Pro-gated feature should use instead of <see cref="IsSubscribed"/>.
+    /// True while paid (incl. grace); false once the grace window closes.
+    /// </summary>
+    [NotMapped]
+    public bool EffectiveIsSubscribed => IsSubscribed && !IsDowngraded;
 }

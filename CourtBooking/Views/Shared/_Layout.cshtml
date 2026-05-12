@@ -10,7 +10,7 @@
                      : null;
     var _brand   = (User.IsInRole("Admin") ? _fs?.DisplayName    : null) ?? "CourtBook";
     var _tagline = (User.IsInRole("Admin") ? _fs?.DisplayTagline : null) ?? "Book your court anytime, anywhere.";
-    var _logoUrl = (User.IsInRole("Admin") && _fs?.IsSubscribed == true) ? _fs.BrandLogoUrl : null;
+    var _logoUrl = (User.IsInRole("Admin") && _fs?.EffectiveIsSubscribed == true) ? _fs.BrandLogoUrl : null;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -133,6 +133,40 @@
                 <a asp-controller="Subscription" asp-action="Upgrade"
                    class="btn btn-sm btn-dark fw-semibold text-nowrap">
                     <i class="bi bi-arrow-up-circle me-1"></i>Upgrade Now
+                </a>
+            </div>
+        </div>
+    }
+
+    @* ── Grace-period / Downgraded banner (admin only) ─────────────────── *@
+    @if (User.IsInRole("Admin") && _fs is not null && (_fs.IsInGracePeriod || _fs.IsDowngraded))
+    {
+        var inGrace      = _fs.IsInGracePeriod;
+        var graceLeft    = _fs.GraceDaysRemaining;
+        var sinceExpiry  = _fs.DaysSinceExpiry;
+        <div class="trial-banner trial-banner-urgent">
+            <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi @(inGrace ? "bi-exclamation-triangle-fill" : "bi-x-octagon-fill")"></i>
+                    @if (inGrace)
+                    {
+                        <span>
+                            <strong>Your subscription expired @sinceExpiry day@(sinceExpiry == 1 ? "" : "s") ago.</strong>
+                            Pro features stay on for @graceLeft more day@(graceLeft == 1 ? "" : "s") — renew now to avoid downgrade.
+                        </span>
+                    }
+                    else
+                    {
+                        <span>
+                            <strong>Pro features are paused.</strong>
+                            Your subscription expired @sinceExpiry day@(sinceExpiry == 1 ? "" : "s") ago and the grace period has ended.
+                            Renew anytime to restore your branding instantly.
+                        </span>
+                    }
+                </div>
+                <a asp-controller="Subscription" asp-action="Upgrade"
+                   class="btn btn-sm btn-dark fw-semibold text-nowrap">
+                    <i class="bi bi-arrow-repeat me-1"></i>Renew Now
                 </a>
             </div>
         </div>
