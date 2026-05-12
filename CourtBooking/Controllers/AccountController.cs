@@ -216,24 +216,35 @@ Need help? {contactEmail}
 ";
 
         // Fire-and-forget the send so the user gets the confirmation page
-        // immediately. SMTP timeouts can take 30+ seconds and we don't want
-        // the browser to hang on the redirect. Errors are written to the
-        // application log for ops to inspect.
-        var toAddress = user.Email!;
+        // immediately. SMTP timeouts can take up to 30s; we don't want the
+        // browser to hang on the redirect. Errors are written to the app
+        // log for ops to inspect.
+        var toAddress    = user.Email!;
         var scopeFactory = _scopeFactory;
+
+        _logger.LogInformation("[ForgotPassword] dispatching background email send to {Email}", toAddress);
+
         _ = Task.Run(async () =>
         {
-            using var scope = scopeFactory.CreateScope();
-            var bgEmail  = scope.ServiceProvider.GetRequiredService<EmailService>();
-            var bgLogger = scope.ServiceProvider
-                .GetRequiredService<ILogger<AccountController>>();
+            ILogger<AccountController>? bgLogger = null;
             try
             {
+                using var scope = scopeFactory.CreateScope();
+                bgLogger     = scope.ServiceProvider.GetRequiredService<ILogger<AccountController>>();
+                var bgEmail  = scope.ServiceProvider.GetRequiredService<EmailService>();
+
+                bgLogger.LogInformation("[ForgotPassword][BG] starting send for {Email}", toAddress);
                 await bgEmail.SendAsync(toAddress, "Reset your CourtBook password", html, plain);
+                bgLogger.LogInformation("[ForgotPassword][BG] send completed for {Email}", toAddress);
             }
             catch (Exception ex)
             {
-                bgLogger.LogError(ex, "[ForgotPassword] failed to send reset email to {Email}", toAddress);
+                // Log to whichever logger we managed to resolve, otherwise to
+                // Console as a last resort so the failure isn't completely silent.
+                if (bgLogger is not null)
+                    bgLogger.LogError(ex, "[ForgotPassword][BG] failed to send reset email to {Email}", toAddress);
+                else
+                    Console.Error.WriteLine($"[ForgotPassword][BG] failed before logger acquired: {ex}");
             }
         });
 
