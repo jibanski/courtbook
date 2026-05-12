@@ -1,14 +1,36 @@
 @model CourtBooking.ViewModels.SubscriptionUpgradeViewModel
 @{
-    ViewData["Title"] = "Upgrade to CourtBook Pro";
+    ViewData["Title"] = (ViewBag.IsRenewal == true) ? "Renew CourtBook Pro" : "Upgrade to CourtBook Pro";
     int annualMonthly = (int)Math.Round(Model.AnnualPrice / 12.0);
     int annualSavings = (Model.MonthlyPrice * 12) - Model.AnnualPrice;
+
+    bool       isRenewal  = ViewBag.IsRenewal == true;
+    bool       isExpired  = ViewBag.IsExpired == true;
+    int        daysLeft   = ViewBag.DaysRemaining ?? 0;
+    DateTime?  curExpiry  = ViewBag.CurrentExpiry as DateTime?;
 }
 
 <div class="bg-primary text-white py-4 mb-0">
     <div class="container">
-        <h1 class="fw-bold mb-1"><i class="bi bi-arrow-up-circle me-2"></i>Upgrade to CourtBook Pro</h1>
-        <p class="mb-0 opacity-75">Choose a plan and send your payment to activate your subscription.</p>
+        @if (isRenewal)
+        {
+            <h1 class="fw-bold mb-1"><i class="bi bi-arrow-repeat me-2"></i>Renew CourtBook Pro</h1>
+            <p class="mb-0 opacity-75">
+                @if (isExpired)
+                {
+                    <span>Your subscription has expired. Renew now to restore full access.</span>
+                }
+                else
+                {
+                    <span>Your subscription expires in @daysLeft day@(daysLeft == 1 ? "" : "s") (@(curExpiry?.ToLocalTime().ToString("MMM d, yyyy"))). Any remaining days will be added to your new period.</span>
+                }
+            </p>
+        }
+        else
+        {
+            <h1 class="fw-bold mb-1"><i class="bi bi-arrow-up-circle me-2"></i>Upgrade to CourtBook Pro</h1>
+            <p class="mb-0 opacity-75">Choose a plan and send your payment to activate your subscription.</p>
+        }
     </div>
 </div>
 

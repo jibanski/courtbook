@@ -102,9 +102,15 @@ public class DevController : Controller
         var now  = DateTime.UtcNow;
         var days = string.Equals(settings.SubscriptionPlan, "annual", StringComparison.OrdinalIgnoreCase) ? 365 : 30;
 
+        // Renewal: extend from whichever is later — current expiry or now.
+        var baseDate = (settings.IsSubscribed && settings.EffectiveSubscriptionExpiry.HasValue
+                            && settings.EffectiveSubscriptionExpiry.Value > now)
+                       ? settings.EffectiveSubscriptionExpiry.Value
+                       : now;
+
         settings.IsSubscribed            = true;
-        settings.SubscriptionActivatedAt = now;
-        settings.SubscriptionExpiresAt   = now.AddDays(days);
+        settings.SubscriptionActivatedAt ??= now;
+        settings.SubscriptionExpiresAt   = baseDate.AddDays(days);
         await _db.SaveChangesAsync();
 
         TempData["Success"] = $"Subscription for \"{settings.FacilityName}\" approved and activated.";

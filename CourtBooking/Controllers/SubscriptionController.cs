@@ -39,12 +39,22 @@ public class SubscriptionController : Controller
     {
         var settings = await GetMySettingsAsync();
 
-        // Already subscribed — go back to dashboard
-        if (settings?.IsSubscribed == true)
+        // Active subscribers may visit this page to RENEW (early or after expiry).
+        // We only bounce people who are healthy AND not yet in the 14-day window,
+        // so they don't accidentally double-pay months in advance.
+        if (settings?.IsSubscribed == true
+            && !settings.IsSubscriptionExpired
+            && !settings.IsSubscriptionExpiringSoon)
         {
-            TempData["Success"] = "Your subscription is already active.";
-            return RedirectToAction("Index", "Admin");
+            TempData["Success"] = "Your subscription is active. You can renew once you're within 14 days of expiry.";
+            return RedirectToAction("Settings", "Admin");
         }
+
+        // Pass renewal context to the view (used for header copy & button text).
+        ViewBag.IsRenewal           = settings?.IsSubscribed == true;
+        ViewBag.CurrentExpiry       = settings?.EffectiveSubscriptionExpiry;
+        ViewBag.IsExpired           = settings?.IsSubscriptionExpired ?? false;
+        ViewBag.DaysRemaining       = settings?.SubscriptionDaysRemaining ?? 0;
 
         return View(BuildViewModel());
     }
@@ -141,12 +151,24 @@ public class SubscriptionController : Controller
         var now  = DateTime.UtcNow;
         var days = string.Equals(plan, "annual", StringComparison.OrdinalIgnoreCase) ? 365 : 30;
 
+        // Renewal: extend from whichever is later — current expiry or now —
+        // so an early renewer keeps the days they've already paid for.
+        // First-time activation: just start the clock now.
+        var baseDate = (settings.IsSubscribed && settings.EffectiveSubscriptionExpiry.HasValue
+                            && settings.EffectiveSubscriptionExpiry.Value > now)
+                       ? settings.EffectiveSubscriptionExpiry.Value
+                       : now;
+
+        var wasRenewal = settings.IsSubscribed;
+
         settings.IsSubscribed            = true;
-        settings.SubscriptionActivatedAt = now;
-        settings.SubscriptionExpiresAt   = now.AddDays(days);
+        settings.SubscriptionActivatedAt ??= now;          // keep original activation date on renewal
+        settings.SubscriptionExpiresAt   = baseDate.AddDays(days);
         await _db.SaveChangesAsync();
 
-        TempData["Success"] = "🎉 Subscription activated! Welcome to CourtBook Pro.";
+        TempData["Success"] = wasRenewal
+            ? $"🎉 Subscription renewed! Your new expiry date is {settings.SubscriptionExpiresAt:MMMM d, yyyy}."
+            : "🎉 Subscription activated! Welcome to CourtBook Pro.";
         return RedirectToAction("Index", "Admin");
     }
 
