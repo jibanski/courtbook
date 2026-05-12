@@ -70,6 +70,13 @@ public class AccountController : Controller
         if (!ModelState.IsValid) return View(vm);
 
         var result = await _signInManager.PasswordSignInAsync(vm.Email, vm.Password, vm.RememberMe, lockoutOnFailure: false);
+
+        if (result.IsLockedOut)
+        {
+            ModelState.AddModelError("", "This account has been disabled. Please contact support at sales@courtbook.com.");
+            return View(vm);
+        }
+
         if (result.Succeeded)
         {
             var user = await _userManager.FindByEmailAsync(vm.Email);

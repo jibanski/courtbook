@@ -46,9 +46,15 @@
         </div>
         <h3 class="fw-bold mb-1">Subscription Approvals</h3>
         <p class="text-secondary small mb-0">Review and approve or reject pending subscription payments</p>
-        <a href="/Dev/KeyGen" class="nav-link mt-1 d-inline-block">
-            <i class="bi bi-key me-1"></i>Switch to Key Generator
-        </a>
+        <div class="mt-1">
+            <a href="/Dev/KeyGen" class="nav-link d-inline-block">
+                <i class="bi bi-key me-1"></i>Key Generator
+            </a>
+            <span class="text-secondary mx-1">·</span>
+            <a href="/Dev/Facilities" class="nav-link d-inline-block">
+                <i class="bi bi-shield-lock me-1"></i>Facilities
+            </a>
+        </div>
     </div>
 
     @if (TempData["Success"] is string successMsg)

@@ -4,6 +4,7 @@ using CourtBooking.Services;
 using CourtBooking.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace CourtBooking.Controllers;
 
@@ -32,6 +33,15 @@ public class FacilityController : Controller
 
         if (settings is null) return NotFound();
 
+        // Suspended by platform admin — show an "unavailable" page instead of the
+        // courts list. Owners (logged in as this facility's admin) are still let
+        // through so they can read the suspension banner and contact support.
+        if (settings.IsSuspended && !IsCurrentUserOwnerOf(settings))
+        {
+            ViewBag.Slug = slug;
+            return View("Suspended", settings);
+        }
+
         // Remember this facility so we can redirect back here after login / registration.
         // 7-day lifetime so returning customers still land on the right page.
         SetFacilityCookie(slug);
@@ -59,6 +69,13 @@ public class FacilityController : Controller
     {
         var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.Slug == slug);
         if (settings is null) return NotFound();
+
+        // Don't accept new bookings on a suspended facility.
+        if (settings.IsSuspended && !IsCurrentUserOwnerOf(settings))
+        {
+            ViewBag.Slug = slug;
+            return View("Suspended", settings);
+        }
 
         // Keep the facility cookie fresh even on deep-links to a specific court
         SetFacilityCookie(slug);
@@ -107,4 +124,17 @@ public class FacilityController : Controller
             SameSite = SameSiteMode.Lax,
             MaxAge   = TimeSpan.FromDays(7)
         });
+
+    /// <summary>
+    /// True when the current user is the admin owner of the supplied facility,
+    /// so a suspended owner can still see their own /f/{slug} page (read-only)
+    /// rather than being locked out entirely.
+    /// </summary>
+    private bool IsCurrentUserOwnerOf(FacilitySettings settings)
+    {
+        if (!User.Identity?.IsAuthenticated ?? true) return false;
+        if (!User.IsInRole("Admin")) return false;
+        var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return !string.IsNullOrEmpty(uid) && uid == settings.OwnerId;
+    }
 }

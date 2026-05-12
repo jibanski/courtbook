@@ -54,10 +54,14 @@ public class CourtsController : Controller
         if (!string.IsNullOrWhiteSpace(sport))
             query = query.Where(c => c.SportType == sport);
 
-        // Load facility settings for all owners — keyed by OwnerId
+        // Load facility settings for all non-suspended owners — keyed by OwnerId.
         var facilityMap = await _db.FacilitySettings
-            .Where(s => s.OwnerId != null)
+            .Where(s => s.OwnerId != null && !s.IsSuspended)
             .ToDictionaryAsync(s => s.OwnerId!);
+
+        // Drop courts whose facility is suspended (or whose owner has no settings).
+        var allowedOwnerIds = facilityMap.Keys.ToHashSet();
+        query = query.Where(c => allowedOwnerIds.Contains(c.OwnerId!));
 
         // Optionally filter by facility
         if (!string.IsNullOrWhiteSpace(facility) && facilityMap.Values.Any(s => s.DisplayName == facility))

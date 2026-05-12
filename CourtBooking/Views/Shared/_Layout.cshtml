@@ -138,6 +138,30 @@
         </div>
     }
 
+    @* ── Suspended banner (admin only — highest priority) ──────────────── *@
+    @if (User.IsInRole("Admin") && _fs is not null && _fs.IsSuspended)
+    {
+        <div class="trial-banner trial-banner-urgent">
+            <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-cone-striped"></i>
+                    <span>
+                        <strong>Your facility is suspended.</strong>
+                        @if (!string.IsNullOrWhiteSpace(_fs.SuspendedReason))
+                        {
+                            <span>Reason: @_fs.SuspendedReason.</span>
+                        }
+                        Customers cannot view your courts or make new bookings. Please contact support to resolve this.
+                    </span>
+                </div>
+                <a href="mailto:sales@courtbook.com"
+                   class="btn btn-sm btn-dark fw-semibold text-nowrap">
+                    <i class="bi bi-envelope me-1"></i>Contact Support
+                </a>
+            </div>
+        </div>
+    }
+
     @* ── Grace-period / Downgraded banner (admin only) ─────────────────── *@
     @if (User.IsInRole("Admin") && _fs is not null && (_fs.IsInGracePeriod || _fs.IsDowngraded))
     {

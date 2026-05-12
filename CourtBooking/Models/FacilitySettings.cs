@@ -45,6 +45,19 @@ public class FacilitySettings
     [Url(ErrorMessage = "Please enter a valid Instagram URL (e.g. https://instagram.com/yourpage).")]
     public string? InstagramUrl { get; set; }
 
+    // ── Admin Suspension (platform-superadmin only) ───────────────────────────
+    /// <summary>
+    /// When true, the facility's public pages (/f/{slug}, court listings) are
+    /// hidden from customers and the owner sees a suspension banner. Existing
+    /// bookings are preserved. Independent from owner-login lockout.
+    /// </summary>
+    public bool IsSuspended { get; set; }
+
+    public DateTime? SuspendedAt { get; set; }
+
+    [MaxLength(500)]
+    public string? SuspendedReason { get; set; }
+
     // ── Trial ─────────────────────────────────────────────────────────────────
     public DateTime? TrialStartedAt { get; set; }
     public bool IsSubscribed { get; set; } = false;

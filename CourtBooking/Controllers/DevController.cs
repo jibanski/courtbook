@@ -153,6 +153,141 @@ public class DevController : Controller
         return RedirectToAction(nameof(Subscriptions));
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Facility management — platform-superadmin tools for moderating tenants.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // GET /Dev/Facilities
+    public async Task<IActionResult> Facilities()
+    {
+        // After a suspend/lock POST we come back here with the dev password
+        // stashed in TempData — re-run the listing so the operator stays on
+        // the unlocked page instead of being booted back to the password gate.
+        var stashedPwd = TempData["DevPassword"] as string;
+        if (IsValidPassword(stashedPwd))
+            return await Facilities(stashedPwd!);
+
+        return View(new List<FacilityAdminRow>());
+    }
+
+    // POST /Dev/Facilities  — password gate, then list all facilities
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Facilities(string password)
+    {
+        if (!IsValidPassword(password))
+        {
+            ViewBag.Error    = "Incorrect developer password.";
+            ViewBag.Password = "";
+            return View(new List<FacilityAdminRow>());
+        }
+
+        var facilities = await _db.FacilitySettings
+            .OrderBy(s => s.FacilityName)
+            .ToListAsync();
+
+        var ownerIds = facilities.Where(f => f.OwnerId != null).Select(f => f.OwnerId!).ToList();
+        var owners   = await _db.Users.Where(u => ownerIds.Contains(u.Id)).ToListAsync();
+
+        var rows = facilities.Select(f =>
+        {
+            var owner = owners.FirstOrDefault(u => u.Id == f.OwnerId);
+            return new FacilityAdminRow(
+                Facility:   f,
+                OwnerEmail: owner?.Email ?? "(no owner)",
+                OwnerName:  owner == null ? "" : $"{owner.FirstName} {owner.LastName}".Trim(),
+                IsLocked:   owner?.LockoutEnd is { } end && end > DateTimeOffset.UtcNow,
+                LockoutEnd: owner?.LockoutEnd);
+        }).ToList();
+
+        ViewBag.Password = password;
+        return View(rows);
+    }
+
+    // POST /Dev/SuspendFacility
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SuspendFacility(string password, int id, string? reason)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        var f = await _db.FacilitySettings.FindAsync(id);
+        if (f is null) return NotFound();
+
+        f.IsSuspended     = true;
+        f.SuspendedAt     = DateTime.UtcNow;
+        f.SuspendedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"\"{f.FacilityName}\" suspended. Public pages are now hidden.";
+        return RedirectToActionFacilities(password);
+    }
+
+    // POST /Dev/UnsuspendFacility
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnsuspendFacility(string password, int id)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        var f = await _db.FacilitySettings.FindAsync(id);
+        if (f is null) return NotFound();
+
+        f.IsSuspended     = false;
+        f.SuspendedAt     = null;
+        f.SuspendedReason = null;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"\"{f.FacilityName}\" reinstated. Public pages are visible again.";
+        return RedirectToActionFacilities(password);
+    }
+
+    // POST /Dev/LockOwner  — disables a facility owner's login
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> LockOwner(string password, string ownerId)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        var user = await _userManager.FindByIdAsync(ownerId);
+        if (user is null) return NotFound();
+
+        // Lock for ~100 years. Setting LockoutEnabled true is required because
+        // Identity refuses to apply a lockout end to an account that opted out.
+        await _userManager.SetLockoutEnabledAsync(user, true);
+        await _userManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddYears(100));
+
+        TempData["Success"] = $"Owner login disabled for {user.Email}.";
+        return RedirectToActionFacilities(password);
+    }
+
+    // POST /Dev/UnlockOwner
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnlockOwner(string password, string ownerId)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        var user = await _userManager.FindByIdAsync(ownerId);
+        if (user is null) return NotFound();
+
+        await _userManager.SetLockoutEndDateAsync(user, null);
+
+        TempData["Success"] = $"Owner login restored for {user.Email}.";
+        return RedirectToActionFacilities(password);
+    }
+
+    // After a suspend/lock POST we need to land back on the unlocked list. We
+    // stash the dev password in TempData (single-use, server-side) and then
+    // /Dev/Facilities re-runs the listing logic when that key is present.
+    private IActionResult RedirectToActionFacilities(string password)
+    {
+        TempData["DevPassword"] = password;
+        return RedirectToAction(nameof(Facilities));
+    }
+
+    public record FacilityAdminRow(
+        FacilitySettings Facility,
+        string OwnerEmail,
+        string OwnerName,
+        bool IsLocked,
+        DateTimeOffset? LockoutEnd);
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private bool IsValidPassword(string? password) =>
