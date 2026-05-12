@@ -161,9 +161,10 @@ public class SubscriptionController : Controller
 
         var wasRenewal = settings.IsSubscribed;
 
-        settings.IsSubscribed            = true;
+        settings.IsSubscribed              = true;
         settings.SubscriptionActivatedAt ??= now;          // keep original activation date on renewal
-        settings.SubscriptionExpiresAt   = baseDate.AddDays(days);
+        settings.SubscriptionExpiresAt     = baseDate.AddDays(days);
+        settings.LastExpiryReminderThreshold = null;       // reset reminders for the new cycle
         await _db.SaveChangesAsync();
 
         TempData["Success"] = wasRenewal

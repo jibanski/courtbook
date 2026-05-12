@@ -108,9 +108,10 @@ public class DevController : Controller
                        ? settings.EffectiveSubscriptionExpiry.Value
                        : now;
 
-        settings.IsSubscribed            = true;
-        settings.SubscriptionActivatedAt ??= now;
-        settings.SubscriptionExpiresAt   = baseDate.AddDays(days);
+        settings.IsSubscribed                = true;
+        settings.SubscriptionActivatedAt   ??= now;
+        settings.SubscriptionExpiresAt       = baseDate.AddDays(days);
+        settings.LastExpiryReminderThreshold = null;
         await _db.SaveChangesAsync();
 
         TempData["Success"] = $"Subscription for \"{settings.FacilityName}\" approved and activated.";

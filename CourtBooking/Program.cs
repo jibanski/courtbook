@@ -48,6 +48,8 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<KeyGeneratorService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddHostedService<SubscriptionReminderHostedService>();
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();

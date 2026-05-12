@@ -87,6 +87,13 @@ public class FacilitySettings
     public DateTime? SubscriptionActivatedAt { get; set; }
     public DateTime? SubscriptionExpiresAt   { get; set; }
 
+    /// <summary>
+    /// Closest expiry-reminder threshold (in days) that has already been
+    /// emailed for the current subscription cycle. Cleared on renewal so the
+    /// next cycle starts fresh. NULL means no reminder has been sent yet.
+    /// </summary>
+    public int? LastExpiryReminderThreshold { get; set; }
+
     [NotMapped] public bool IsSubscriptionPending => SubscriptionSubmittedAt.HasValue && !IsSubscribed;
 
     /// <summary>
