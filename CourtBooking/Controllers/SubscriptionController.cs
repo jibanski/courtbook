@@ -138,8 +138,12 @@ public class SubscriptionController : Controller
             _db.FacilitySettings.Add(settings);
         }
 
+        var now  = DateTime.UtcNow;
+        var days = string.Equals(plan, "annual", StringComparison.OrdinalIgnoreCase) ? 365 : 30;
+
         settings.IsSubscribed            = true;
-        settings.SubscriptionActivatedAt = DateTime.UtcNow;
+        settings.SubscriptionActivatedAt = now;
+        settings.SubscriptionExpiresAt   = now.AddDays(days);
         await _db.SaveChangesAsync();
 
         TempData["Success"] = "🎉 Subscription activated! Welcome to CourtBook Pro.";

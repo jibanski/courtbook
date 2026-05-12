@@ -99,8 +99,12 @@ public class DevController : Controller
         var settings = await _db.FacilitySettings.FindAsync(id);
         if (settings is null) return NotFound();
 
+        var now  = DateTime.UtcNow;
+        var days = string.Equals(settings.SubscriptionPlan, "annual", StringComparison.OrdinalIgnoreCase) ? 365 : 30;
+
         settings.IsSubscribed            = true;
-        settings.SubscriptionActivatedAt = DateTime.UtcNow;
+        settings.SubscriptionActivatedAt = now;
+        settings.SubscriptionExpiresAt   = now.AddDays(days);
         await _db.SaveChangesAsync();
 
         TempData["Success"] = $"Subscription for \"{settings.FacilityName}\" approved and activated.";

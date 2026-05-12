@@ -85,6 +85,39 @@ public class FacilitySettings
 
     public DateTime? SubscriptionSubmittedAt { get; set; }
     public DateTime? SubscriptionActivatedAt { get; set; }
+    public DateTime? SubscriptionExpiresAt   { get; set; }
 
     [NotMapped] public bool IsSubscriptionPending => SubscriptionSubmittedAt.HasValue && !IsSubscribed;
+
+    /// <summary>
+    /// The effective expiry date — uses the stored <see cref="SubscriptionExpiresAt"/> when set,
+    /// otherwise computes from <see cref="SubscriptionActivatedAt"/> + plan duration so existing
+    /// subscribers from before the column existed still display correctly.
+    /// </summary>
+    [NotMapped]
+    public DateTime? EffectiveSubscriptionExpiry
+    {
+        get
+        {
+            if (SubscriptionExpiresAt.HasValue) return SubscriptionExpiresAt;
+            if (!SubscriptionActivatedAt.HasValue) return null;
+            var days = string.Equals(SubscriptionPlan, "annual", StringComparison.OrdinalIgnoreCase) ? 365 : 30;
+            return SubscriptionActivatedAt.Value.AddDays(days);
+        }
+    }
+
+    [NotMapped]
+    public int SubscriptionDaysRemaining => EffectiveSubscriptionExpiry.HasValue
+        ? Math.Max(0, (int)Math.Ceiling((EffectiveSubscriptionExpiry.Value - DateTime.UtcNow).TotalDays))
+        : 0;
+
+    [NotMapped]
+    public bool IsSubscriptionExpired => IsSubscribed
+        && EffectiveSubscriptionExpiry.HasValue
+        && DateTime.UtcNow >= EffectiveSubscriptionExpiry.Value;
+
+    [NotMapped]
+    public bool IsSubscriptionExpiringSoon => IsSubscribed
+        && !IsSubscriptionExpired
+        && SubscriptionDaysRemaining <= 14;
 }
