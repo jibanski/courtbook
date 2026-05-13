@@ -12,7 +12,7 @@ public class ApplicationUser : IdentityUser
 
     /// <summary>
     /// Slug of the facility this customer was onboarded from.
-    /// After login, customers are always sent to /f/{PreferredFacilitySlug}.
+    /// After login, customers are always sent to /sportshub/{PreferredFacilitySlug}.
     /// </summary>
     public string? PreferredFacilitySlug { get; set; }
 

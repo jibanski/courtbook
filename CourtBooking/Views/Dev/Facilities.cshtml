@@ -148,9 +148,9 @@
                     </div>
                     @if (!string.IsNullOrWhiteSpace(f.Slug))
                     {
-                        <a href="/f/@f.Slug" target="_blank"
+                        <a href="/sportshub/@f.Slug" target="_blank"
                            class="btn btn-sm btn-outline-secondary text-nowrap">
-                            <i class="bi bi-box-arrow-up-right me-1"></i>/f/@f.Slug
+                            <i class="bi bi-box-arrow-up-right me-1"></i>/sportshub/@f.Slug
                         </a>
                     }
                 </div>
@@ -201,7 +201,7 @@
                                 <input type="text"   name="reason"   class="form-control form-control-sm"
                                        placeholder="Reason (shown on banner to owner)" maxlength="500" />
                                 <button type="submit" class="btn btn-sm btn-warning text-nowrap"
-                                        onclick="return confirm('Suspend @Html.Raw(f.FacilityName)? Their /f/@f.Slug page will be hidden.')">
+                                        onclick="return confirm('Suspend @Html.Raw(f.FacilityName)? Their /sportshub/@f.Slug page will be hidden.')">
                                     <i class="bi bi-cone-striped me-1"></i>Suspend
                                 </button>
                             </form>

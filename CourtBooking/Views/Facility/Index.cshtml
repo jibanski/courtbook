@@ -76,10 +76,10 @@
         <div class="mb-4">
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <span class="text-muted fw-semibold me-2 small">Sport:</span>
-                <a href="/f/@slug" class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-primary")">All</a>
+                <a href="/sportshub/@slug" class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-primary")">All</a>
                 @foreach (var sport in sports)
                 {
-                    <a href="/f/@slug?sport=@Uri.EscapeDataString(sport)"
+                    <a href="/sportshub/@slug?sport=@Uri.EscapeDataString(sport)"
                        class="btn btn-sm @(selectedSport == sport ? "btn-primary" : "btn-outline-primary")">@sport</a>
                 }
             </div>
@@ -136,7 +136,7 @@
 
                         <div class="card-footer d-flex justify-content-between align-items-center">
                             <span class="fw-bold text-primary fs-5">₱@court.PricePerHour.ToString("N0")<small class="fs-6 fw-normal text-muted">/hr</small></span>
-                            <a href="/f/@slug/book/@court.Id" class="btn btn-primary">
+                            <a href="/sportshub/@slug/book/@court.Id" class="btn btn-primary">
                                 <i class="bi bi-calendar-plus me-1"></i>Book
                             </a>
                         </div>

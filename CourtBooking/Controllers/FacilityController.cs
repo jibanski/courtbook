@@ -9,10 +9,12 @@ using System.Security.Claims;
 namespace CourtBooking.Controllers;
 
 /// <summary>
-/// Tenant-specific court listing at /f/{slug}
+/// Tenant-specific court listing at /sportshub/{slug}.
 /// Each facility owner can share this URL with their customers.
+/// A legacy /f/{slug} route is preserved via <see cref="LegacyFacilityRedirectController"/>
+/// so links shared before the rename keep working.
 /// </summary>
-[Route("f")]
+[Route("sportshub")]
 public class FacilityController : Controller
 {
     private readonly ApplicationDbContext _db;
@@ -24,7 +26,7 @@ public class FacilityController : Controller
         _bookingService = bookingService;
     }
 
-    // GET /f/{slug}
+    // GET /sportshub/{slug}
     [Route("{slug}")]
     public async Task<IActionResult> Index(string slug, string? sport)
     {
@@ -63,7 +65,7 @@ public class FacilityController : Controller
         return View(courts);
     }
 
-    // GET /f/{slug}/book/{courtId}
+    // GET /sportshub/{slug}/book/{courtId}
     [Route("{slug}/book/{courtId:int}")]
     public async Task<IActionResult> BookCourt(string slug, int courtId, DateTime? date)
     {
@@ -127,8 +129,8 @@ public class FacilityController : Controller
 
     /// <summary>
     /// True when the current user is the admin owner of the supplied facility,
-    /// so a suspended owner can still see their own /f/{slug} page (read-only)
-    /// rather than being locked out entirely.
+    /// so a suspended owner can still see their own /sportshub/{slug} page
+    /// (read-only) rather than being locked out entirely.
     /// </summary>
     private bool IsCurrentUserOwnerOf(FacilitySettings settings)
     {

@@ -30,7 +30,7 @@ CourtBook is a multi-tenant online booking platform for sports facilities (badmi
 - **Court** — a single bookable resource (e.g. *Badminton Court 1*) belonging to a facility.
 - **Time slot** — a specific bookable window on a specific date (e.g. *June 5, 8:00–9:00 AM on Court 1*).
 - **Booking** — a customer's reservation of a time slot, awaiting payment and admin confirmation.
-- **Shareable URL** — your unique `/f/your-slug` link that customers visit to view and book your courts.
+- **Shareable URL** — your unique `/sportshub/your-slug` link that customers visit to view and book your courts.
 
 ---
 
@@ -66,7 +66,7 @@ That's it. Customers can now visit your link, register, and book.
 
 ## 4. Quick Start for Customers
 
-1. **Click the link** your facility owner sent you (e.g. `https://courtbook-solutions.up.railway.app/f/greenfield-sports`).
+1. **Click the link** your facility owner sent you (e.g. `https://courtbooksolutions.org/sportshub/greenfield-sports`).
 2. **Browse courts** — pick the sport you want and tap a court card.
 3. **Pick a date and time slot**.
 4. **Sign up or log in** when prompted.
@@ -96,7 +96,7 @@ Navigate to **Admin** from the top navigation. The dashboard shows:
 
 - **Facility Name** — appears in booking confirmations, payment pages, and the navbar (if no logo is set).
 - **Address** — shown to customers on the facility page, booking page, and payment summary. Helps them know where to go.
-- **URL Slug** — the unique part of your shareable link (`/f/your-slug`). Lowercase letters, numbers, and hyphens only.
+- **URL Slug** — the unique part of your shareable link (`/sportshub/your-slug`). Lowercase letters, numbers, and hyphens only.
   > ⚠ Changing your slug will break any links you've already shared.
 
 #### Payment Methods
@@ -168,9 +168,9 @@ For each booking you can:
 
 ### 6.1 Finding Your Facility
 
-The first time you click a `/f/your-slug` link, the facility is remembered for 7 days via a cookie. Once you register or log in, the facility becomes **permanently associated** with your account — every subsequent login takes you straight to that facility's courts.
+The first time you click a `/sportshub/your-slug` link, the facility is remembered for 7 days via a cookie. Once you register or log in, the facility becomes **permanently associated** with your account — every subsequent login takes you straight to that facility's courts.
 
-If you ever need to switch to a different facility, simply click a new `/f/different-slug` link.
+If you ever need to switch to a different facility, simply click a new `/sportshub/different-slug` link.
 
 ### 6.2 Browsing Courts
 
@@ -286,7 +286,7 @@ Click **Save Settings** to apply. Changes are visible immediately to your custom
 ## 10. Frequently Asked Questions
 
 **Q: Can a customer book on more than one facility?**
-A: Yes, but only one facility at a time is "preferred." Clicking a new `/f/slug` link switches them.
+A: Yes, but only one facility at a time is "preferred." Clicking a new `/sportshub/slug` link switches them.
 
 **Q: Can I import existing bookings or customers?**
 A: Not yet via the UI. Contact support for bulk-import help.

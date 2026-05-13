@@ -11,7 +11,7 @@ public class FacilitySettings
     public string? OwnerId { get; set; }
     public ApplicationUser? Owner { get; set; }
 
-    /// <summary>URL-friendly identifier, e.g. "greenfield-sports". Used for /f/{slug}.</summary>
+    /// <summary>URL-friendly identifier, e.g. "greenfield-sports". Used for /sportshub/{slug}.</summary>
     [MaxLength(100)]
     public string? Slug { get; set; }
 
@@ -47,7 +47,7 @@ public class FacilitySettings
 
     // ── Admin Suspension (platform-superadmin only) ───────────────────────────
     /// <summary>
-    /// When true, the facility's public pages (/f/{slug}, court listings) are
+    /// When true, the facility's public pages (/sportshub/{slug}, court listings) are
     /// hidden from customers and the owner sees a suspension banner. Existing
     /// bookings are preserved. Independent from owner-login lockout.
     /// </summary>
