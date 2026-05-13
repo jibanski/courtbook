@@ -1,0 +1,107 @@
+@model CourtBooking.ViewModels.ReviewSubmitViewModel
+@{
+    ViewData["Title"] = "Write a Review";
+}
+
+<div class="bg-dark text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1">
+            <i class="bi bi-pencil-square me-2"></i>Write a Review
+        </h1>
+        <p class="mb-0 opacity-75">Tell us about your experience using CourtBook.</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <div asp-validation-summary="All" class="alert alert-danger"
+                         style="display:@(ViewData.ModelState.IsValid ? "none" : "block")"></div>
+
+                    <form asp-action="Create" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Star rating -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">How many stars?</label>
+                            <input type="hidden" asp-for="Rating" id="ratingInput" />
+                            <div class="d-flex gap-1 mb-2" id="starsRow" style="font-size:2rem;cursor:pointer;">
+                                @for (int i = 1; i <= 5; i++)
+                                {
+                                    <i class="bi bi-star-fill star-btn @(i <= Model.Rating ? "text-warning" : "text-muted")"
+                                       data-val="@i"></i>
+                                }
+                            </div>
+                            <div class="small text-muted">Tap to set a rating between 1 and 5.</div>
+                            <span asp-validation-for="Rating" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Headline -->
+                        <div class="mb-3">
+                            <label asp-for="Title" class="form-label fw-semibold"></label>
+                            <input asp-for="Title" class="form-control"
+                                   placeholder='e.g. "A game-changer for our facility"' maxlength="120" />
+                            <div class="form-text">A short headline shown above your review.</div>
+                            <span asp-validation-for="Title" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Body -->
+                        <div class="mb-4">
+                            <label asp-for="Body" class="form-label fw-semibold"></label>
+                            <textarea asp-for="Body" class="form-control" rows="5"
+                                      placeholder="What problem did CourtBook solve for you? What do you like best? Anything other facility owners should know?"
+                                      maxlength="600"></textarea>
+                            <div class="form-text">
+                                Between 20 and 600 characters. Be specific — concrete details make the best testimonials.
+                            </div>
+                            <span asp-validation-for="Body" class="text-danger small"></span>
+                        </div>
+
+                        <div class="alert alert-info small mb-4">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Reviews are checked by our team before they appear on the homepage. Your facility name and
+                            owner name will be displayed alongside the review.
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send me-1"></i>Submit Review
+                            </button>
+                            <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Interactive star rating
+        document.querySelectorAll('.star-btn').forEach(star => {
+            star.addEventListener('click', () => {
+                const val = parseInt(star.dataset.val, 10);
+                document.getElementById('ratingInput').value = val;
+                document.querySelectorAll('.star-btn').forEach(s => {
+                    const sv = parseInt(s.dataset.val, 10);
+                    s.classList.toggle('text-warning', sv <= val);
+                    s.classList.toggle('text-muted',   sv >  val);
+                });
+            });
+            star.addEventListener('mouseenter', () => {
+                const val = parseInt(star.dataset.val, 10);
+                document.querySelectorAll('.star-btn').forEach(s => {
+                    const sv = parseInt(s.dataset.val, 10);
+                    s.style.opacity = sv <= val ? '1' : '0.4';
+                });
+            });
+            star.addEventListener('mouseleave', () => {
+                document.querySelectorAll('.star-btn').forEach(s => s.style.opacity = '1');
+            });
+        });
+    </script>
+}

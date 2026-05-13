@@ -288,6 +288,125 @@ public class DevController : Controller
         bool IsLocked,
         DateTimeOffset? LockoutEnd);
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Review moderation
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // GET /Dev/Reviews
+    public async Task<IActionResult> Reviews()
+    {
+        var stashedPwd = TempData["DevPassword"] as string;
+        if (IsValidPassword(stashedPwd))
+            return await Reviews(stashedPwd!);
+
+        return View(new List<Review>());
+    }
+
+    // POST /Dev/Reviews
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Reviews(string password)
+    {
+        if (!IsValidPassword(password))
+        {
+            ViewBag.Error    = "Incorrect developer password.";
+            ViewBag.Password = "";
+            return View(new List<Review>());
+        }
+
+        var reviews = await _db.Reviews
+            .OrderByDescending(r => !r.IsApproved)      // unapproved first
+            .ThenBy(r => r.DisplayOrder)
+            .ThenByDescending(r => r.SubmittedAt)
+            .ToListAsync();
+
+        ViewBag.Password = password;
+        return View(reviews);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApproveReview(string password, int id)
+    {
+        if (!IsValidPassword(password)) return Unauthorized();
+        var r = await _db.Reviews.FindAsync(id);
+        if (r is null) return NotFound();
+        r.IsApproved = true;
+        r.ApprovedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Approved review by {r.OwnerName}.";
+        return RedirectToReviews(password);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnapproveReview(string password, int id)
+    {
+        if (!IsValidPassword(password)) return Unauthorized();
+        var r = await _db.Reviews.FindAsync(id);
+        if (r is null) return NotFound();
+        r.IsApproved = false;
+        r.IsFeatured = false;
+        r.ApprovedAt = null;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Unapproved review by {r.OwnerName}.";
+        return RedirectToReviews(password);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> FeatureReview(string password, int id)
+    {
+        if (!IsValidPassword(password)) return Unauthorized();
+        var r = await _db.Reviews.FindAsync(id);
+        if (r is null) return NotFound();
+        // Featuring implies approved.
+        r.IsApproved = true;
+        r.IsFeatured = true;
+        r.ApprovedAt ??= DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Featured review by {r.OwnerName}.";
+        return RedirectToReviews(password);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnfeatureReview(string password, int id)
+    {
+        if (!IsValidPassword(password)) return Unauthorized();
+        var r = await _db.Reviews.FindAsync(id);
+        if (r is null) return NotFound();
+        r.IsFeatured = false;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Removed from homepage.";
+        return RedirectToReviews(password);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetReviewOrder(string password, int id, int displayOrder)
+    {
+        if (!IsValidPassword(password)) return Unauthorized();
+        var r = await _db.Reviews.FindAsync(id);
+        if (r is null) return NotFound();
+        r.DisplayOrder = displayOrder;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Display order updated.";
+        return RedirectToReviews(password);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteReview(string password, int id)
+    {
+        if (!IsValidPassword(password)) return Unauthorized();
+        var r = await _db.Reviews.FindAsync(id);
+        if (r is null) return NotFound();
+        _db.Reviews.Remove(r);
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Deleted review by {r.OwnerName}.";
+        return RedirectToReviews(password);
+    }
+
+    private IActionResult RedirectToReviews(string password)
+    {
+        TempData["DevPassword"] = password;
+        return RedirectToAction(nameof(Reviews));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private bool IsValidPassword(string? password) =>

@@ -13,6 +13,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Sport> Sports { get; set; }
     public DbSet<FacilitySettings> FacilitySettings { get; set; }
     public DbSet<CourtTimeSlot> CourtTimeSlots { get; set; }
+    public DbSet<Review> Reviews { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -59,5 +60,14 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(c => c.OwnerId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Reviews — testimonials about CourtBook from facility owners
+        builder.Entity<Review>()
+            .HasOne(r => r.Owner)
+            .WithMany()
+            .HasForeignKey(r => r.OwnerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Review>().HasIndex(r => new { r.IsApproved, r.IsFeatured, r.DisplayOrder });
     }
 }

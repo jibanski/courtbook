@@ -1,0 +1,96 @@
+@model IEnumerable<CourtBooking.Models.Review>
+@{
+    ViewData["Title"] = "Share Your Story";
+}
+
+<div class="bg-dark text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1">
+            <i class="bi bi-chat-quote-fill me-2"></i>Share Your Story
+        </h1>
+        <p class="mb-0 opacity-75">
+            Tell other facility owners why CourtBook works for you — your testimonial may appear on our homepage.
+        </p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0">Your submitted reviews</h5>
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i>Write a Review
+        </a>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-chat-square-quote display-4 text-muted opacity-50"></i>
+                <h5 class="mt-3 text-muted">You haven't written a review yet</h5>
+                <p class="text-muted small mb-3">
+                    Share your CourtBook experience and we may feature it on the homepage as social proof.
+                </p>
+                <a asp-action="Create" class="btn btn-primary">
+                    <i class="bi bi-pencil-square me-1"></i>Write your first review
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var r in Model)
+            {
+                <div class="col-md-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    @for (int i = 0; i < r.Rating; i++)
+                                    {
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                    }
+                                    @for (int i = r.Rating; i < 5; i++)
+                                    {
+                                        <i class="bi bi-star text-muted"></i>
+                                    }
+                                </div>
+                                <div>
+                                    @if (r.IsFeatured)
+                                    {
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-stars me-1"></i>Featured on Homepage
+                                        </span>
+                                    }
+                                    else if (r.IsApproved)
+                                    {
+                                        <span class="badge bg-primary">
+                                            <i class="bi bi-check-circle me-1"></i>Approved
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-hourglass-split me-1"></i>Awaiting Review
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(r.Title))
+                            {
+                                <h6 class="fw-bold mb-2">@r.Title</h6>
+                            }
+                            <p class="text-muted small mb-3">"@r.Body"</p>
+                            <div class="small text-muted">
+                                <i class="bi bi-calendar3 me-1"></i>
+                                Submitted @r.SubmittedAt.ToLocalTime().ToString("MMM d, yyyy")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

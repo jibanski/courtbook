@@ -1,6 +1,30 @@
+@model IEnumerable<CourtBooking.Models.Review>
 @{
     ViewData["Title"] = "CourtBook — Smart Court Booking for Your Facility";
     Layout = "_LandingLayout";
+
+    // Real owner testimonials override the placeholder ones below. If no
+    // approved+featured reviews exist yet, fall back so the landing page is
+    // never empty.
+    var realReviews = Model?.ToList() ?? new List<CourtBooking.Models.Review>();
+    var hasRealReviews = realReviews.Count > 0;
+
+    // Deterministic avatar colours so a given owner always gets the same shade.
+    string AvatarColor(string seed)
+    {
+        var palette = new[] { "bg-primary", "bg-success", "bg-warning", "bg-danger", "bg-info", "bg-purple", "bg-dark" };
+        var hash = 0;
+        foreach (var c in seed ?? "") hash = (hash * 31 + c) & 0x7fffffff;
+        return palette[hash % palette.Length];
+    }
+
+    string Initials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "??";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpper();
+        return ($"{parts[0][0]}{parts[^1][0]}").ToUpper();
+    }
 }
 
 <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
@@ -226,6 +250,41 @@
         </div>
 
         <div class="row g-4">
+            @if (hasRealReviews)
+            {
+                foreach (var r in realReviews)
+                {
+                    var initials = Initials(r.OwnerName);
+                    var color    = AvatarColor(r.OwnerId);
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border rounded-4 shadow-sm p-4">
+                            <div class="mb-3">
+                                @for (int i = 0; i < r.Rating; i++)
+                                {
+                                    <i class="bi bi-star-fill text-warning"></i>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(r.Title))
+                            {
+                                <h6 class="fw-bold mb-2">@r.Title</h6>
+                            }
+                            <p class="text-muted small mb-4 flex-grow-1">"@r.Body"</p>
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="@color text-white rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
+                                     style="width:44px;height:44px;font-size:.85rem;">
+                                    @initials
+                                </div>
+                                <div>
+                                    <div class="fw-semibold small">@r.OwnerName</div>
+                                    <div class="text-muted" style="font-size:.75rem;">@r.FacilityName</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
             @foreach (var review in new[] {
                 new {
                     name    = "Mark Reyes",
@@ -301,6 +360,7 @@
                         </div>
                     </div>
                 </div>
+            }
             }
         </div>
 

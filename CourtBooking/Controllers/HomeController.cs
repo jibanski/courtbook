@@ -21,9 +21,19 @@ public class HomeController : Controller
 
     public async Task<IActionResult> Index()
     {
-        // Unauthenticated visitors see the marketing landing page
+        // Unauthenticated visitors see the marketing landing page, including
+        // any approved + featured testimonials from real facility owners.
         if (User.Identity?.IsAuthenticated != true)
-            return View("Landing");
+        {
+            var featured = await _db.Reviews
+                .Where(r => r.IsApproved && r.IsFeatured)
+                .OrderBy(r => r.DisplayOrder)
+                .ThenByDescending(r => r.SubmittedAt)
+                .Take(6)
+                .ToListAsync();
+
+            return View("Landing", featured);
+        }
 
         // Admins go directly to their dashboard
         if (User.IsInRole("Admin"))
