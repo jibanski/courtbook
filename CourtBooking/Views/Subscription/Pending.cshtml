@@ -2,7 +2,7 @@
     var isRenewal    = ViewBag.IsRenewal == true;
     ViewData["Title"] = isRenewal ? "Renewal Submitted" : "Payment Submitted";
     var settings     = ViewBag.Settings as CourtBooking.Models.FacilitySettings;
-    var contactEmail = ViewBag.ContactEmail as string ?? "sales@courtbook.com";
+    var contactEmail = ViewBag.ContactEmail as string ?? "courtbooksolutions@gmail.com";
     var contactPhone = ViewBag.ContactPhone as string ?? "";
 }
 

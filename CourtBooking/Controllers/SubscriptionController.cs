@@ -111,7 +111,7 @@ public class SubscriptionController : Controller
         if (settings?.IsSubscribed == true && !settings.IsSubscriptionPending)
             return RedirectToAction("Index", "Admin");
 
-        ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "sales@courtbook.com";
+        ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
         ViewBag.ContactPhone = _config["Subscription:ContactPhone"] ?? "";
         ViewBag.Settings     = settings;
         ViewBag.IsRenewal    = settings?.IsRenewalPending ?? false;

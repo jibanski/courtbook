@@ -126,7 +126,7 @@ public class SubscriptionReminderHostedService : BackgroundService
     private (string subject, string htmlBody, string plainBody) BuildEmail(
         ApplicationUser owner, FacilitySettings s, int threshold)
     {
-        var contactEmail = _config["Subscription:ContactEmail"] ?? "sales@courtbook.com";
+        var contactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
         var contactPhone = _config["Subscription:ContactPhone"] ?? "";
         var firstName    = string.IsNullOrWhiteSpace(owner.FirstName) ? "there" : owner.FirstName;
         var expiryStr    = s.EffectiveSubscriptionExpiry?.ToLocalTime().ToString("MMMM d, yyyy") ?? "—";

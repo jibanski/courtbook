@@ -89,7 +89,7 @@ public class AccountController : Controller
 
         if (result.IsLockedOut)
         {
-            ModelState.AddModelError("", "This account has been disabled. Please contact support at sales@courtbook.com.");
+            ModelState.AddModelError("", "This account has been disabled. Please contact support at courtbooksolutions@gmail.com.");
             return View(vm);
         }
 
@@ -178,7 +178,7 @@ public class AccountController : Controller
                        $"&token={Uri.EscapeDataString(rawToken)}";
 
         var firstName    = string.IsNullOrWhiteSpace(user.FirstName) ? "there" : user.FirstName;
-        var contactEmail = _config["Subscription:ContactEmail"] ?? "sales@courtbook.com";
+        var contactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
 
         var html = $@"<!doctype html>
 <html><body style=""font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;"">

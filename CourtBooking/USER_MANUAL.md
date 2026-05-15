@@ -313,7 +313,7 @@ A: Yes, but old shared links will stop working. Make sure to re-share the new li
 
 ## 11. Support
 
-- **Email:** sales@courtbook.com
+- **Email:** courtbooksolutions@gmail.com
 - **Phone:** +63 917 675 0210
 - **Hours:** Monday–Saturday, 9 AM – 6 PM (PHT)
 
