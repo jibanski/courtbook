@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using CourtBooking.Validation;
 
 namespace CourtBooking.ViewModels;
 
@@ -27,6 +28,10 @@ public class RegisterViewModel
     [Compare("Password", ErrorMessage = "Passwords do not match.")]
     [Display(Name = "Confirm Password")]
     public string ConfirmPassword { get; set; } = string.Empty;
+
+    [MustBeTrue]
+    [Display(Name = "Privacy Policy")]
+    public bool AgreeToPrivacyPolicy { get; set; }
 }
 
 public class LoginViewModel

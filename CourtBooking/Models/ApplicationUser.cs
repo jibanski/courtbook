@@ -16,5 +16,7 @@ public class ApplicationUser : IdentityUser
     /// </summary>
     public string? PreferredFacilitySlug { get; set; }
 
+    public DateTime? PrivacyPolicyAcceptedAt { get; set; }
+
     public string FullName => $"{FirstName} {LastName}".Trim();
 }

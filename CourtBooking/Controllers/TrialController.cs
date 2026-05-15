@@ -42,11 +42,12 @@ public class TrialController : Controller
 
         var user = new ApplicationUser
         {
-            UserName       = model.Email,
-            Email          = model.Email,
-            FirstName      = model.FirstName,
-            LastName       = model.LastName,
-            EmailConfirmed = true
+            UserName                 = model.Email,
+            Email                    = model.Email,
+            FirstName                = model.FirstName,
+            LastName                 = model.LastName,
+            EmailConfirmed           = true,
+            PrivacyPolicyAcceptedAt  = DateTime.UtcNow
         };
 
         var result = await _userManager.CreateAsync(user, model.Password);

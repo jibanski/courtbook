@@ -44,7 +44,8 @@ public class AccountController : Controller
             Email = vm.Email,
             FirstName = vm.FirstName,
             LastName = vm.LastName,
-            PhoneNumber = vm.PhoneNumber
+            PhoneNumber = vm.PhoneNumber,
+            PrivacyPolicyAcceptedAt = DateTime.UtcNow
         };
 
         var result = await _userManager.CreateAsync(user, vm.Password);
