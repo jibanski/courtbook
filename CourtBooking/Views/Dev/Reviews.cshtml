@@ -23,19 +23,24 @@
     <style>
         body          { background: #0d1117; color: #e6edf3; }
         .dev-card     { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
-        .form-control, .form-select {
-            background: #0d1117; border-color: #30363d; color: #e6edf3;
+        .edit-panel   { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; }
+        .form-control, .form-select, textarea {
+            background: #0d1117 !important; border-color: #30363d !important; color: #e6edf3 !important;
         }
-        .form-control:focus { background: #0d1117; border-color: #58a6ff;
-                              color: #e6edf3; box-shadow: none; }
-        .form-control::placeholder { color: #6e7681; }
+        .form-control:focus, textarea:focus {
+            border-color: #58a6ff !important; box-shadow: none !important;
+        }
+        .form-control::placeholder, textarea::placeholder { color: #6e7681; }
         .nav-link { color: #58a6ff !important; font-size: .85rem; }
         .row-pending  { border-left: 4px solid #f59f00; }
+        .row-approved { border-left: 4px solid #58a6ff; }
         .row-featured { border-left: 4px solid #2da44e; background: rgba(45,164,78,.06); }
+        .star-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 0 2px; color: #6e7681; }
+        .star-btn.active { color: #f59f00; }
     </style>
 </head>
 <body>
-<div class="container py-5" style="max-width: 820px;">
+<div class="container py-5" style="max-width: 860px;">
 
     <div class="text-center mb-4">
         <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10
@@ -43,7 +48,7 @@
             <i class="bi bi-chat-quote-fill text-warning fs-2"></i>
         </div>
         <h3 class="fw-bold mb-1">Review Moderation</h3>
-        <p class="text-secondary small mb-0">Approve, feature, or delete facility-owner testimonials</p>
+        <p class="text-secondary small mb-0">Approve, feature, edit, or delete facility-owner testimonials</p>
         <div class="mt-1">
             <a href="/Dev/Subscriptions" class="nav-link d-inline-block">Subscriptions</a>
             <span class="text-secondary mx-1">·</span>
@@ -93,58 +98,67 @@
     }
     else
     {
-        var pending   = Model.Count(r => !r.IsApproved);
-        var featured  = Model.Count(r => r.IsFeatured);
-        <p class="text-secondary small mb-3">
-            <i class="bi bi-stack me-1"></i>@Model.Count total · @pending pending · @featured featured on homepage
-        </p>
+        var pending  = Model.Count(r => !r.IsApproved);
+        var approved = Model.Count(r => r.IsApproved && !r.IsFeatured);
+        var featured = Model.Count(r => r.IsFeatured);
+
+        <!-- ── Summary bar ─────────────────────────────────────────────── -->
+        <div class="dev-card p-3 mb-4 d-flex gap-4 flex-wrap">
+            <div class="text-center px-2">
+                <div class="fs-4 fw-bold text-warning">@pending</div>
+                <div class="text-secondary small">Pending</div>
+            </div>
+            <div class="text-center px-2">
+                <div class="fs-4 fw-bold text-primary">@approved</div>
+                <div class="text-secondary small">Approved</div>
+            </div>
+            <div class="text-center px-2">
+                <div class="fs-4 fw-bold text-success">@featured</div>
+                <div class="text-secondary small">On Homepage</div>
+            </div>
+            <div class="text-center px-2">
+                <div class="fs-4 fw-bold">@Model.Count</div>
+                <div class="text-secondary small">Total</div>
+            </div>
+        </div>
 
         @foreach (var r in Model)
         {
-            var rowClass = r.IsFeatured ? "row-featured" : (!r.IsApproved ? "row-pending" : "");
+            var rowClass = r.IsFeatured ? "row-featured" : (r.IsApproved ? "row-approved" : "row-pending");
             <div class="dev-card p-4 mb-3 @rowClass">
+
+                <!-- ── Header ──────────────────────────────────────────── -->
                 <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
                     <div>
-                        <h6 class="fw-bold mb-1">@r.OwnerName</h6>
+                        <h6 class="fw-bold mb-0">@r.OwnerName</h6>
                         <div class="text-secondary small">@r.FacilityName</div>
                         <div class="mt-1">
-                            @for (int i = 0; i < r.Rating; i++)
+                            @for (int i = 1; i <= 5; i++)
                             {
-                                <i class="bi bi-star-fill text-warning"></i>
-                            }
-                            @for (int i = r.Rating; i < 5; i++)
-                            {
-                                <i class="bi bi-star text-secondary"></i>
+                                <i class="bi @(i <= r.Rating ? "bi-star-fill text-warning" : "bi-star text-secondary")"></i>
                             }
                         </div>
                     </div>
                     <div class="text-end">
                         <div class="small text-secondary mb-1">
-                            @r.SubmittedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
+                            Submitted @r.SubmittedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
                         </div>
-                        <div class="d-flex gap-1 flex-wrap justify-content-end">
-                            @if (r.IsFeatured)
-                            {
-                                <span class="badge bg-success">
-                                    <i class="bi bi-stars me-1"></i>Featured
-                                </span>
-                            }
-                            else if (r.IsApproved)
-                            {
-                                <span class="badge bg-primary">
-                                    <i class="bi bi-check-circle me-1"></i>Approved
-                                </span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-warning text-dark">
-                                    <i class="bi bi-hourglass-split me-1"></i>Pending
-                                </span>
-                            }
-                        </div>
+                        @if (r.IsFeatured)
+                        {
+                            <span class="badge bg-success"><i class="bi bi-stars me-1"></i>Featured on Homepage</span>
+                        }
+                        else if (r.IsApproved)
+                        {
+                            <span class="badge bg-primary"><i class="bi bi-check-circle me-1"></i>Approved</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Pending</span>
+                        }
                     </div>
                 </div>
 
+                <!-- ── Content ─────────────────────────────────────────── -->
                 @if (!string.IsNullOrWhiteSpace(r.Title))
                 {
                     <div class="fw-semibold mb-1">"@r.Title"</div>
@@ -153,13 +167,16 @@
 
                 <hr class="border-secondary my-3" />
 
-                <div class="d-flex gap-2 flex-wrap align-items-center">
+                <!-- ── Action buttons ──────────────────────────────────── -->
+                <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
+
+                    @* Approve / Unapprove *@
                     @if (!r.IsApproved)
                     {
                         <form asp-action="ApproveReview" method="post" class="d-inline">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="password" value="@password" />
-                            <input type="hidden" name="id"       value="@r.Id" />
+                            <input type="hidden" name="id" value="@r.Id" />
                             <button type="submit" class="btn btn-sm btn-primary">
                                 <i class="bi bi-check-circle me-1"></i>Approve
                             </button>
@@ -170,22 +187,23 @@
                         <form asp-action="UnapproveReview" method="post" class="d-inline">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="password" value="@password" />
-                            <input type="hidden" name="id"       value="@r.Id" />
+                            <input type="hidden" name="id" value="@r.Id" />
                             <button type="submit" class="btn btn-sm btn-outline-secondary"
-                                    onclick="return confirm('Unapprove this review? It will be hidden from the homepage.')">
-                                <i class="bi bi-arrow-counterclockwise me-1"></i>Unapprove
+                                    onclick="return confirm('Hide this review? It will no longer appear on the homepage.')">
+                                <i class="bi bi-eye-slash me-1"></i>Hide
                             </button>
                         </form>
                     }
 
+                    @* Feature / Unfeature *@
                     @if (!r.IsFeatured)
                     {
                         <form asp-action="FeatureReview" method="post" class="d-inline">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="password" value="@password" />
-                            <input type="hidden" name="id"       value="@r.Id" />
+                            <input type="hidden" name="id" value="@r.Id" />
                             <button type="submit" class="btn btn-sm btn-success">
-                                <i class="bi bi-stars me-1"></i>Feature on Homepage
+                                <i class="bi bi-eye me-1"></i>Show on Homepage
                             </button>
                         </form>
                     }
@@ -194,36 +212,122 @@
                         <form asp-action="UnfeatureReview" method="post" class="d-inline">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="password" value="@password" />
-                            <input type="hidden" name="id"       value="@r.Id" />
+                            <input type="hidden" name="id" value="@r.Id" />
                             <button type="submit" class="btn btn-sm btn-outline-warning">
-                                <i class="bi bi-star-half me-1"></i>Unfeature
+                                <i class="bi bi-eye-slash me-1"></i>Remove from Homepage
                             </button>
                         </form>
                     }
 
+                    @* Display order *@
                     <form asp-action="SetReviewOrder" method="post" class="d-flex align-items-center gap-1 d-inline-flex">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="password" value="@password" />
-                        <input type="hidden" name="id"       value="@r.Id" />
-                        <label class="small text-secondary mb-0">Order:</label>
+                        <input type="hidden" name="id" value="@r.Id" />
+                        <label class="small text-secondary mb-0 text-nowrap">Order:</label>
                         <input type="number" name="displayOrder" value="@r.DisplayOrder"
-                               class="form-control form-control-sm" style="width:80px;" />
+                               class="form-control form-control-sm" style="width:70px;" min="0" />
                         <button type="submit" class="btn btn-sm btn-outline-secondary">Set</button>
                     </form>
 
+                    @* Edit toggle *@
+                    <button class="btn btn-sm btn-outline-info" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#edit-@r.Id">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+
+                    @* Delete *@
                     <form asp-action="DeleteReview" method="post" class="d-inline ms-auto">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="password" value="@password" />
-                        <input type="hidden" name="id"       value="@r.Id" />
+                        <input type="hidden" name="id" value="@r.Id" />
                         <button type="submit" class="btn btn-sm btn-outline-danger"
-                                onclick="return confirm('Permanently delete this review?')">
+                                onclick="return confirm('Permanently delete this review? This cannot be undone.')">
                             <i class="bi bi-trash me-1"></i>Delete
                         </button>
                     </form>
                 </div>
+
+                <!-- ── Inline edit form (collapsed by default) ─────────── -->
+                <div class="collapse" id="edit-@r.Id">
+                    <div class="edit-panel p-3 mt-1">
+                        <p class="small text-secondary mb-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Edits are permanent. The submitter is not notified.
+                        </p>
+                        <form asp-action="EditReview" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="password" value="@password" />
+                            <input type="hidden" name="id" value="@r.Id" />
+
+                            <div class="mb-3">
+                                <label class="form-label small text-secondary fw-semibold">Rating</label>
+                                <div class="d-flex gap-1 align-items-center" id="starPicker-@r.Id">
+                                    @for (int i = 1; i <= 5; i++)
+                                    {
+                                        <button type="button" class="star-btn @(i <= r.Rating ? "active" : "")"
+                                                data-val="@i" data-target="ratingInput-@r.Id">
+                                            <i class="bi bi-star-fill"></i>
+                                        </button>
+                                    }
+                                </div>
+                                <input type="hidden" name="rating" id="ratingInput-@r.Id" value="@r.Rating" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small text-secondary fw-semibold">Title <span class="text-muted">(optional)</span></label>
+                                <input type="text" name="title" class="form-control form-control-sm"
+                                       value="@r.Title" maxlength="120" placeholder="Short headline…" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small text-secondary fw-semibold">Body</label>
+                                <textarea name="body" class="form-control form-control-sm" rows="4"
+                                          maxlength="600" required>@r.Body</textarea>
+                                <div class="text-secondary small mt-1">Max 600 characters</div>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-sm btn-info fw-semibold">
+                                    <i class="bi bi-check-lg me-1"></i>Save Changes
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        data-bs-toggle="collapse" data-bs-target="#edit-@r.Id">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
             </div>
         }
     }
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmB5YrVWTa5E+FQVaGc6DFSi5Ye"
+        crossorigin="anonymous"></script>
+<script>
+    // Star rating pickers
+    document.querySelectorAll('[id^="starPicker-"]').forEach(picker => {
+        const inputId = picker.querySelectorAll('.star-btn')[0]?.dataset.target;
+        const input   = document.getElementById(inputId);
+        const btns    = picker.querySelectorAll('.star-btn');
+
+        btns.forEach(btn => {
+            btn.addEventListener('mouseenter', () => highlight(btns, btn.dataset.val));
+            btn.addEventListener('mouseleave', () => highlight(btns, input?.value ?? 0));
+            btn.addEventListener('click', () => {
+                if (input) input.value = btn.dataset.val;
+                highlight(btns, btn.dataset.val);
+            });
+        });
+    });
+
+    function highlight(btns, upTo) {
+        btns.forEach(b => b.classList.toggle('active', b.dataset.val <= upTo));
+    }
+</script>
 </body>
 </html>

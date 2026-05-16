@@ -401,6 +401,20 @@ public class DevController : Controller
         return RedirectToReviews(password);
     }
 
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditReview(string password, int id, string? title, string body, int rating)
+    {
+        if (!IsValidPassword(password)) return Unauthorized();
+        var r = await _db.Reviews.FindAsync(id);
+        if (r is null) return NotFound();
+        r.Title  = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+        r.Body   = body.Trim();
+        r.Rating = Math.Clamp(rating, 1, 5);
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Review by {r.OwnerName} updated.";
+        return RedirectToReviews(password);
+    }
+
     private IActionResult RedirectToReviews(string password)
     {
         TempData["DevPassword"] = password;
