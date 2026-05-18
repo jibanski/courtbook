@@ -421,6 +421,97 @@
     </div>
 </section>
 
+<!-- ── FAQ ───────────────────────────────────────────────────────────── -->
+<section id="faq" class="py-6 bg-light">
+    <div class="container">
+        <div class="text-center mb-5">
+            <span class="badge bg-info-subtle text-info fw-semibold px-3 py-2 mb-2">FAQ</span>
+            <h2 class="fw-bold fs-1">Frequently Asked Questions</h2>
+            <p class="text-muted lead">Everything you need to know before getting started.</p>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="accordion accordion-flush" id="faqAccordion">
+
+                    @foreach (var item in new[] {
+                        new {
+                            q = "Is CourtBook really free for 30 days?",
+                            a = "Yes — no credit card required. You get full access to every feature for 30 days. After the trial you can subscribe to keep your facility running, or let it expire at no charge."
+                        },
+                        new {
+                            q = "How much does CourtBook cost after the trial?",
+                            a = "₱499/month billed monthly, or ₱4,788/year (₱399/month) billed annually — saving you ₱1,200. Both plans include the complete system with no hidden fees."
+                        },
+                        new {
+                            q = "How do I accept payments from customers?",
+                            a = "Customers pay via GCash or Maya. They upload a screenshot of their payment proof when booking, you verify it and confirm — no third-party payment gateway or extra fees involved."
+                        },
+                        new {
+                            q = "How long does setup take?",
+                            a = "Most facility owners are live in under 30 minutes. You create your account, add your courts with photos and pricing, and share your booking link. That's it."
+                        },
+                        new {
+                            q = "Can I manage multiple courts and sports?",
+                            a = "Yes. You can add as many courts as you need across any sport — badminton, basketball, tennis, futsal, volleyball, pickleball, and more. Each court has its own schedule and pricing."
+                        },
+                        new {
+                            q = "Do my customers need to download an app?",
+                            a = "No app needed. Customers book directly from your facility link on any browser. CourtBook also works as a Progressive Web App (PWA) — customers can add it to their home screen for an app-like experience."
+                        },
+                        new {
+                            q = "What happens when my trial expires?",
+                            a = "Your facility page and admin dashboard will pause — customers won't be able to make new bookings. Your data is kept safe. You can reactivate anytime by subscribing and entering your activation key."
+                        },
+                        new {
+                            q = "How do I subscribe after my trial?",
+                            a = "Go to Admin → Upgrade, choose your plan (Monthly or Annual), send payment via GCash or Maya, and submit your payment screenshot. We verify it and email you an activation key within 24 hours."
+                        },
+                        new {
+                            q = "Can I cancel my subscription anytime?",
+                            a = "Yes. There are no lock-in contracts. If you choose the monthly plan, you can simply not renew the following month. Annual subscribers can contact us for a prorated refund."
+                        },
+                        new {
+                            q = "I'm not tech-savvy. Is CourtBook easy to use?",
+                            a = "Absolutely. CourtBook was built with non-technical facility owners in mind. The dashboard is clean and straightforward — if you can use Facebook, you can use CourtBook."
+                        },
+                        new {
+                            q = "How do I get help if I have a problem?",
+                            a = "Email us at courtbooksolutions@gmail.com. We respond within 24 hours on business days."
+                        },
+                    })
+                    {
+                        var id = "faq-" + System.Math.Abs(item.q.GetHashCode());
+                        <div class="accordion-item border rounded-3 mb-3 shadow-sm">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed fw-semibold rounded-3"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#@id"
+                                        aria-expanded="false"
+                                        aria-controls="@id">
+                                    @item.q
+                                </button>
+                            </h2>
+                            <div id="@id" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body text-muted">
+                                    @item.a
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                </div>
+
+                <p class="text-center text-muted small mt-4">
+                    Still have questions?
+                    <a href="mailto:courtbooksolutions@gmail.com" class="text-primary fw-semibold">Email us</a> — we're happy to help.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
 <!-- ── Final CTA ──────────────────────────────────────────────────────── -->
 <section class="landing-cta py-6 text-center text-white">
     <div class="container">
