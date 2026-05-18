@@ -1,0 +1,87 @@
+@{
+    ViewData["Title"] = "Email Diagnostics";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container py-5" style="max-width:600px;">
+    <h3 class="mb-1"><i class="bi bi-envelope-check me-2 text-primary"></i>Email Diagnostics</h3>
+    <p class="text-muted small mb-4">Developer tool — sends a live test email to verify delivery end-to-end.</p>
+
+    @if (ViewBag.ConfigError != null)
+    {
+        <div class="alert alert-danger">
+            <strong>Not configured:</strong> @ViewBag.ConfigError
+        </div>
+    }
+
+    @if (ViewBag.Success != null)
+    {
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill me-2"></i>@ViewBag.Success
+        </div>
+    }
+
+    @if (ViewBag.SendError != null)
+    {
+        <div class="alert alert-danger">
+            <strong>Send failed:</strong><br />
+            <code>@ViewBag.SendError</code>
+        </div>
+    }
+
+    @if (ViewBag.IsConfigured != null)
+    {
+        <div class="alert @(ViewBag.IsConfigured == true ? "alert-success" : "alert-warning") py-2">
+            <i class="bi bi-@(ViewBag.IsConfigured == true ? "check-circle" : "exclamation-triangle") me-1"></i>
+            <strong>IsConfigured:</strong> @ViewBag.IsConfigured
+        </div>
+    }
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger">@ViewBag.Error</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post" asp-action="TestEmail">
+                @Html.AntiForgeryToken()
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Developer Password</label>
+                    <input type="password" name="password" class="form-control"
+                           value="@ViewBag.Password" required />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Send Test Email To</label>
+                    <input type="email" name="toEmail" class="form-control"
+                           value="@(ViewBag.ToEmail ?? "courtbooksolutions@gmail.com")"
+                           placeholder="recipient@example.com" required />
+                    <div class="form-text">Check both inbox and spam after sending.</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-send me-1"></i>Send Test Email
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="mt-4 p-3 bg-light rounded border small text-muted">
+        <strong>What this checks:</strong>
+        <ul class="mb-0 mt-1">
+            <li><code>EmailService.IsConfigured</code> — are all required env vars present?</li>
+            <li>Live Brevo API call — is the API key valid and the sender domain verified?</li>
+            <li>Delivery — check inbox <em>and</em> spam folder after a successful send.</li>
+        </ul>
+        <hr class="my-2" />
+        <strong>Railway env var names</strong> (double underscore for nested keys):
+        <ul class="mb-0 mt-1">
+            <li><code>Email__Provider</code> = <code>BrevoHttp</code></li>
+            <li><code>Email__ApiKey</code> = your Brevo API key</li>
+            <li><code>Email__FromAddress</code> = verified sender address in Brevo</li>
+            <li><code>Email__FromName</code> = <code>CourtBook</code></li>
+        </ul>
+    </div>
+</div>

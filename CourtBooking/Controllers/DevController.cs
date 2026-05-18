@@ -17,17 +17,20 @@ public class DevController : Controller
     private readonly KeyGeneratorService _keyGen;
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly EmailService _email;
     private readonly string _devPassword;
 
     public DevController(
         KeyGeneratorService keyGen,
         ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
+        EmailService email,
         IConfiguration config)
     {
         _keyGen      = keyGen;
         _db          = db;
         _userManager = userManager;
+        _email       = email;
         _devPassword = config["Dev:Password"]
             ?? throw new InvalidOperationException("Dev:Password is not configured.");
     }
@@ -419,6 +422,53 @@ public class DevController : Controller
     {
         TempData["DevPassword"] = password;
         return RedirectToAction(nameof(Reviews));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Email diagnostics
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // GET /Dev/TestEmail
+    public IActionResult TestEmail() => View();
+
+    // POST /Dev/TestEmail
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> TestEmail(string password, string toEmail)
+    {
+        if (!IsValidPassword(password))
+        {
+            ViewBag.Error = "Incorrect developer password.";
+            return View();
+        }
+
+        ViewBag.Password      = password;
+        ViewBag.ToEmail       = toEmail;
+        ViewBag.IsConfigured  = _email.IsConfigured;
+
+        if (!_email.IsConfigured)
+        {
+            ViewBag.ConfigError = "EmailService.IsConfigured = false. " +
+                "Check that Email:Provider, Email:FromAddress, and Email:ApiKey (for BrevoHttp) " +
+                "are set in Railway environment variables (use double-underscore: Email__Provider, etc.).";
+            return View();
+        }
+
+        try
+        {
+            await _email.SendAsync(
+                toEmail,
+                "[CourtBook] Test Email — Diagnostics",
+                "<h2>Test Email</h2><p>If you received this, CourtBook email delivery is working correctly.</p>",
+                "Test Email\n\nIf you received this, CourtBook email delivery is working correctly.");
+
+            ViewBag.Success = $"Email sent successfully to {toEmail}. Check the inbox (and spam folder).";
+        }
+        catch (Exception ex)
+        {
+            ViewBag.SendError = ex.Message;
+        }
+
+        return View();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
