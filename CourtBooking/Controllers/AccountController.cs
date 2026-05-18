@@ -62,6 +62,8 @@ public class AccountController : Controller
 
             await _signInManager.SignInAsync(user, isPersistent: false);
 
+            SendRegistrationNotification(user);
+
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
 
@@ -290,4 +292,58 @@ Need help? {contactEmail}
 
     [HttpGet]
     public IActionResult ResetPasswordConfirmation() => View();
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void SendRegistrationNotification(ApplicationUser user)
+    {
+        var adminEmail   = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        var scopeFactory = _scopeFactory;
+
+        _ = Task.Run(async () =>
+        {
+            ILogger<AccountController>? bgLogger = null;
+            try
+            {
+                using var scope  = scopeFactory.CreateScope();
+                bgLogger         = scope.ServiceProvider.GetRequiredService<ILogger<AccountController>>();
+                var bgEmail      = scope.ServiceProvider.GetRequiredService<EmailService>();
+                var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
+
+                var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:520px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
+      <div style='font-size:13px;opacity:.85;letter-spacing:.5px;text-transform:uppercase;'>CourtBook</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>New Registration</div>
+    </div>
+    <div style='padding:24px;font-size:15px;line-height:1.6;'>
+      <p style='margin:0 0 16px;'>A new user just registered on CourtBook:</p>
+      <table style='width:100%;border-collapse:collapse;'>
+        <tr><td style='color:#6c757d;padding:4px 0;'>Role</td><td style='padding:4px 0;'><span style='background:#198754;color:#fff;padding:2px 10px;border-radius:12px;font-size:13px;'>Customer</span></td></tr>
+        <tr><td style='color:#6c757d;padding:4px 0;'>Name</td><td style='font-weight:600;padding:4px 0;'>{user.FullName}</td></tr>
+        <tr><td style='color:#6c757d;padding:4px 0;'>Email</td><td style='padding:4px 0;'><a href='mailto:{user.Email}' style='color:#0d6efd;'>{user.Email}</a></td></tr>
+        <tr><td style='color:#6c757d;padding:4px 0;'>Registered</td><td style='padding:4px 0;'>{registeredAt}</td></tr>
+      </table>
+    </div>
+    <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
+      This is an automated notification from CourtBook.
+    </div>
+  </div>
+</body></html>";
+
+                var plain = $"New CourtBook Registration\n\nRole: Customer\nName: {user.FullName}\nEmail: {user.Email}\nRegistered: {registeredAt}";
+
+                await bgEmail.SendAsync(adminEmail, $"[CourtBook] New Customer Registered — {user.FullName}", html, plain);
+                bgLogger.LogInformation("[AccountController] Registration notification sent for {Email}", user.Email);
+            }
+            catch (Exception ex)
+            {
+                if (bgLogger is not null)
+                    bgLogger.LogError(ex, "[AccountController] Failed to send registration notification for {Email}", user.Email);
+                else
+                    Console.Error.WriteLine($"[AccountController] Registration notification failed: {ex}");
+            }
+        });
+    }
 }
