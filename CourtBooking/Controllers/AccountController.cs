@@ -63,7 +63,7 @@ public class AccountController : Controller
             await _signInManager.SignInAsync(user, isPersistent: false);
 
             SendRegistrationNotification(user);
-            SendWelcomeEmail(user);
+            SendWelcomeEmail(user, facilitySlug);
 
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
@@ -296,11 +296,13 @@ Need help? {contactEmail}
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private void SendWelcomeEmail(ApplicationUser user)
+    private void SendWelcomeEmail(ApplicationUser user, string? facilitySlug = null)
     {
         var baseUrl      = _config["App:BaseUrl"]?.TrimEnd('/') ?? "https://courtbook-solutions.up.railway.app";
         var contactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
-        var courtsUrl    = $"{baseUrl}/Courts";
+        var courtsUrl    = !string.IsNullOrEmpty(facilitySlug)
+                           ? $"{baseUrl}/sportshub/{facilitySlug}"
+                           : $"{baseUrl}/Courts";
         var scopeFactory = _scopeFactory;
 
         _ = Task.Run(async () =>

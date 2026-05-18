@@ -112,7 +112,7 @@ public class TrialController : Controller
             TempData["Success"] = $"Welcome, {user.FirstName}! Browse courts and make your first booking.";
 
             SendRegistrationNotification(user, role: "Customer");
-            SendWelcomeEmail(user, role: "Customer");
+            SendWelcomeEmail(user, role: "Customer", facilitySlug: facilitySlug);
 
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
@@ -182,7 +182,7 @@ public class TrialController : Controller
         });
     }
 
-    private void SendWelcomeEmail(ApplicationUser user, string role, string? facilityName = null)
+    private void SendWelcomeEmail(ApplicationUser user, string role, string? facilityName = null, string? facilitySlug = null)
     {
         var baseUrl      = _config["App:BaseUrl"]?.TrimEnd('/') ?? "https://courtbook-solutions.up.railway.app";
         var contactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
@@ -246,7 +246,9 @@ public class TrialController : Controller
                 }
                 else
                 {
-                    var courtsUrl = $"{baseUrl}/Courts";
+                    var courtsUrl = !string.IsNullOrEmpty(facilitySlug)
+                                    ? $"{baseUrl}/sportshub/{facilitySlug}"
+                                    : $"{baseUrl}/Courts";
                     subject = $"Welcome to CourtBook, {user.FirstName}!";
                     html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
