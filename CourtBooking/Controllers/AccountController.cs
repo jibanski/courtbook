@@ -63,6 +63,7 @@ public class AccountController : Controller
             await _signInManager.SignInAsync(user, isPersistent: false);
 
             SendRegistrationNotification(user);
+            SendWelcomeEmail(user);
 
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
@@ -294,6 +295,64 @@ Need help? {contactEmail}
     public IActionResult ResetPasswordConfirmation() => View();
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void SendWelcomeEmail(ApplicationUser user)
+    {
+        var baseUrl      = _config["App:BaseUrl"]?.TrimEnd('/') ?? "https://courtbook-solutions.up.railway.app";
+        var contactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        var courtsUrl    = $"{baseUrl}/Courts";
+        var scopeFactory = _scopeFactory;
+
+        _ = Task.Run(async () =>
+        {
+            ILogger<AccountController>? bgLogger = null;
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                bgLogger        = scope.ServiceProvider.GetRequiredService<ILogger<AccountController>>();
+                var bgEmail     = scope.ServiceProvider.GetRequiredService<EmailService>();
+
+                var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#198754;color:#fff;padding:24px;'>
+      <div style='font-size:13px;opacity:.85;letter-spacing:.5px;text-transform:uppercase;'>CourtBook</div>
+      <div style='font-size:24px;font-weight:700;margin-top:6px;'>Welcome, {user.FirstName}! 🏆</div>
+    </div>
+    <div style='padding:24px;line-height:1.65;font-size:15px;'>
+      <p style='margin:0 0 14px;'>Your CourtBook account is ready. You can now browse and book sports courts online — no more chasing availability over text or Facebook.</p>
+      <p style='margin:0 0 20px;'>Here's what you can do:</p>
+      <ul style='padding-left:20px;margin:0 0 20px;color:#495057;'>
+        <li style='margin-bottom:8px;'>Browse available courts near you</li>
+        <li style='margin-bottom:8px;'>Pick a date and time slot that works for you</li>
+        <li style='margin-bottom:8px;'>Pay securely via GCash or Maya</li>
+        <li style='margin-bottom:8px;'>Get instant booking confirmation</li>
+      </ul>
+      <p style='margin:0 0 22px;text-align:center;'>
+        <a href='{courtsUrl}' style='display:inline-block;background:#198754;color:#fff;text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;'>Browse Courts Now</a>
+      </p>
+      <p style='margin:0;font-size:13px;color:#6c757d;'>Need help? Email us at <a href='mailto:{contactEmail}' style='color:#0d6efd;'>{contactEmail}</a>.</p>
+    </div>
+    <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
+      You're receiving this because you just created a CourtBook player account.
+    </div>
+  </div>
+</body></html>";
+
+                var plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour account is ready. Browse and book courts at {courtsUrl}.\n\nYou can:\n- Browse available courts\n- Pick a time slot\n- Pay via GCash or Maya\n- Get instant confirmation\n\nNeed help? {contactEmail}";
+
+                await bgEmail.SendAsync(user.Email!, $"Welcome to CourtBook, {user.FirstName}!", html, plain);
+                bgLogger.LogInformation("[AccountController] Welcome email sent to {Email}", user.Email);
+            }
+            catch (Exception ex)
+            {
+                if (bgLogger is not null)
+                    bgLogger.LogError(ex, "[AccountController] Failed to send welcome email to {Email}", user.Email);
+                else
+                    Console.Error.WriteLine($"[AccountController] Welcome email failed: {ex}");
+            }
+        });
+    }
 
     private void SendRegistrationNotification(ApplicationUser user)
     {
