@@ -62,8 +62,8 @@ public class AccountController : Controller
 
             await _signInManager.SignInAsync(user, isPersistent: false);
 
-            SendRegistrationNotification(user);
-            SendWelcomeEmail(user, facilitySlug);
+            await SendRegistrationNotificationAsync(user);
+            await SendWelcomeEmailAsync(user, facilitySlug);
 
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
@@ -296,25 +296,15 @@ Need help? {contactEmail}
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private void SendWelcomeEmail(ApplicationUser user, string? facilitySlug = null)
+    private async Task SendWelcomeEmailAsync(ApplicationUser user, string? facilitySlug = null)
     {
         var baseUrl      = _config["App:BaseUrl"]?.TrimEnd('/') ?? "https://courtbook-solutions.up.railway.app";
         var contactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
         var courtsUrl    = !string.IsNullOrEmpty(facilitySlug)
                            ? $"{baseUrl}/sportshub/{facilitySlug}"
                            : $"{baseUrl}/Courts";
-        var scopeFactory = _scopeFactory;
 
-        _ = Task.Run(async () =>
-        {
-            ILogger<AccountController>? bgLogger = null;
-            try
-            {
-                using var scope = scopeFactory.CreateScope();
-                bgLogger        = scope.ServiceProvider.GetRequiredService<ILogger<AccountController>>();
-                var bgEmail     = scope.ServiceProvider.GetRequiredService<EmailService>();
-
-                var html = $@"<!doctype html>
+        var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
   <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
     <div style='background:#198754;color:#fff;padding:24px;'>
@@ -341,37 +331,25 @@ Need help? {contactEmail}
   </div>
 </body></html>";
 
-                var plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour account is ready. Browse and book courts at {courtsUrl}.\n\nYou can:\n- Browse available courts\n- Pick a time slot\n- Pay via GCash or Maya\n- Get instant confirmation\n\nNeed help? {contactEmail}";
+        var plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour account is ready. Browse and book courts at {courtsUrl}.\n\nYou can:\n- Browse available courts\n- Pick a time slot\n- Pay via GCash or Maya\n- Get instant confirmation\n\nNeed help? {contactEmail}";
 
-                await bgEmail.SendAsync(user.Email!, $"Welcome to CourtBook, {user.FirstName}!", html, plain);
-                bgLogger.LogInformation("[AccountController] Welcome email sent to {Email}", user.Email);
-            }
-            catch (Exception ex)
-            {
-                if (bgLogger is not null)
-                    bgLogger.LogError(ex, "[AccountController] Failed to send welcome email to {Email}", user.Email);
-                else
-                    Console.Error.WriteLine($"[AccountController] Welcome email failed: {ex}");
-            }
-        });
+        try
+        {
+            await _email.SendAsync(user.Email!, $"Welcome to CourtBook, {user.FirstName}!", html, plain);
+            _logger.LogInformation("[AccountController] Welcome email sent to {Email}", user.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[AccountController] Failed to send welcome email to {Email}", user.Email);
+        }
     }
 
-    private void SendRegistrationNotification(ApplicationUser user)
+    private async Task SendRegistrationNotificationAsync(ApplicationUser user)
     {
         var adminEmail   = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
-        var scopeFactory = _scopeFactory;
+        var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
 
-        _ = Task.Run(async () =>
-        {
-            ILogger<AccountController>? bgLogger = null;
-            try
-            {
-                using var scope  = scopeFactory.CreateScope();
-                bgLogger         = scope.ServiceProvider.GetRequiredService<ILogger<AccountController>>();
-                var bgEmail      = scope.ServiceProvider.GetRequiredService<EmailService>();
-                var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
-
-                var html = $@"<!doctype html>
+        var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
   <div style='max-width:520px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
     <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
@@ -393,18 +371,16 @@ Need help? {contactEmail}
   </div>
 </body></html>";
 
-                var plain = $"New CourtBook Registration\n\nRole: Customer\nName: {user.FullName}\nEmail: {user.Email}\nRegistered: {registeredAt}";
+        var plain = $"New CourtBook Registration\n\nRole: Customer\nName: {user.FullName}\nEmail: {user.Email}\nRegistered: {registeredAt}";
 
-                await bgEmail.SendAsync(adminEmail, $"[CourtBook] New Customer Registered — {user.FullName}", html, plain);
-                bgLogger.LogInformation("[AccountController] Registration notification sent for {Email}", user.Email);
-            }
-            catch (Exception ex)
-            {
-                if (bgLogger is not null)
-                    bgLogger.LogError(ex, "[AccountController] Failed to send registration notification for {Email}", user.Email);
-                else
-                    Console.Error.WriteLine($"[AccountController] Registration notification failed: {ex}");
-            }
-        });
+        try
+        {
+            await _email.SendAsync(adminEmail, $"[CourtBook] New Customer Registered — {user.FullName}", html, plain);
+            _logger.LogInformation("[AccountController] Registration notification sent for {Email}", user.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[AccountController] Failed to send registration notification for {Email}", user.Email);
+        }
     }
 }

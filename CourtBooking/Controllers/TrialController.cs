@@ -17,15 +17,13 @@ public class TrialController : Controller
     private readonly EmailService _email;
     private readonly IConfiguration _config;
     private readonly ILogger<TrialController> _logger;
-    private readonly IServiceScopeFactory _scopeFactory;
 
     public TrialController(ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         EmailService email,
         IConfiguration config,
-        ILogger<TrialController> logger,
-        IServiceScopeFactory scopeFactory)
+        ILogger<TrialController> logger)
     {
         _db            = db;
         _userManager   = userManager;
@@ -33,7 +31,6 @@ public class TrialController : Controller
         _email         = email;
         _config        = config;
         _logger        = logger;
-        _scopeFactory  = scopeFactory;
     }
 
     // GET /Trial/Start
@@ -91,8 +88,8 @@ public class TrialController : Controller
             await _signInManager.SignInAsync(user, isPersistent: false);
             TempData["Success"] = $"Welcome! Your {FacilitySettings.TrialPeriodDays}-day free trial has started. Set up your courts and go live.";
 
-            SendRegistrationNotification(user, role: "Facility Owner", facilityName: model.FacilityName);
-            SendWelcomeEmail(user, role: "Admin", facilityName: model.FacilityName);
+            await SendRegistrationNotificationAsync(user, role: "Facility Owner", facilityName: model.FacilityName);
+            await SendWelcomeEmailAsync(user, role: "Admin", facilityName: model.FacilityName);
 
             return RedirectToAction("Index", "Admin");
         }
@@ -111,8 +108,8 @@ public class TrialController : Controller
             await _signInManager.SignInAsync(user, isPersistent: false);
             TempData["Success"] = $"Welcome, {user.FirstName}! Browse courts and make your first booking.";
 
-            SendRegistrationNotification(user, role: "Customer");
-            SendWelcomeEmail(user, role: "Customer", facilitySlug: facilitySlug);
+            await SendRegistrationNotificationAsync(user, role: "Customer");
+            await SendWelcomeEmailAsync(user, role: "Customer", facilitySlug: facilitySlug);
 
             if (!string.IsNullOrEmpty(facilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = facilitySlug });
@@ -126,26 +123,17 @@ public class TrialController : Controller
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private void SendRegistrationNotification(ApplicationUser user, string role, string? facilityName = null)
+    private async Task SendRegistrationNotificationAsync(ApplicationUser user, string role, string? facilityName = null)
     {
         var adminEmail   = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
-        var scopeFactory = _scopeFactory;
-        var logger       = _logger;
+        var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
+        var facilityLine = !string.IsNullOrWhiteSpace(facilityName)
+            ? $"<tr><td style='color:#6c757d;padding:4px 0;'>Facility</td><td style='font-weight:600;padding:4px 0;'>{facilityName}</td></tr>"
+            : "";
+        var roleColor = role == "Facility Owner" ? "#0d6efd" : "#198754";
+        var roleBadge = $"<span style='background:{roleColor};color:#fff;padding:2px 10px;border-radius:12px;font-size:13px;'>{role}</span>";
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                using var scope    = scopeFactory.CreateScope();
-                var bgEmail        = scope.ServiceProvider.GetRequiredService<EmailService>();
-                var registeredAt   = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
-                var facilityLine   = !string.IsNullOrWhiteSpace(facilityName)
-                    ? $"<tr><td style='color:#6c757d;padding:4px 0;'>Facility</td><td style='font-weight:600;padding:4px 0;'>{facilityName}</td></tr>"
-                    : "";
-                var roleColor      = role == "Facility Owner" ? "#0d6efd" : "#198754";
-                var roleBadge      = $"<span style='background:{roleColor};color:#fff;padding:2px 10px;border-radius:12px;font-size:13px;'>{role}</span>";
-
-                var html = $@"<!doctype html>
+        var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
   <div style='max-width:520px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
     <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
@@ -168,41 +156,33 @@ public class TrialController : Controller
   </div>
 </body></html>";
 
-                var plain = $"New CourtBook Registration\n\nRole: {role}\nName: {user.FullName}\nEmail: {user.Email}"
-                          + (facilityName != null ? $"\nFacility: {facilityName}" : "")
-                          + $"\nRegistered: {registeredAt}";
+        var plain = $"New CourtBook Registration\n\nRole: {role}\nName: {user.FullName}\nEmail: {user.Email}"
+                  + (facilityName != null ? $"\nFacility: {facilityName}" : "")
+                  + $"\nRegistered: {registeredAt}";
 
-                await bgEmail.SendAsync(adminEmail, $"[CourtBook] New {role} Registered — {user.FullName}", html, plain);
-                logger.LogInformation("[TrialController] Registration notification sent for {Email} ({Role})", user.Email, role);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "[TrialController] Failed to send registration notification for {Email}", user.Email);
-            }
-        });
+        try
+        {
+            await _email.SendAsync(adminEmail, $"[CourtBook] New {role} Registered — {user.FullName}", html, plain);
+            _logger.LogInformation("[TrialController] Registration notification sent for {Email} ({Role})", user.Email, role);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[TrialController] Failed to send registration notification for {Email}", user.Email);
+        }
     }
 
-    private void SendWelcomeEmail(ApplicationUser user, string role, string? facilityName = null, string? facilitySlug = null)
+    private async Task SendWelcomeEmailAsync(ApplicationUser user, string role, string? facilityName = null, string? facilitySlug = null)
     {
         var baseUrl      = _config["App:BaseUrl"]?.TrimEnd('/') ?? "https://courtbook-solutions.up.railway.app";
         var contactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
-        var scopeFactory = _scopeFactory;
-        var logger       = _logger;
 
-        _ = Task.Run(async () =>
+        string subject, html, plain;
+
+        if (role == "Admin")
         {
-            try
-            {
-                using var scope = scopeFactory.CreateScope();
-                var bgEmail     = scope.ServiceProvider.GetRequiredService<EmailService>();
-
-                string subject, html, plain;
-
-                if (role == "Admin")
-                {
-                    var dashboardUrl = $"{baseUrl}/Admin";
-                    subject = $"Welcome to CourtBook, {user.FirstName}! Your 30-day free trial has started.";
-                    html = $@"<!doctype html>
+            var dashboardUrl = $"{baseUrl}/Admin";
+            subject = $"Welcome to CourtBook, {user.FirstName}! Your 30-day free trial has started.";
+            html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
   <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
     <div style='background:#0d6efd;color:#fff;padding:24px;'>
@@ -242,15 +222,15 @@ public class TrialController : Controller
     </div>
   </div>
 </body></html>";
-                    plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour 30-day free trial for {facilityName} is now active.\n\nGet started:\n1. Add your courts at {dashboardUrl}\n2. Share your booking link with customers\n3. Confirm bookings and collect payments\n\nAfter your trial: ₱499/month or ₱4,788/year.\n\nQuestions? {contactEmail}";
-                }
-                else
-                {
-                    var courtsUrl = !string.IsNullOrEmpty(facilitySlug)
-                                    ? $"{baseUrl}/sportshub/{facilitySlug}"
-                                    : $"{baseUrl}/Courts";
-                    subject = $"Welcome to CourtBook, {user.FirstName}!";
-                    html = $@"<!doctype html>
+            plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour 30-day free trial for {facilityName} is now active.\n\nGet started:\n1. Add your courts at {dashboardUrl}\n2. Share your booking link with customers\n3. Confirm bookings and collect payments\n\nAfter your trial: ₱499/month or ₱4,788/year.\n\nQuestions? {contactEmail}";
+        }
+        else
+        {
+            var courtsUrl = !string.IsNullOrEmpty(facilitySlug)
+                            ? $"{baseUrl}/sportshub/{facilitySlug}"
+                            : $"{baseUrl}/Courts";
+            subject = $"Welcome to CourtBook, {user.FirstName}!";
+            html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
   <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
     <div style='background:#198754;color:#fff;padding:24px;'>
@@ -276,17 +256,18 @@ public class TrialController : Controller
     </div>
   </div>
 </body></html>";
-                    plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour account is ready. Browse and book courts at {courtsUrl}.\n\nYou can:\n- Browse available courts\n- Pick a time slot\n- Pay via GCash or Maya\n- Get instant confirmation\n\nNeed help? {contactEmail}";
-                }
+            plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour account is ready. Browse and book courts at {courtsUrl}.\n\nYou can:\n- Browse available courts\n- Pick a time slot\n- Pay via GCash or Maya\n- Get instant confirmation\n\nNeed help? {contactEmail}";
+        }
 
-                await bgEmail.SendAsync(user.Email!, subject, html, plain);
-                logger.LogInformation("[TrialController] Welcome email sent to {Email} ({Role})", user.Email, role);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "[TrialController] Failed to send welcome email to {Email}", user.Email);
-            }
-        });
+        try
+        {
+            await _email.SendAsync(user.Email!, subject, html, plain);
+            _logger.LogInformation("[TrialController] Welcome email sent to {Email} ({Role})", user.Email, role);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[TrialController] Failed to send welcome email to {Email}", user.Email);
+        }
     }
 
     private async Task<string> GenerateUniqueSlugAsync(string name)
