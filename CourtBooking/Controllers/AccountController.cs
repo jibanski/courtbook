@@ -346,7 +346,7 @@ Need help? {contactEmail}
 
     private async Task SendRegistrationNotificationAsync(ApplicationUser user)
     {
-        var adminEmail   = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        var notifyEmails = new[] { "jayben_labrada@yahoo.com", "jibanski@gmail.com" };
         var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
 
         var html = $@"<!doctype html>
@@ -373,14 +373,17 @@ Need help? {contactEmail}
 
         var plain = $"New CourtBook Registration\n\nRole: Customer\nName: {user.FullName}\nEmail: {user.Email}\nRegistered: {registeredAt}";
 
-        try
+        foreach (var recipient in notifyEmails)
         {
-            await _email.SendAsync(adminEmail, $"[CourtBook] New Customer Registered — {user.FullName}", html, plain);
-            _logger.LogInformation("[AccountController] Registration notification sent for {Email}", user.Email);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[AccountController] Failed to send registration notification for {Email}", user.Email);
+            try
+            {
+                await _email.SendAsync(recipient, $"[CourtBook] New Customer Registered — {user.FullName}", html, plain);
+                _logger.LogInformation("[AccountController] Registration notification sent to {Recipient} for {Email}", recipient, user.Email);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[AccountController] Failed to send registration notification to {Recipient} for {Email}", recipient, user.Email);
+            }
         }
     }
 }

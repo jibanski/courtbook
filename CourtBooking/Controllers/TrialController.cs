@@ -125,7 +125,7 @@ public class TrialController : Controller
 
     private async Task SendRegistrationNotificationAsync(ApplicationUser user, string role, string? facilityName = null)
     {
-        var adminEmail   = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        var notifyEmails = new[] { "jayben_labrada@yahoo.com", "jibanski@gmail.com" };
         var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
         var facilityLine = !string.IsNullOrWhiteSpace(facilityName)
             ? $"<tr><td style='color:#6c757d;padding:4px 0;'>Facility</td><td style='font-weight:600;padding:4px 0;'>{facilityName}</td></tr>"
@@ -160,14 +160,17 @@ public class TrialController : Controller
                   + (facilityName != null ? $"\nFacility: {facilityName}" : "")
                   + $"\nRegistered: {registeredAt}";
 
-        try
+        foreach (var recipient in notifyEmails)
         {
-            await _email.SendAsync(adminEmail, $"[CourtBook] New {role} Registered — {user.FullName}", html, plain);
-            _logger.LogInformation("[TrialController] Registration notification sent for {Email} ({Role})", user.Email, role);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[TrialController] Failed to send registration notification for {Email}", user.Email);
+            try
+            {
+                await _email.SendAsync(recipient, $"[CourtBook] New {role} Registered — {user.FullName}", html, plain);
+                _logger.LogInformation("[TrialController] Registration notification sent to {Recipient} for {Email} ({Role})", recipient, user.Email, role);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[TrialController] Failed to send registration notification to {Recipient} for {Email}", recipient, user.Email);
+            }
         }
     }
 
