@@ -104,7 +104,7 @@ public class FacilitySettings
         ? Math.Max(0, (int)Math.Ceiling((TrialExpiresAt.Value - DateTime.UtcNow).TotalDays))
         : 0;
 
-    // ── Custom Branding (Pro only) ────────────────────────────────────────────
+    // ── Custom Branding ───────────────────────────────────────────────────────
     [MaxLength(100)]
     public string? BrandName { get; set; }       // Replaces "CourtBook" site-wide
 
@@ -114,11 +114,11 @@ public class FacilitySettings
     public string? BrandLogoUrl { get; set; }    // Path to uploaded logo image
 
     [NotMapped]
-    public string DisplayName => EffectiveIsSubscribed && !string.IsNullOrWhiteSpace(BrandName)
+    public string DisplayName => !string.IsNullOrWhiteSpace(BrandName)
         ? BrandName : "CourtBook";
 
     [NotMapped]
-    public string DisplayTagline => EffectiveIsSubscribed && !string.IsNullOrWhiteSpace(BrandTagline)
+    public string DisplayTagline => !string.IsNullOrWhiteSpace(BrandTagline)
         ? BrandTagline : "Book your court anytime, anywhere.";
 
     // ── Subscription Payment ──────────────────────────────────────────────────

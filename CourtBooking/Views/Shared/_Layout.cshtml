@@ -10,7 +10,7 @@
                      : null;
     var _brand   = (User.IsInRole("Admin") ? _fs?.DisplayName    : null) ?? "CourtBook";
     var _tagline = (User.IsInRole("Admin") ? _fs?.DisplayTagline : null) ?? "Book your court anytime, anywhere.";
-    var _logoUrl = (User.IsInRole("Admin") && _fs?.EffectiveIsSubscribed == true) ? _fs.BrandLogoUrl : null;
+    var _logoUrl = User.IsInRole("Admin") ? _fs?.BrandLogoUrl : null;
 }
 <!DOCTYPE html>
 <html lang="en">
