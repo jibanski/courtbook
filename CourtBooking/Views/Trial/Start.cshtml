@@ -91,8 +91,19 @@
                         <!-- ── Billing model (Admin only) ─────────────── -->
                         <div id="billingModelGroup" class="mb-4 @(Model.Role != "Admin" ? "d-none" : "")">
                             <label class="form-label fw-semibold small">
-                                <i class="bi bi-credit-card me-1 text-primary"></i>Billing Model
+                                <i class="bi bi-credit-card me-1 text-primary"></i>After-Trial Billing Preference
                             </label>
+
+                            <!-- Free trial reassurance banner -->
+                            <div class="alert alert-success py-2 px-3 mb-2 d-flex align-items-center gap-2"
+                                 style="font-size:.8rem;border-radius:8px;">
+                                <i class="bi bi-shield-check flex-shrink-0"></i>
+                                <span>
+                                    <strong>No charge during your 30-day free trial.</strong>
+                                    This just sets your preference for when you decide to continue after the trial.
+                                </span>
+                            </div>
+
                             <input type="hidden" name="BillingModel" id="billingModelInput" value="@Model.BillingModel" />
                             <div class="row g-2">
                                 <div class="col-6">
@@ -102,7 +113,7 @@
                                          style="cursor:pointer;border:2px solid #dee2e6;border-radius:10px;padding:12px;text-align:center;transition:.15s;">
                                         <div class="fw-semibold small"><i class="bi bi-calendar-check me-1 text-primary"></i>Subscription</div>
                                         <div class="text-muted" style="font-size:.72rem;">₱499/mo or ₱4,788/yr</div>
-                                        <div class="text-muted mt-1" style="font-size:.65rem;">Fixed monthly fee</div>
+                                        <div class="text-muted mt-1" style="font-size:.65rem;">Fixed fee after trial</div>
                                     </div>
                                 </div>
                                 <div class="col-6">
@@ -311,13 +322,13 @@
                 cardCom.style.background   = '#f0fff4';
                 cardSub.style.borderColor  = '#dee2e6';
                 cardSub.style.background   = '';
-                note.textContent = '2% of each confirmed booking is added to your commission balance. Pay it off anytime via GCash or Maya.';
+                note.textContent = 'After your free trial: 2% of each confirmed booking is added to your balance. No monthly fee — pay only when you earn.';
             } else {
                 cardSub.style.borderColor  = '#0d6efd';
                 cardSub.style.background   = '#f0f4ff';
                 cardCom.style.borderColor  = '#dee2e6';
                 cardCom.style.background   = '';
-                note.textContent = 'Fixed monthly (₱499) or annual (₱4,788) fee. Activate via GCash or Maya after your 30-day trial.';
+                note.textContent = 'After your free trial: pay a fixed ₱499/mo or ₱4,788/yr fee to keep your account active.';
             }
         }
 
