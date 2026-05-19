@@ -78,6 +78,14 @@
                         <li><a asp-controller="Account" asp-action="Login" class="text-white-50 text-decoration-none small">Login</a></li>
                     </ul>
                 </div>
+                <div class="col-lg-2 col-6">
+                    <div class="text-white fw-semibold mb-3">Company</div>
+                    <ul class="list-unstyled">
+                        <li><a asp-controller="Home" asp-action="About" class="text-white-50 text-decoration-none small">About Us</a></li>
+                        <li><a asp-controller="Home" asp-action="Terms" class="text-white-50 text-decoration-none small">Terms of Service</a></li>
+                        <li><a asp-controller="Home" asp-action="Privacy" class="text-white-50 text-decoration-none small">Privacy Policy</a></li>
+                    </ul>
+                </div>
                 <div class="col-lg-4">
                     <div class="text-white fw-semibold mb-3">Get Started Today</div>
                     <p class="text-white-50 small">No credit card required. 30 days free. Cancel anytime.</p>
@@ -89,6 +97,12 @@
             <hr class="border-secondary mt-4" />
             <div class="text-center text-white-50 small">
                 &copy; @DateTime.Now.Year CourtBook. All rights reserved.
+                &nbsp;&middot;&nbsp;
+                <a asp-controller="Home" asp-action="About" class="text-white-50 text-decoration-none">About Us</a>
+                &nbsp;&middot;&nbsp;
+                <a asp-controller="Home" asp-action="Terms" class="text-white-50 text-decoration-none">Terms</a>
+                &nbsp;&middot;&nbsp;
+                <a asp-controller="Home" asp-action="Privacy" class="text-white-50 text-decoration-none">Privacy</a>
             </div>
         </div>
     </footer>

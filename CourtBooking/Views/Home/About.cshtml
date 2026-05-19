@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = "About Us";
+    Layout = "~/Views/Shared/_LandingLayout.cshtml";
+}
+
+<div class="container py-5" style="max-width:760px;">
+    <h1 class="fw-bold mb-1">About CourtBook</h1>
+    <p class="text-muted mb-5">Built for sports facilities. Designed for players.</p>
+
+    <section class="mb-5">
+        <h5 class="fw-semibold mb-2">Our Story</h5>
+        <p>
+            CourtBook was created to solve a problem that every sports facility owner knows too well —
+            managing bookings through text messages, Facebook chats, and manual ledgers is exhausting
+            and error-prone. Players, meanwhile, have no easy way to check real-time availability or
+            confirm a booking without calling someone.
+        </p>
+        <p>
+            We built CourtBook to fix that: a simple, mobile-friendly platform where facility owners
+            can manage courts, accept payments, and track bookings — and where players can find and
+            book a court in minutes.
+        </p>
+    </section>
+
+    <section class="mb-5">
+        <h5 class="fw-semibold mb-2">What We Offer</h5>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="p-3 border rounded h-100">
+                    <div class="fw-semibold mb-1"><i class="bi bi-building me-2 text-primary"></i>For Facility Owners</div>
+                    <p class="small text-muted mb-0">
+                        Set up your courts, define schedules and pricing, accept GCash and Maya payments,
+                        and manage all your bookings from one dashboard. Start with a 30-day free trial —
+                        no credit card required.
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="p-3 border rounded h-100">
+                    <div class="fw-semibold mb-1"><i class="bi bi-person-running me-2 text-success"></i>For Players</div>
+                    <p class="small text-muted mb-0">
+                        Browse available courts, pick a time slot, and book instantly — no phone calls,
+                        no waiting. Get a confirmation right away and show up ready to play.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="mb-5">
+        <h5 class="fw-semibold mb-2">Get in Touch</h5>
+        <p class="mb-1">
+            Have a question or want to learn more?
+        </p>
+        <ul class="list-unstyled">
+            <li><i class="bi bi-envelope me-2 text-muted"></i><a href="mailto:courtbooksolutions@gmail.com">courtbooksolutions@gmail.com</a></li>
+            <li><i class="bi bi-telephone me-2 text-muted"></i>+63 917 675 0210</li>
+        </ul>
+    </section>
+
+    <div class="border-top pt-4 text-muted small">
+        <a asp-controller="Home" asp-action="Privacy" class="me-3">Privacy Policy</a>
+        <a asp-controller="Home" asp-action="Terms">Terms of Service</a>
+    </div>
+</div>

@@ -234,7 +234,15 @@
     <footer class="bg-dark text-light py-4 mt-5">
         <div class="container text-center">
             <p class="mb-1"><strong>@_brand</strong> &mdash; @_tagline</p>
-            <small class="text-muted">&copy; @DateTime.Now.Year @_brand. All rights reserved.</small>
+            <small class="text-muted">
+                &copy; @DateTime.Now.Year @_brand. All rights reserved.
+                &nbsp;&middot;&nbsp;
+                <a asp-controller="Home" asp-action="About" class="text-muted text-decoration-none">About Us</a>
+                &nbsp;&middot;&nbsp;
+                <a asp-controller="Home" asp-action="Terms" class="text-muted text-decoration-none">Terms</a>
+                &nbsp;&middot;&nbsp;
+                <a asp-controller="Home" asp-action="Privacy" class="text-muted text-decoration-none">Privacy</a>
+            </small>
         </div>
     </footer>
 
