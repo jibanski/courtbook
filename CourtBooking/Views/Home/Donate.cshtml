@@ -2,13 +2,22 @@
     ViewData["Title"] = "Support CourtBook";
     Layout = "_LandingLayout";
 
-    var gcashNum    = ViewBag.GCashNumber  as string;
-    var gcashName   = ViewBag.GCashName    as string;
-    var mayaNum     = ViewBag.MayaNumber   as string;
-    var mayaName    = ViewBag.MayaName     as string;
-    var email       = ViewBag.ContactEmail as string ?? "courtbooksolutions@gmail.com";
-    var gcashQrSrc  = ViewBag.GCashQrSrc   as string;
-    var mayaQrSrc   = ViewBag.MayaQrSrc    as string;
+    var gcashNum         = ViewBag.GCashNumber             as string;
+    var gcashName        = ViewBag.GCashName               as string;
+    var mayaNum          = ViewBag.MayaNumber              as string;
+    var mayaName         = ViewBag.MayaName                as string;
+    var email            = ViewBag.ContactEmail            as string ?? "courtbooksolutions@gmail.com";
+    var gcashQrSrc       = ViewBag.GCashQrSrc              as string;
+    var mayaQrSrc        = ViewBag.MayaQrSrc               as string;
+    var metrobankAccNum  = ViewBag.MetrobankAccountNumber  as string;
+    var metrobankAccName = ViewBag.MetrobankAccountName    as string;
+    var bpiAccNum        = ViewBag.BpiAccountNumber        as string;
+    var bpiAccName       = ViewBag.BpiAccountName          as string;
+    var metrobankQrSrc   = ViewBag.MetrobankQrSrc          as string;
+    var bpiQrSrc         = ViewBag.BpiQrSrc                as string;
+
+    bool hasMetrobank = !string.IsNullOrWhiteSpace(metrobankAccNum) || !string.IsNullOrWhiteSpace(metrobankAccName) || metrobankQrSrc != null;
+    bool hasBpi       = !string.IsNullOrWhiteSpace(bpiAccNum)       || !string.IsNullOrWhiteSpace(bpiAccName)       || bpiQrSrc != null;
 }
 
 <section class="py-5 bg-light min-vh-100">
@@ -91,6 +100,71 @@
                 </p>
             </div>
         </div>
+
+        <!-- Metrobank / BPI -->
+        @if (hasMetrobank || hasBpi)
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white fw-semibold border-bottom">
+                    <i class="bi bi-bank me-1 text-success"></i>Send via Bank Transfer
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3 mb-3">
+                        @if (hasMetrobank)
+                        {
+                            <div class="@(hasBpi ? "col-md-6" : "col-12")">
+                                <div class="p-3 rounded border text-center">
+                                    <div class="fw-bold mb-1" style="color:#003087;font-size:1rem;">Metrobank</div>
+                                    @if (!string.IsNullOrWhiteSpace(metrobankAccNum))
+                                    {
+                                        <div class="fw-bold">@metrobankAccNum</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(metrobankAccName))
+                                    {
+                                        <div class="text-muted small">@metrobankAccName</div>
+                                    }
+                                    @if (metrobankQrSrc != null)
+                                    {
+                                        <img src="@metrobankQrSrc" alt="Metrobank QR Code"
+                                             class="mt-3 d-block mx-auto rounded"
+                                             style="width:150px;height:150px;object-fit:contain;background:#fff;padding:4px;" />
+                                        <div class="text-muted small mt-1">Scan to pay</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        @if (hasBpi)
+                        {
+                            <div class="@(hasMetrobank ? "col-md-6" : "col-12")">
+                                <div class="p-3 rounded border text-center">
+                                    <div class="fw-bold mb-1" style="color:#c8102e;font-size:1rem;">BPI</div>
+                                    @if (!string.IsNullOrWhiteSpace(bpiAccNum))
+                                    {
+                                        <div class="fw-bold">@bpiAccNum</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(bpiAccName))
+                                    {
+                                        <div class="text-muted small">@bpiAccName</div>
+                                    }
+                                    @if (bpiQrSrc != null)
+                                    {
+                                        <img src="@bpiQrSrc" alt="BPI QR Code"
+                                             class="mt-3 d-block mx-auto rounded"
+                                             style="width:150px;height:150px;object-fit:contain;background:#fff;padding:4px;" />
+                                        <div class="text-muted small mt-1">Scan to pay</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <p class="text-muted small mb-0">
+                        Please use your name as the reference/remarks when sending.
+                        No need to notify us, but feel free to drop us a message at
+                        <a href="mailto:@email">@email</a>. 😊
+                    </p>
+                </div>
+            </div>
+        }
 
         <!-- No pressure note -->
         <div class="text-center text-muted small py-2">

@@ -521,7 +521,8 @@ public class DevController : Controller
 
     // POST /Dev/DonationQr
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> DonationQr(string password, IFormFile? gcashQr, IFormFile? mayaQr)
+    public async Task<IActionResult> DonationQr(string password, IFormFile? gcashQr, IFormFile? mayaQr,
+                                                 IFormFile? metrobankQr, IFormFile? bpiQr)
     {
         if (!IsValidPassword(password))
             return RedirectToAction(nameof(DonationQr), new { error = "Invalid password." });
@@ -533,21 +534,18 @@ public class DevController : Controller
             _db.PlatformConfig.Add(cfg);
         }
 
-        if (gcashQr is { Length: > 0 })
+        async Task SaveQr(IFormFile? file, Action<byte[], string> setter)
         {
+            if (file is not { Length: > 0 }) return;
             using var ms = new MemoryStream();
-            await gcashQr.CopyToAsync(ms);
-            cfg.GCashQrData        = ms.ToArray();
-            cfg.GCashQrContentType = gcashQr.ContentType;
+            await file.CopyToAsync(ms);
+            setter(ms.ToArray(), file.ContentType);
         }
 
-        if (mayaQr is { Length: > 0 })
-        {
-            using var ms = new MemoryStream();
-            await mayaQr.CopyToAsync(ms);
-            cfg.MayaQrData        = ms.ToArray();
-            cfg.MayaQrContentType = mayaQr.ContentType;
-        }
+        await SaveQr(gcashQr,     (d, t) => { cfg.GCashQrData     = d; cfg.GCashQrContentType     = t; });
+        await SaveQr(mayaQr,      (d, t) => { cfg.MayaQrData      = d; cfg.MayaQrContentType      = t; });
+        await SaveQr(metrobankQr, (d, t) => { cfg.MetrobankQrData = d; cfg.MetrobankQrContentType = t; });
+        await SaveQr(bpiQr,       (d, t) => { cfg.BpiQrData       = d; cfg.BpiQrContentType       = t; });
 
         await _db.SaveChangesAsync();
         TempData["Success"] = "Donation QR codes updated.";

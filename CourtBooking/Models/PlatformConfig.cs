@@ -19,4 +19,14 @@ public class PlatformConfig
     public byte[]? MayaQrData         { get; set; }
     [MaxLength(50)]
     public string? MayaQrContentType  { get; set; }
+
+    // Metrobank donation QR
+    public byte[]? MetrobankQrData        { get; set; }
+    [MaxLength(50)]
+    public string? MetrobankQrContentType { get; set; }
+
+    // BPI donation QR
+    public byte[]? BpiQrData        { get; set; }
+    [MaxLength(50)]
+    public string? BpiQrContentType { get; set; }
 }

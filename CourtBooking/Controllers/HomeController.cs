@@ -66,13 +66,16 @@ public class HomeController : Controller
         ViewBag.MayaName     = sub["MayaName"];
         ViewBag.ContactEmail = sub["ContactEmail"];
 
+        ViewBag.MetrobankAccountNumber = sub["MetrobankAccountNumber"];
+        ViewBag.MetrobankAccountName   = sub["MetrobankAccountName"];
+        ViewBag.BpiAccountNumber       = sub["BpiAccountNumber"];
+        ViewBag.BpiAccountName         = sub["BpiAccountName"];
+
         var cfg = await _db.PlatformConfig.FindAsync(1);
-        ViewBag.GCashQrSrc = cfg?.GCashQrData is { Length: > 0 }
-            ? $"data:{cfg.GCashQrContentType};base64,{Convert.ToBase64String(cfg.GCashQrData)}"
-            : null;
-        ViewBag.MayaQrSrc = cfg?.MayaQrData is { Length: > 0 }
-            ? $"data:{cfg.MayaQrContentType};base64,{Convert.ToBase64String(cfg.MayaQrData)}"
-            : null;
+        ViewBag.GCashQrSrc     = cfg?.GCashQrData     is { Length: > 0 } ? $"data:{cfg.GCashQrContentType};base64,{Convert.ToBase64String(cfg.GCashQrData)}"         : null;
+        ViewBag.MayaQrSrc      = cfg?.MayaQrData      is { Length: > 0 } ? $"data:{cfg.MayaQrContentType};base64,{Convert.ToBase64String(cfg.MayaQrData)}"           : null;
+        ViewBag.MetrobankQrSrc = cfg?.MetrobankQrData  is { Length: > 0 } ? $"data:{cfg.MetrobankQrContentType};base64,{Convert.ToBase64String(cfg.MetrobankQrData)}" : null;
+        ViewBag.BpiQrSrc       = cfg?.BpiQrData        is { Length: > 0 } ? $"data:{cfg.BpiQrContentType};base64,{Convert.ToBase64String(cfg.BpiQrData)}"             : null;
 
         return View();
     }
