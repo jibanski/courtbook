@@ -182,7 +182,7 @@ public class AccountController : Controller
         }
 
         // No linked login found — look up by email or create a new account
-        var email = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.Email);
+        var email = info.Principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
         if (string.IsNullOrEmpty(email))
         {
             TempData["Error"] = "Your social account didn't share an email address. Please register with email instead.";
@@ -208,11 +208,11 @@ public class AccountController : Controller
         }
 
         // Brand-new user — create a Customer account automatically
-        var firstName = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.GivenName) ?? "";
-        var lastName  = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.Surname)   ?? "";
+        var firstName = info.Principal.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value ?? "";
+        var lastName  = info.Principal.FindFirst(System.Security.Claims.ClaimTypes.Surname)?.Value   ?? "";
         if (string.IsNullOrEmpty(firstName) && string.IsNullOrEmpty(lastName))
         {
-            var fullName = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.Name) ?? email;
+            var fullName = info.Principal.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? email;
             var parts    = fullName.Trim().Split(' ', 2);
             firstName    = parts[0];
             lastName     = parts.Length > 1 ? parts[1] : "";
