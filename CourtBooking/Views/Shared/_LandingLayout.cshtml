@@ -19,27 +19,33 @@
 <body class="landing-body">
 
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-light landing-nav sticky-top">
+    <nav class="navbar navbar-expand-lg cb-navbar sticky-top" style="background:#050D18!important;border-bottom:1px solid rgba(255,255,255,0.07);">
         <div class="container">
-            <a class="navbar-brand fw-bold fs-4 text-primary" asp-controller="Home" asp-action="Index">
-                <i class="bi bi-trophy-fill me-2 text-warning"></i>CourtBook
+            <a class="navbar-brand fw-bold fs-5 d-flex align-items-center gap-2" asp-controller="Home" asp-action="Index"
+               style="color:var(--cb-text);text-decoration:none;">
+                <span class="d-inline-flex align-items-center justify-content-center rounded-2"
+                      style="width:28px;height:28px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
+                    <i class="bi bi-lightning-charge-fill" style="color:var(--cb-lime);font-size:.8rem;"></i>
+                </span>
+                CourtBook
             </a>
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#landingNav">
-                <span class="navbar-toggler-icon"></span>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#landingNav"
+                    style="color:var(--cb-text-2);">
+                <i class="bi bi-list fs-4"></i>
             </button>
             <div class="collapse navbar-collapse" id="landingNav">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#how-it-works">How It Works</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#pricing">Free &amp; Support</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#features" style="color:var(--cb-text-2);font-size:.9rem;">Features</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#how-it-works" style="color:var(--cb-text-2);font-size:.9rem;">How It Works</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#pricing" style="color:var(--cb-text-2);font-size:.9rem;">Free &amp; Support</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#faq" style="color:var(--cb-text-2);font-size:.9rem;">FAQ</a></li>
                 </ul>
                 <div class="d-flex align-items-center gap-2">
-                    <a asp-controller="Account" asp-action="Login" class="btn btn-outline-primary">Login</a>
-                    <a asp-controller="Trial" asp-action="Start" asp-route-role="Customer" class="btn btn-outline-primary">
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-sm btn-outline-secondary">Login</a>
+                    <a asp-controller="Trial" asp-action="Start" asp-route-role="Customer" class="btn btn-sm btn-outline-secondary">
                         <i class="bi bi-person-plus me-1"></i>Register
                     </a>
-                    <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin" class="btn btn-primary fw-semibold px-4">
+                    <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin" class="btn btn-sm btn-primary fw-semibold px-3">
                         <i class="bi bi-rocket-takeoff me-1"></i>Get Started Free
                     </a>
                 </div>

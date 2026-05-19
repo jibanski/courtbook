@@ -6,10 +6,9 @@
     var realReviews = Model?.ToList() ?? new List<CourtBooking.Models.Review>();
     var hasRealReviews = realReviews.Count > 0;
 
-    // Deterministic avatar colours so a given owner always gets the same shade.
     string AvatarColor(string seed)
     {
-        var palette = new[] { "bg-primary", "bg-success", "bg-warning", "bg-danger", "bg-info", "bg-purple", "bg-dark" };
+        var palette = new[] { "#A3FF12", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4" };
         var hash = 0;
         foreach (var c in seed ?? "") hash = (hash * 31 + c) & 0x7fffffff;
         return palette[hash % palette.Length];
@@ -25,65 +24,83 @@
 }
 
 <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
-<section class="landing-hero d-flex align-items-center">
-    <div class="container py-5">
+<section style="background:linear-gradient(135deg,#050D18 0%,#071827 55%,#0F172A 100%);padding:5rem 0;position:relative;overflow:hidden;">
+    <!-- Glow orbs -->
+    <div style="position:absolute;top:-150px;right:-80px;width:500px;height:500px;background:radial-gradient(circle,rgba(163,255,18,0.07) 0%,transparent 70%);pointer-events:none;"></div>
+    <div style="position:absolute;bottom:-100px;left:-60px;width:400px;height:400px;background:radial-gradient(circle,rgba(163,255,18,0.04) 0%,transparent 70%);pointer-events:none;"></div>
+
+    <div class="container" style="position:relative;">
         <div class="row align-items-center g-5">
             <div class="col-lg-6">
-                <span class="badge bg-warning text-dark fw-semibold px-3 py-2 mb-3 fs-6">
+                <span class="badge mb-3 px-3 py-2" style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.25);font-size:.8rem;font-weight:600;letter-spacing:.05em;">
                     <i class="bi bi-stars me-1"></i>100% Free — No Subscription, No Credit Card
                 </span>
-                <h1 class="display-4 fw-bold text-white lh-sm mb-4">
+                <h1 style="font-size:clamp(2rem,4vw,3rem);font-weight:800;line-height:1.1;letter-spacing:-0.03em;color:var(--cb-text);margin-bottom:1.25rem;">
                     Run Your Sports Facility<br>
-                    <span class="text-warning">Completely Online</span>
+                    <span style="color:var(--cb-lime);">Completely Online</span>
                 </h1>
-                <p class="lead text-white-75 mb-5">
+                <p style="color:var(--cb-text-2);font-size:1.1rem;line-height:1.7;margin-bottom:2rem;">
                     CourtBook gives your sports facility a professional online booking system.
                     Accept reservations 24/7, collect digital payments, and manage every court
                     from one powerful dashboard — without the spreadsheets.
                 </p>
-                <div class="d-flex flex-wrap gap-3">
+                <div class="d-flex flex-wrap gap-3 mb-3">
                     <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-                       class="btn btn-warning btn-lg fw-bold px-5 shadow">
+                       class="btn btn-primary btn-lg fw-bold px-5">
                         <i class="bi bi-rocket-takeoff me-2"></i>Create Free Account
                     </a>
                     <a href="#how-it-works"
-                       class="btn btn-outline-light btn-lg px-4">
+                       class="btn btn-outline-secondary btn-lg px-4">
                         <i class="bi bi-play-circle me-2"></i>See How It Works
                     </a>
                 </div>
-                <p class="text-white-50 small mt-3">
-                    <i class="bi bi-shield-check me-1"></i>Free forever &nbsp;·&nbsp;
+                <p style="color:var(--cb-text-3);font-size:.82rem;">
+                    <i class="bi bi-shield-check me-1" style="color:var(--cb-lime);"></i>Free forever &nbsp;·&nbsp;
                     <i class="bi bi-credit-card me-1"></i>No credit card &nbsp;·&nbsp;
                     <i class="bi bi-heart me-1"></i>Donation-supported
                 </p>
             </div>
             <div class="col-lg-6 d-none d-lg-block text-center">
-                <div class="hero-mockup shadow-lg rounded-4 overflow-hidden">
-                    <div class="bg-dark text-white p-3 d-flex align-items-center gap-2">
-                        <span class="dot bg-danger"></span>
-                        <span class="dot bg-warning"></span>
-                        <span class="dot bg-success"></span>
-                        <span class="ms-2 small opacity-50">CourtBook Admin Dashboard</span>
+                <div class="rounded-4 overflow-hidden" style="border:1px solid var(--cb-border);box-shadow:0 24px 64px rgba(0,0,0,.6);">
+                    <!-- Mockup title bar -->
+                    <div class="d-flex align-items-center gap-2 px-4 py-3" style="background:#050D18;border-bottom:1px solid var(--cb-border);">
+                        <span style="width:10px;height:10px;background:#ef4444;border-radius:50%;display:inline-block;"></span>
+                        <span style="width:10px;height:10px;background:#f59e0b;border-radius:50%;display:inline-block;"></span>
+                        <span style="width:10px;height:10px;background:#22c55e;border-radius:50%;display:inline-block;"></span>
+                        <span class="ms-2" style="font-size:.75rem;color:var(--cb-text-3);">CourtBook Admin Dashboard</span>
                     </div>
-                    <div class="bg-white p-4">
+                    <!-- Mockup body -->
+                    <div class="p-4" style="background:var(--cb-surface);">
                         <div class="row g-2 mb-3">
-                            <div class="col-6"><div class="mock-stat bg-primary text-white rounded p-3"><div class="fs-4 fw-bold">24</div><div class="small">Bookings Today</div></div></div>
-                            <div class="col-6"><div class="mock-stat bg-success text-white rounded p-3"><div class="fs-4 fw-bold">₱18,400</div><div class="small">This Week</div></div></div>
+                            <div class="col-6">
+                                <div class="rounded-3 p-3 text-start" style="background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.2);">
+                                    <div style="font-size:1.4rem;font-weight:800;color:var(--cb-lime);">24</div>
+                                    <div style="font-size:.75rem;color:var(--cb-text-3);">Bookings Today</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="rounded-3 p-3 text-start" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);">
+                                    <div style="font-size:1.4rem;font-weight:800;color:var(--cb-lime);">₱18,400</div>
+                                    <div style="font-size:.75rem;color:var(--cb-text-3);">This Week</div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="bg-light rounded p-3 text-start">
-                            <div class="fw-semibold small text-muted mb-2">UPCOMING BOOKINGS</div>
+                        <div class="rounded-3 p-3 text-start" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);">
+                            <div style="font-size:.7rem;color:var(--cb-text-3);font-weight:600;letter-spacing:.08em;margin-bottom:.75rem;">UPCOMING BOOKINGS</div>
                             @foreach (var item in new[] {
-                                new { name = "Miguel R.", court = "Court A – Tennis", time = "9:00 AM", badge = "Confirmed" },
-                                new { name = "Ana C.", court = "Court B – Badminton", time = "10:00 AM", badge = "Pending" },
-                                new { name = "John D.", court = "Court C – Basketball", time = "11:00 AM", badge = "Confirmed" },
+                                new { name = "Miguel R.", court = "Court A – Tennis", time = "9:00 AM", confirmed = true },
+                                new { name = "Ana C.", court = "Court B – Badminton", time = "10:00 AM", confirmed = false },
+                                new { name = "John D.", court = "Court C – Basketball", time = "11:00 AM", confirmed = true },
                             })
                             {
-                                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                <div class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid var(--cb-border);">
                                     <div>
-                                        <div class="fw-semibold small">@item.name</div>
-                                        <div class="text-muted" style="font-size:.75rem;">@item.court · @item.time</div>
+                                        <div style="font-size:.82rem;font-weight:600;color:var(--cb-text);">@item.name</div>
+                                        <div style="font-size:.72rem;color:var(--cb-text-3);">@item.court · @item.time</div>
                                     </div>
-                                    <span class="badge @(item.badge == "Confirmed" ? "bg-success" : "bg-warning text-dark")">@item.badge</span>
+                                    <span class="badge" style="background:@(item.confirmed ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)");color:@(item.confirmed ? "#4ade80" : "#fbbf24");font-size:.68rem;">
+                                        @(item.confirmed ? "Confirmed" : "Pending")
+                                    </span>
                                 </div>
                             }
                         </div>
@@ -95,143 +112,96 @@
 </section>
 
 <!-- ── Social Proof Bar ───────────────────────────────────────────────── -->
-<div class="bg-light border-bottom py-4">
+<div style="background:#050D18;border-bottom:1px solid var(--cb-border);padding:1.75rem 0;">
     <div class="container">
         <div class="row text-center g-4">
             <div class="col-6 col-md-3">
-                <div class="fw-bold fs-3 text-primary">24/7</div>
-                <div class="text-muted small">Online Bookings</div>
+                <div style="font-size:1.75rem;font-weight:800;color:var(--cb-lime);">24/7</div>
+                <div style="color:var(--cb-text-3);font-size:.82rem;">Online Bookings</div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="fw-bold fs-3 text-primary">2 min</div>
-                <div class="text-muted small">Setup Time</div>
+                <div style="font-size:1.75rem;font-weight:800;color:var(--cb-lime);">2 min</div>
+                <div style="color:var(--cb-text-3);font-size:.82rem;">Setup Time</div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="fw-bold fs-3 text-primary">GCash &amp; Maya</div>
-                <div class="text-muted small">Digital Payments</div>
+                <div style="font-size:1.75rem;font-weight:800;color:var(--cb-lime);">GCash &amp; Maya</div>
+                <div style="color:var(--cb-text-3);font-size:.82rem;">Digital Payments</div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="fw-bold fs-3 text-primary">Free</div>
-                <div class="text-muted small">Forever</div>
+                <div style="font-size:1.75rem;font-weight:800;color:var(--cb-lime);">Free</div>
+                <div style="color:var(--cb-text-3);font-size:.82rem;">Forever</div>
             </div>
         </div>
     </div>
 </div>
 
 <!-- ── Features ───────────────────────────────────────────────────────── -->
-<section id="features" class="py-6">
+<section id="features" style="padding:5rem 0;background:var(--cb-bg);">
     <div class="container">
         <div class="text-center mb-5">
-            <span class="badge bg-primary-subtle text-primary fw-semibold px-3 py-2 mb-2">Features</span>
-            <h2 class="fw-bold fs-1">Everything you need to run your facility</h2>
-            <p class="text-muted lead">From first booking to payment confirmation — fully automated.</p>
+            <span class="badge mb-2 px-3 py-2" style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.2);font-size:.78rem;font-weight:600;letter-spacing:.08em;">Features</span>
+            <h2 style="font-size:clamp(1.5rem,3vw,2.25rem);font-weight:800;color:var(--cb-text);letter-spacing:-0.02em;">Everything you need to run your facility</h2>
+            <p style="color:var(--cb-text-3);font-size:1rem;">From first booking to payment confirmation — fully automated.</p>
         </div>
         <div class="row g-4">
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card h-100 p-4 rounded-4 border bg-white shadow-sm">
-                    <div class="feature-icon bg-primary-subtle text-primary mb-3">
-                        <i class="bi bi-calendar-check fs-4"></i>
+            @foreach (var feat in new[] {
+                new { icon = "bi-calendar-check", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Online Court Booking", desc = "Customers can browse courts and book their slot online anytime — no phone calls, no manual scheduling." },
+                new { icon = "bi-phone", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "GCash & Maya Payments", desc = "Accept digital payments through GCash and Maya. Customers submit payment proof — you confirm and get paid." },
+                new { icon = "bi-clock-history", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Real-Time Availability", desc = "Customers see exactly which time slots are open. No double-bookings, no conflicts — ever." },
+                new { icon = "bi-speedometer2", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Admin Dashboard", desc = "Monitor bookings, revenue, court utilization, and pending payments from one clean, real-time dashboard." },
+                new { icon = "bi-buildings", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Multi-Court Management", desc = "Manage unlimited courts, each with its own schedule, pricing, sport type, and availability settings." },
+                new { icon = "bi-phone-fill", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Mobile-Friendly", desc = "Works perfectly on any device. Customers book from their phones, you manage from anywhere." },
+            })
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="h-100 rounded-4 p-4" style="background:var(--cb-surface);border:1px solid var(--cb-border);transition:border-color .2s,transform .2s;"
+                         onmouseover="this.style.borderColor='rgba(163,255,18,0.3)';this.style.transform='translateY(-3px)';"
+                         onmouseout="this.style.borderColor='var(--cb-border)';this.style.transform='translateY(0)';">
+                        <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3"
+                             style="width:44px;height:44px;background:@feat.bg;">
+                            <i class="bi @feat.icon" style="color:@feat.color;font-size:1.1rem;"></i>
+                        </div>
+                        <h5 style="font-weight:700;color:var(--cb-text);margin-bottom:.5rem;">@feat.title</h5>
+                        <p style="color:var(--cb-text-3);font-size:.85rem;line-height:1.6;margin:0;">@feat.desc</p>
                     </div>
-                    <h5 class="fw-bold">Online Court Booking</h5>
-                    <p class="text-muted small mb-0">
-                        Customers can browse courts and book their slot online anytime —
-                        no phone calls, no manual scheduling.
-                    </p>
                 </div>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card h-100 p-4 rounded-4 border bg-white shadow-sm">
-                    <div class="feature-icon bg-success-subtle text-success mb-3">
-                        <i class="bi bi-phone fs-4"></i>
-                    </div>
-                    <h5 class="fw-bold">GCash &amp; Maya Payments</h5>
-                    <p class="text-muted small mb-0">
-                        Accept digital payments through GCash and Maya.
-                        Customers submit payment proof — you confirm and get paid.
-                    </p>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card h-100 p-4 rounded-4 border bg-white shadow-sm">
-                    <div class="feature-icon bg-warning-subtle text-warning mb-3">
-                        <i class="bi bi-clock-history fs-4"></i>
-                    </div>
-                    <h5 class="fw-bold">Real-Time Availability</h5>
-                    <p class="text-muted small mb-0">
-                        Customers see exactly which time slots are open.
-                        No double-bookings, no conflicts — ever.
-                    </p>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card h-100 p-4 rounded-4 border bg-white shadow-sm">
-                    <div class="feature-icon bg-info-subtle text-info mb-3">
-                        <i class="bi bi-speedometer2 fs-4"></i>
-                    </div>
-                    <h5 class="fw-bold">Admin Dashboard</h5>
-                    <p class="text-muted small mb-0">
-                        Monitor bookings, revenue, court utilization, and pending payments
-                        from one clean, real-time dashboard.
-                    </p>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card h-100 p-4 rounded-4 border bg-white shadow-sm">
-                    <div class="feature-icon bg-danger-subtle text-danger mb-3">
-                        <i class="bi bi-buildings fs-4"></i>
-                    </div>
-                    <h5 class="fw-bold">Multi-Court Management</h5>
-                    <p class="text-muted small mb-0">
-                        Manage unlimited courts, each with its own schedule, pricing,
-                        sport type, and availability settings.
-                    </p>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card h-100 p-4 rounded-4 border bg-white shadow-sm">
-                    <div class="feature-icon bg-purple-subtle text-purple mb-3">
-                        <i class="bi bi-phone-fill fs-4"></i>
-                    </div>
-                    <h5 class="fw-bold">Mobile-Friendly</h5>
-                    <p class="text-muted small mb-0">
-                        Works perfectly on any device. Customers book from their phones,
-                        you manage from anywhere.
-                    </p>
-                </div>
-            </div>
+            }
         </div>
     </div>
 </section>
 
 <!-- ── How It Works ───────────────────────────────────────────────────── -->
-<section id="how-it-works" class="py-6 bg-light">
+<section id="how-it-works" style="padding:5rem 0;background:var(--cb-surface);">
     <div class="container">
         <div class="text-center mb-5">
-            <span class="badge bg-success-subtle text-success fw-semibold px-3 py-2 mb-2">Simple Setup</span>
-            <h2 class="fw-bold fs-1">Up and running in minutes</h2>
-            <p class="text-muted lead">No technical knowledge required. Just sign up and go.</p>
+            <span class="badge mb-2 px-3 py-2" style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.2);font-size:.78rem;font-weight:600;letter-spacing:.08em;">Simple Setup</span>
+            <h2 style="font-size:clamp(1.5rem,3vw,2.25rem);font-weight:800;color:var(--cb-text);letter-spacing:-0.02em;">Up and running in minutes</h2>
+            <p style="color:var(--cb-text-3);font-size:1rem;">No technical knowledge required. Just sign up and go.</p>
         </div>
-        <div class="row g-4 align-items-start">
+        <div class="row g-4 align-items-start justify-content-center">
             <div class="col-md-3 text-center">
-                <div class="step-circle bg-primary text-white mx-auto mb-3">1</div>
-                <h6 class="fw-bold">Create Your Account</h6>
-                <p class="text-muted small">Sign up with your facility name and email. Your account is ready immediately — free forever.</p>
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 fw-bold"
+                     style="width:52px;height:52px;background:var(--cb-lime-dim);border:2px solid rgba(163,255,18,0.4);color:var(--cb-lime);font-size:1.2rem;">1</div>
+                <h6 style="font-weight:700;color:var(--cb-text);">Create Your Account</h6>
+                <p style="color:var(--cb-text-3);font-size:.85rem;">Sign up with your facility name and email. Your account is ready immediately — free forever.</p>
             </div>
             <div class="col-md-1 d-none d-md-flex align-items-center justify-content-center pt-2">
-                <i class="bi bi-arrow-right fs-3 text-muted"></i>
+                <i class="bi bi-arrow-right fs-3" style="color:var(--cb-text-3);"></i>
             </div>
             <div class="col-md-3 text-center">
-                <div class="step-circle bg-primary text-white mx-auto mb-3">2</div>
-                <h6 class="fw-bold">Add Your Courts</h6>
-                <p class="text-muted small">Set up your courts with photos, pricing, sport types, and operating hours.</p>
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 fw-bold"
+                     style="width:52px;height:52px;background:var(--cb-lime-dim);border:2px solid rgba(163,255,18,0.4);color:var(--cb-lime);font-size:1.2rem;">2</div>
+                <h6 style="font-weight:700;color:var(--cb-text);">Add Your Courts</h6>
+                <p style="color:var(--cb-text-3);font-size:.85rem;">Set up your courts with photos, pricing, sport types, and operating hours.</p>
             </div>
             <div class="col-md-1 d-none d-md-flex align-items-center justify-content-center pt-2">
-                <i class="bi bi-arrow-right fs-3 text-muted"></i>
+                <i class="bi bi-arrow-right fs-3" style="color:var(--cb-text-3);"></i>
             </div>
             <div class="col-md-3 text-center">
-                <div class="step-circle bg-success text-white mx-auto mb-3">3</div>
-                <h6 class="fw-bold">Start Accepting Bookings</h6>
-                <p class="text-muted small">Share your link. Customers book and pay online. You confirm and earn.</p>
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 fw-bold"
+                     style="width:52px;height:52px;background:var(--cb-lime-dim);border:2px solid rgba(163,255,18,0.4);color:var(--cb-lime);font-size:1.2rem;">3</div>
+                <h6 style="font-weight:700;color:var(--cb-text);">Start Accepting Bookings</h6>
+                <p style="color:var(--cb-text-3);font-size:.85rem;">Share your link. Customers book and pay online. You confirm and earn.</p>
             </div>
         </div>
     </div>
@@ -242,12 +212,12 @@
 {
     var avgRating = realReviews.Average(r => r.Rating);
     var avgDisplay = avgRating.ToString("0.0");
-    <section id="reviews" class="py-6 bg-white">
+    <section id="reviews" style="padding:5rem 0;background:var(--cb-bg);">
         <div class="container">
             <div class="text-center mb-5">
-                <span class="badge bg-success-subtle text-success fw-semibold px-3 py-2 mb-2">Customer Reviews</span>
-                <h2 class="fw-bold fs-1">Loved by facility owners</h2>
-                <p class="text-muted lead">See what other sports facilities are saying about CourtBook.</p>
+                <span class="badge mb-2 px-3 py-2" style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.2);font-size:.78rem;font-weight:600;letter-spacing:.08em;">Customer Reviews</span>
+                <h2 style="font-size:clamp(1.5rem,3vw,2.25rem);font-weight:800;color:var(--cb-text);letter-spacing:-0.02em;">Loved by facility owners</h2>
+                <p style="color:var(--cb-text-3);font-size:1rem;">See what other sports facilities are saying about CourtBook.</p>
             </div>
 
             <div class="row g-4">
@@ -256,26 +226,26 @@
                     var initials = Initials(r.OwnerName);
                     var color    = AvatarColor(r.OwnerId);
                     <div class="col-md-6 col-lg-4">
-                        <div class="card h-100 border rounded-4 shadow-sm p-4">
+                        <div class="h-100 rounded-4 p-4 d-flex flex-column" style="background:var(--cb-surface);border:1px solid var(--cb-border);">
                             <div class="mb-3">
                                 @for (int i = 1; i <= 5; i++)
                                 {
-                                    <i class="bi @(i <= r.Rating ? "bi-star-fill text-warning" : "bi-star text-secondary")"></i>
+                                    <i class="bi @(i <= r.Rating ? "bi-star-fill" : "bi-star")" style="color:@(i <= r.Rating ? "#f59e0b" : "var(--cb-text-3)");"></i>
                                 }
                             </div>
                             @if (!string.IsNullOrWhiteSpace(r.Title))
                             {
-                                <h6 class="fw-bold mb-2">@r.Title</h6>
+                                <h6 style="font-weight:700;color:var(--cb-text);margin-bottom:.5rem;">@r.Title</h6>
                             }
-                            <p class="text-muted small mb-4 flex-grow-1">"@r.Body"</p>
+                            <p style="color:var(--cb-text-2);font-size:.875rem;line-height:1.65;margin-bottom:1.25rem;flex-grow:1;">"@r.Body"</p>
                             <div class="d-flex align-items-center gap-3">
-                                <div class="@color text-white rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
-                                     style="width:44px;height:44px;font-size:.85rem;">
+                                <div class="d-flex align-items-center justify-content-center rounded-circle fw-bold flex-shrink-0"
+                                     style="width:44px;height:44px;font-size:.85rem;background:rgba(163,255,18,0.15);color:var(--cb-lime);">
                                     @initials
                                 </div>
                                 <div>
-                                    <div class="fw-semibold small">@r.OwnerName</div>
-                                    <div class="text-muted" style="font-size:.75rem;">@r.FacilityName</div>
+                                    <div style="font-weight:600;font-size:.875rem;color:var(--cb-text);">@r.OwnerName</div>
+                                    <div style="font-size:.75rem;color:var(--cb-text-3);">@r.FacilityName</div>
                                 </div>
                             </div>
                         </div>
@@ -286,15 +256,15 @@
             <!-- Summary bar -->
             <div class="row justify-content-center mt-5">
                 <div class="col-md-8">
-                    <div class="bg-primary-subtle rounded-4 p-4 text-center">
+                    <div class="rounded-4 p-4 text-center" style="background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.2);">
                         <div class="d-flex justify-content-center gap-1 mb-2">
                             @for (int i = 1; i <= 5; i++)
                             {
-                                <i class="bi @(i <= Math.Round(avgRating) ? "bi-star-fill text-warning" : "bi-star text-secondary") fs-5"></i>
+                                <i class="bi @(i <= Math.Round(avgRating) ? "bi-star-fill" : "bi-star") fs-5" style="color:@(i <= Math.Round(avgRating) ? "#f59e0b" : "var(--cb-text-3)");"></i>
                             }
                         </div>
-                        <div class="fw-bold fs-5">@avgDisplay out of 5</div>
-                        <div class="text-muted small">Based on @realReviews.Count review@(realReviews.Count == 1 ? "" : "s") from facility owners across the Philippines</div>
+                        <div style="font-weight:700;font-size:1.1rem;color:var(--cb-lime);">@avgDisplay out of 5</div>
+                        <div style="color:var(--cb-text-3);font-size:.82rem;">Based on @realReviews.Count review@(realReviews.Count == 1 ? "" : "s") from facility owners across the Philippines</div>
                     </div>
                 </div>
             </div>
@@ -303,25 +273,25 @@
 }
 
 <!-- ── Free & Donation ────────────────────────────────────────────────── -->
-<section id="pricing" class="py-6">
+<section id="pricing" style="padding:5rem 0;background:var(--cb-surface);">
     <div class="container">
         <div class="text-center mb-5">
-            <span class="badge bg-success-subtle text-success fw-semibold px-3 py-2 mb-2">Free Forever</span>
-            <h2 class="fw-bold fs-1">CourtBook is completely free.</h2>
-            <p class="text-muted lead">No plans. No subscriptions. No credit card. Just sign up and go.</p>
+            <span class="badge mb-2 px-3 py-2" style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.2);font-size:.78rem;font-weight:600;letter-spacing:.08em;">Free Forever</span>
+            <h2 style="font-size:clamp(1.5rem,3vw,2.25rem);font-weight:800;color:var(--cb-text);letter-spacing:-0.02em;">CourtBook is completely free.</h2>
+            <p style="color:var(--cb-text-3);font-size:1rem;">No plans. No subscriptions. No credit card. Just sign up and go.</p>
         </div>
 
         <div class="row justify-content-center g-4">
 
             <!-- Everything included -->
             <div class="col-md-5">
-                <div class="h-100 border rounded-4 p-4 bg-white shadow-sm d-flex flex-column">
+                <div class="h-100 rounded-4 p-4 d-flex flex-column" style="background:var(--cb-bg);border:1px solid rgba(163,255,18,0.3);">
                     <div class="mb-3">
-                        <span class="badge bg-success fw-semibold mb-2 px-3">✓ Included — Free</span>
-                        <div class="display-5 fw-bold mb-1">₱0</div>
-                        <p class="text-muted small mb-0">Everything. Forever. No strings attached.</p>
+                        <span class="badge mb-2 px-3 py-1" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.25);font-size:.75rem;">✓ Included — Free</span>
+                        <div style="font-size:2.5rem;font-weight:800;color:var(--cb-lime);letter-spacing:-0.03em;">₱0</div>
+                        <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">Everything. Forever. No strings attached.</p>
                     </div>
-                    <hr class="my-3" />
+                    <hr style="border-color:var(--cb-border);margin:1rem 0;" />
                     <ul class="list-unstyled mb-4 flex-grow-1">
                         @foreach (var f in new[] {
                             "Unlimited courts & bookings",
@@ -334,11 +304,13 @@
                             "All future updates"
                         })
                         {
-                            <li class="mb-2 small"><i class="bi bi-check-circle-fill text-success me-2"></i>@f</li>
+                            <li class="mb-2" style="font-size:.875rem;color:var(--cb-text-2);">
+                                <i class="bi bi-check-circle-fill me-2" style="color:var(--cb-lime);"></i>@f
+                            </li>
                         }
                     </ul>
                     <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-                       class="btn btn-success w-100 fw-bold mt-auto btn-lg">
+                       class="btn btn-primary w-100 fw-bold btn-lg mt-auto">
                         <i class="bi bi-rocket-takeoff me-2"></i>Create Free Account
                     </a>
                 </div>
@@ -346,16 +318,15 @@
 
             <!-- Donation -->
             <div class="col-md-5">
-                <div class="h-100 border border-danger-subtle rounded-4 p-4 shadow-sm d-flex flex-column"
-                     style="background:linear-gradient(135deg,#fff5f5,#fff);">
+                <div class="h-100 rounded-4 p-4 d-flex flex-column" style="background:var(--cb-bg);border:1px solid rgba(239,68,68,0.25);">
                     <div class="mb-3">
-                        <span class="badge bg-danger-subtle text-danger fw-semibold mb-2 px-3">
+                        <span class="badge mb-2 px-3 py-1" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);font-size:.75rem;">
                             <i class="bi bi-heart-fill me-1"></i>Optional Support
                         </span>
-                        <div class="display-5 fw-bold mb-1">Any amount</div>
-                        <p class="text-muted small mb-0">If CourtBook helps your business, a small donation goes a long way.</p>
+                        <div style="font-size:2.5rem;font-weight:800;color:var(--cb-text);letter-spacing:-0.03em;">Any amount</div>
+                        <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">If CourtBook helps your business, a small donation goes a long way.</p>
                     </div>
-                    <hr class="my-3" />
+                    <hr style="border-color:var(--cb-border);margin:1rem 0;" />
                     <ul class="list-unstyled mb-4 flex-grow-1">
                         @foreach (var f in new[] {
                             "Helps cover server & hosting costs",
@@ -365,15 +336,17 @@
                             "Completely optional — no pressure",
                         })
                         {
-                            <li class="mb-2 small"><i class="bi bi-heart text-danger me-2"></i>@f</li>
+                            <li class="mb-2" style="font-size:.875rem;color:var(--cb-text-2);">
+                                <i class="bi bi-heart me-2" style="color:#f87171;"></i>@f
+                            </li>
                         }
                     </ul>
                     <a asp-controller="Home" asp-action="Donate"
-                       class="btn btn-outline-danger w-100 fw-semibold mt-auto">
+                       class="btn w-100 fw-semibold mt-auto" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.3);">
                         <i class="bi bi-heart-fill me-2"></i>Support the Team
                     </a>
-                    <p class="text-center text-muted mt-2 mb-0" style="font-size:.75rem;">
-                        <i class="bi bi-shield-check me-1 text-success"></i>No obligation — CourtBook stays free regardless
+                    <p class="text-center mt-2 mb-0" style="font-size:.75rem;color:var(--cb-text-3);">
+                        <i class="bi bi-shield-check me-1" style="color:var(--cb-lime);"></i>No obligation — CourtBook stays free regardless
                     </p>
                 </div>
             </div>
@@ -383,17 +356,17 @@
 </section>
 
 <!-- ── FAQ ───────────────────────────────────────────────────────────── -->
-<section id="faq" class="py-6 bg-light">
+<section id="faq" style="padding:5rem 0;background:var(--cb-bg);">
     <div class="container">
         <div class="text-center mb-5">
-            <span class="badge bg-info-subtle text-info fw-semibold px-3 py-2 mb-2">FAQ</span>
-            <h2 class="fw-bold fs-1">Frequently Asked Questions</h2>
-            <p class="text-muted lead">Everything you need to know before getting started.</p>
+            <span class="badge mb-2 px-3 py-2" style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.2);font-size:.78rem;font-weight:600;letter-spacing:.08em;">FAQ</span>
+            <h2 style="font-size:clamp(1.5rem,3vw,2.25rem);font-weight:800;color:var(--cb-text);letter-spacing:-0.02em;">Frequently Asked Questions</h2>
+            <p style="color:var(--cb-text-3);font-size:1rem;">Everything you need to know before getting started.</p>
         </div>
 
         <div class="row justify-content-center">
             <div class="col-lg-8">
-                <div class="accordion accordion-flush" id="faqAccordion">
+                <div class="d-flex flex-column gap-3">
 
                     @foreach (var item in new[] {
                         new {
@@ -431,20 +404,18 @@
                     })
                     {
                         var id = "faq-" + System.Math.Abs(item.q.GetHashCode());
-                        <div class="accordion-item border rounded-3 mb-3 shadow-sm">
-                            <h2 class="accordion-header">
-                                <button class="accordion-button collapsed fw-semibold rounded-3"
-                                        type="button"
-                                        data-bs-toggle="collapse"
-                                        data-bs-target="#@id"
-                                        aria-expanded="false"
-                                        aria-controls="@id">
-                                    @item.q
-                                </button>
-                            </h2>
-                            <div id="@id" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                <div class="accordion-body text-muted">
-                                    @item.a
+                        <div class="rounded-3 overflow-hidden" style="background:var(--cb-surface);border:1px solid var(--cb-border);">
+                            <button class="accordion-button collapsed w-100 text-start border-0 fw-semibold d-flex justify-content-between align-items-center gap-2 px-4 py-3"
+                                    style="background:transparent;color:var(--cb-text);font-size:.9rem;"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#@id">
+                                <span>@item.q</span>
+                                <i class="bi bi-chevron-down flex-shrink-0" style="color:var(--cb-lime);font-size:.8rem;transition:transform .2s;"></i>
+                            </button>
+                            <div id="@id" class="accordion-collapse collapse">
+                                <div class="px-4 pb-3" style="color:var(--cb-text-2);font-size:.875rem;line-height:1.7;border-top:1px solid var(--cb-border);">
+                                    <div class="pt-3">@item.a</div>
                                 </div>
                             </div>
                         </div>
@@ -452,9 +423,9 @@
 
                 </div>
 
-                <p class="text-center text-muted small mt-4">
+                <p class="text-center mt-4" style="color:var(--cb-text-3);font-size:.875rem;">
                     Still have questions?
-                    <a href="mailto:courtbooksolutions@gmail.com" class="text-primary fw-semibold">Email us</a> — we're happy to help.
+                    <a href="mailto:courtbooksolutions@gmail.com" style="color:var(--cb-lime);font-weight:600;text-decoration:none;">Email us</a> — we're happy to help.
                 </p>
             </div>
         </div>
@@ -462,18 +433,21 @@
 </section>
 
 <!-- ── Final CTA ──────────────────────────────────────────────────────── -->
-<section class="landing-cta py-6 text-center text-white">
-    <div class="container">
-        <h2 class="display-5 fw-bold mb-3">Ready to modernize your facility?</h2>
-        <p class="lead text-white-75 mb-5">
+<section style="padding:5rem 0;background:var(--cb-surface);border-top:1px solid rgba(163,255,18,0.12);position:relative;overflow:hidden;text-align:center;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(163,255,18,0.06) 0%,transparent 70%);pointer-events:none;"></div>
+    <div class="container" style="position:relative;">
+        <h2 style="font-size:clamp(1.5rem,3vw,2.5rem);font-weight:800;color:var(--cb-text);letter-spacing:-0.03em;margin-bottom:1rem;">
+            Ready to modernize your facility?
+        </h2>
+        <p style="color:var(--cb-text-2);font-size:1.05rem;margin-bottom:2.5rem;line-height:1.7;">
             Join facility owners who have moved their court bookings online.<br>
             Get started in minutes — free forever, no strings attached.
         </p>
         <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-           class="btn btn-warning btn-lg fw-bold px-5 py-3 shadow-lg">
+           class="btn btn-primary btn-lg fw-bold px-5 py-3">
             <i class="bi bi-rocket-takeoff me-2"></i>Create Your Free Account Now
         </a>
-        <p class="mt-3 text-white-50 small">
+        <p style="margin-top:1rem;color:var(--cb-text-3);font-size:.82rem;">
             No credit card &nbsp;·&nbsp; Free forever &nbsp;·&nbsp; Donation-supported
         </p>
     </div>

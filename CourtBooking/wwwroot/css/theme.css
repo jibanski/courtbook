@@ -850,3 +850,55 @@ hr { border-color: var(--cb-border) !important; opacity: 1; }
   color: #f87171;
   background: rgba(239,68,68,0.1);
 }
+
+/* ── Landing Page Dark Theme ─────────────────────────────────────────── */
+.landing-body {
+  background: var(--cb-bg) !important;
+  color: var(--cb-text);
+}
+
+/* Override any stale landing-nav / landing-hero from site.css */
+.landing-nav {
+  background: #050D18 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+}
+.landing-nav .nav-link { color: var(--cb-text-2) !important; }
+.landing-nav .nav-link:hover { color: var(--cb-lime) !important; }
+.landing-hero {
+  background: linear-gradient(135deg,#050D18 0%,#071827 55%,#0F172A 100%) !important;
+}
+.landing-cta {
+  background: var(--cb-surface) !important;
+  border-top: 1px solid rgba(163,255,18,0.12);
+}
+
+/* Landing footer stays dark */
+.landing-footer {
+  background: #050D18 !important;
+  border-top: 1px solid var(--cb-border);
+}
+
+/* Landing FAQ accordion dark override */
+.landing-body .accordion-button {
+  background: var(--cb-surface) !important;
+  color: var(--cb-text) !important;
+  box-shadow: none !important;
+}
+.landing-body .accordion-button::after { filter: invert(1); }
+.landing-body .accordion-button:not(.collapsed) {
+  background: var(--cb-surface-2) !important;
+  color: var(--cb-lime) !important;
+}
+.landing-body .accordion-item {
+  background: var(--cb-surface) !important;
+  border-color: var(--cb-border) !important;
+}
+.landing-body .accordion-body {
+  background: var(--cb-surface) !important;
+  color: var(--cb-text-2) !important;
+}
+
+/* Landing navbar toggler icon dark */
+.landing-body .navbar-toggler-icon {
+  filter: invert(1);
+}
