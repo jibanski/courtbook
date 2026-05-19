@@ -12,11 +12,13 @@ public class HomeController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IConfiguration _config;
 
-    public HomeController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
+    public HomeController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, IConfiguration config)
     {
         _db          = db;
         _userManager = userManager;
+        _config      = config;
     }
 
     public async Task<IActionResult> Index()
@@ -55,7 +57,16 @@ public class HomeController : Controller
     public IActionResult Privacy() => View();
     public IActionResult About()   => View();
     public IActionResult Terms()   => View();
-    public IActionResult Donate()  => View();
+    public IActionResult Donate()
+    {
+        var sub = _config.GetSection("Subscription");
+        ViewBag.GCashNumber  = sub["GCashNumber"];
+        ViewBag.GCashName    = sub["GCashName"];
+        ViewBag.MayaNumber   = sub["MayaNumber"];
+        ViewBag.MayaName     = sub["MayaName"];
+        ViewBag.ContactEmail = sub["ContactEmail"];
+        return View();
+    }
 
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Error()

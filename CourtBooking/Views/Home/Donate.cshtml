@@ -2,11 +2,11 @@
     ViewData["Title"] = "Support CourtBook";
     Layout = "_LandingLayout";
 
-    var gcashNum  = "09XX-XXX-XXXX";   // TODO: update with real GCash number
-    var gcashName = "CourtBook";
-    var mayaNum   = "09XX-XXX-XXXX";   // TODO: update with real Maya number
-    var mayaName  = "CourtBook";
-    var email     = "courtbooksolutions@gmail.com";
+    var gcashNum  = ViewBag.GCashNumber  as string;
+    var gcashName = ViewBag.GCashName    as string;
+    var mayaNum   = ViewBag.MayaNumber   as string;
+    var mayaName  = ViewBag.MayaName     as string;
+    var email     = ViewBag.ContactEmail as string ?? "courtbooksolutions@gmail.com";
 }
 
 <section class="py-5 bg-light min-vh-100">
