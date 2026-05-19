@@ -1,139 +1,152 @@
 @model IEnumerable<CourtBooking.Models.Court>
 @using CourtBooking.Models
 @{
-    ViewData["Title"] = "Courts";
-    var sports           = ViewBag.Sports           as List<string>           ?? new List<string>();
-    var selectedSport    = ViewBag.SelectedSport    as string;
-    var selectedFacility = ViewBag.SelectedFacility as string;
-    var facilityMap      = ViewBag.FacilityMap      as Dictionary<string, FacilitySettings> ?? new();
-    var activeFacilities = ViewBag.ActiveFacilities as List<FacilitySettings> ?? new();
+    ViewData["Title"] = "Browse Facilities";
+    var sports              = ViewBag.Sports              as List<string>                     ?? new();
+    var selectedSport       = ViewBag.SelectedSport       as string;
+    var facilityMap         = ViewBag.FacilityMap         as Dictionary<string, FacilitySettings> ?? new();
+    var activeFacilities    = ViewBag.ActiveFacilities    as List<FacilitySettings>           ?? new();
+    var facilitySports      = ViewBag.FacilitySports      as Dictionary<string, List<string>> ?? new();
+    var facilityCourtsCount = ViewBag.FacilityCourtsCount as Dictionary<string, int>          ?? new();
 }
 
 <div class="cb-page-header">
     <div class="container">
         <div class="cb-fade-up">
             <h1 class="mb-1" style="font-size:1.75rem;">
-                <i class="bi bi-buildings me-2" style="color:var(--cb-lime);"></i>Browse Courts
+                <i class="bi bi-buildings me-2" style="color:var(--cb-lime);"></i>Browse Facilities
             </h1>
-            <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Find and book courts from verified facilities near you</p>
+            <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+                Discover sports facilities near you and book a court online
+            </p>
+        </div>
     </div>
 </div>
 
-<div class="container">
+<div class="container py-4">
 
-    <!-- Facility Tabs (only when there are multiple facilities) -->
-    @if (activeFacilities.Count > 1)
+    <!-- Sport Filter Pills -->
+    @if (sports.Any())
     {
-        <div class="mb-3">
+        <div class="mb-4 cb-fade-up">
             <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="text-muted fw-semibold me-1 small">Facility:</span>
-                <a asp-action="Index" asp-route-sport="@selectedSport"
-                   class="btn btn-sm @(selectedFacility == null ? "btn-dark" : "btn-outline-secondary")">
-                    All Facilities
-                </a>
-                @foreach (var fs in activeFacilities)
+                <span style="color:var(--cb-text-3);font-size:.75rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;">Sport:</span>
+                <a asp-action="Index"
+                   class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-secondary")">All</a>
+                @foreach (var sport in sports)
                 {
-                    <a asp-action="Index" asp-route-sport="@selectedSport" asp-route-facility="@fs.DisplayName"
-                       class="btn btn-sm @(selectedFacility == fs.DisplayName ? "btn-dark" : "btn-outline-secondary") d-flex align-items-center gap-1">
-                        @fs.DisplayName
-                        @if (fs.EffectiveIsSubscribed)
-                        {
-                            <span class="badge bg-warning text-dark ms-1" style="font-size:.6rem;">PRO</span>
-                        }
-                    </a>
+                    <a asp-action="Index" asp-route-sport="@sport"
+                       class="btn btn-sm @(selectedSport == sport ? "btn-primary" : "btn-outline-secondary")">@sport</a>
                 }
             </div>
         </div>
     }
 
-    <!-- Sport Filter -->
-    <div class="mb-4">
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-            <span class="text-muted fw-semibold me-2 small">Sport:</span>
-            <a asp-action="Index" asp-route-facility="@selectedFacility"
-               class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-primary")">All</a>
-            @foreach (var sport in sports)
+    @if (!activeFacilities.Any())
+    {
+        <div class="text-center py-5 cb-fade-up">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3"
+                 style="width:72px;height:72px;background:var(--cb-surface-2);border:1px solid var(--cb-border);">
+                <i class="bi bi-buildings display-5" style="color:var(--cb-text-3);"></i>
+            </div>
+            <h5 style="color:var(--cb-text-2);">No facilities found</h5>
+            <p style="color:var(--cb-text-3);font-size:.875rem;">
+                @(selectedSport != null ? $"No facilities offer {selectedSport} courts yet." : "No facilities are registered yet. Check back soon.")
+            </p>
+            @if (selectedSport != null)
             {
-                <a asp-action="Index" asp-route-sport="@sport" asp-route-facility="@selectedFacility"
-                   class="btn btn-sm @(selectedSport == sport ? "btn-primary" : "btn-outline-primary")">@sport</a>
+                <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Clear filter</a>
             }
         </div>
-    </div>
-
-    @if (!Model.Any())
-    {
-        <div class="alert alert-info">No courts found.</div>
     }
     else
     {
         <div class="row g-4">
-            @foreach (var court in Model)
+            @foreach (var fs in activeFacilities)
             {
-                var fs = court.OwnerId != null && facilityMap.TryGetValue(court.OwnerId, out var f) ? f : null;
+                var courtCount = fs.OwnerId != null && facilityCourtsCount.TryGetValue(fs.OwnerId, out var cc) ? cc : 0;
+                var sportList  = fs.OwnerId != null && facilitySports.TryGetValue(fs.OwnerId, out var sl) ? sl : new List<string>();
 
-                <div class="col-sm-6 col-lg-4">
-                    <div class="card h-100 shadow-sm court-card">
+                <div class="col-sm-6 col-lg-4 cb-fade-up">
+                    <div class="card h-100" style="overflow:hidden;transition:transform .2s,border-color .2s;"
+                         onmouseover="this.style.transform='translateY(-4px)';this.style.borderColor='rgba(163,255,18,0.3)';"
+                         onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--cb-border)';">
 
-                        @* Court image / placeholder *@
-                        @if (!string.IsNullOrWhiteSpace(court.ImageUrl))
-                        {
-                            <div class="position-relative">
-                                <img src="@court.ImageUrl" alt="@court.Name"
-                                     class="card-img-top" style="height:180px; object-fit:cover;" />
-                                @if (court.IsIndoor)
-                                {
-                                    <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="court-placeholder d-flex flex-column align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()">
-                                <i class="bi @CourtHelpers.SportIcon(court.SportType) display-2 text-white"></i>
-                                <span class="text-white fw-semibold mt-2 small text-uppercase opacity-75">@court.SportType</span>
-                                @if (court.IsIndoor)
-                                {
-                                    <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
-                                }
-                            </div>
-                        }
-
-                        <div class="card-body">
-                            @* Facility name row *@
-                            @if (fs != null)
+                        <!-- Facility banner / logo area -->
+                        <div class="d-flex align-items-center justify-content-center"
+                             style="height:140px;background:linear-gradient(135deg,var(--cb-surface-2) 0%,var(--cb-surface-3) 100%);border-bottom:1px solid var(--cb-border);position:relative;">
+                            @if (!string.IsNullOrWhiteSpace(fs.BrandLogoUrl))
                             {
-                                <div class="d-flex align-items-center gap-1 mb-2">
-                                    <i class="bi bi-buildings text-muted" style="font-size:.8rem;"></i>
-                                    <span class="small text-muted">@fs.DisplayName</span>
-                                    @if (fs.EffectiveIsSubscribed)
+                                <img src="@fs.BrandLogoUrl" alt="@fs.DisplayName"
+                                     style="max-height:90px;max-width:80%;object-fit:contain;" />
+                            }
+                            else
+                            {
+                                <div class="d-flex flex-column align-items-center gap-2">
+                                    <div class="d-inline-flex align-items-center justify-content-center rounded-3"
+                                         style="width:60px;height:60px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
+                                        <i class="bi bi-buildings-fill fs-3" style="color:var(--cb-lime);"></i>
+                                    </div>
+                                </div>
+                            }
+                            <!-- Court count badge -->
+                            <span class="position-absolute top-0 end-0 m-2 badge"
+                                  style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.25);font-size:.72rem;">
+                                <i class="bi bi-buildings me-1"></i>@courtCount court@(courtCount != 1 ? "s" : "")
+                            </span>
+                        </div>
+
+                        <div class="card-body p-4">
+                            <h5 class="mb-1" style="font-weight:700;font-size:1.05rem;">@fs.DisplayName</h5>
+                            @if (!string.IsNullOrWhiteSpace(fs.DisplayTagline))
+                            {
+                                <p style="color:var(--cb-text-3);font-size:.82rem;margin-bottom:.75rem;line-height:1.5;">@fs.DisplayTagline</p>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(fs.Address))
+                            {
+                                <div class="mb-2" style="font-size:.8rem;color:var(--cb-text-3);">
+                                    <i class="bi bi-geo-alt me-1" style="color:var(--cb-lime);"></i>@fs.Address
+                                </div>
+                            }
+                            <!-- Sports offered -->
+                            @if (sportList.Any())
+                            {
+                                <div class="d-flex flex-wrap gap-1 mt-2">
+                                    @foreach (var s in sportList.Take(4))
                                     {
-                                        <span class="badge bg-warning text-dark ms-1" style="font-size:.6rem;">
-                                            <i class="bi bi-patch-check-fill me-1"></i>PRO
-                                        </span>
+                                        <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-2);font-size:.7rem;">@s</span>
                                     }
-                                    else
+                                    @if (sportList.Count > 4)
                                     {
-                                        <span class="badge bg-secondary-subtle text-secondary ms-1" style="font-size:.6rem;">Trial</span>
+                                        <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-3);font-size:.7rem;">+@(sportList.Count - 4) more</span>
                                     }
                                 </div>
                             }
-
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h5 class="card-title mb-0">@court.Name</h5>
-                                <span class="badge bg-secondary">@court.SportType</span>
-                            </div>
-                            <p class="card-text text-muted small">@court.Description</p>
-                            <div class="small text-muted">
-                                <i class="bi bi-clock me-1"></i>@court.OpeningHour:00 – @court.ClosingHour:00
-                            </div>
                         </div>
 
-                        <div class="card-footer d-flex justify-content-between align-items-center">
-                            <span class="fw-bold text-primary fs-5">₱@court.PricePerHour.ToString("N0")<small class="fs-6 fw-normal text-muted">/hr</small></span>
-                            <a asp-controller="Courts" asp-action="Details" asp-route-id="@court.Id"
-                               class="btn btn-primary">
-                                <i class="bi bi-calendar-plus me-1"></i>Book
-                            </a>
+                        <div class="card-footer p-3 d-flex justify-content-between align-items-center">
+                            <div class="d-flex gap-2 align-items-center">
+                                @if (!string.IsNullOrWhiteSpace(fs.FacebookUrl))
+                                {
+                                    <a href="@fs.FacebookUrl" target="_blank" rel="noopener"
+                                       style="color:#1877f2;font-size:1.1rem;line-height:1;" title="Facebook">
+                                        <i class="bi bi-facebook"></i>
+                                    </a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(fs.InstagramUrl))
+                                {
+                                    <a href="@fs.InstagramUrl" target="_blank" rel="noopener"
+                                       style="color:#e1306c;font-size:1.1rem;line-height:1;" title="Instagram">
+                                        <i class="bi bi-instagram"></i>
+                                    </a>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(fs.Slug))
+                            {
+                                <a href="/sportshub/@fs.Slug" class="btn btn-primary btn-sm px-4">
+                                    <i class="bi bi-arrow-right me-1"></i>View Courts
+                                </a>
+                            }
                         </div>
                     </div>
                 </div>
@@ -141,23 +154,3 @@
         </div>
     }
 </div>
-
-@functions {
-    static class CourtHelpers
-    {
-        public static string SportIcon(string sport) => sport?.ToLower() switch
-        {
-            "tennis"       => "bi-dribbble",
-            "badminton"    => "bi-feather",
-            "basketball"   => "bi-bullseye",
-            "volleyball"   => "bi-circle-fill",
-            "football"     => "bi-globe2",
-            "futsal"       => "bi-lightning-charge-fill",
-            "swimming"     => "bi-water",
-            "table tennis" => "bi-record-circle",
-            "billiards"    => "bi-circle",
-            "pickleball"   => "bi-record2-fill",
-            _              => "bi-trophy-fill"
-        };
-    }
-}

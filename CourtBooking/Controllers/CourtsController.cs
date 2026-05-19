@@ -74,22 +74,40 @@ public class CourtsController : Controller
         }
 
         var courts = await query.ToListAsync();
-        var sports  = await _db.Courts
-            .Where(c => c.IsActive && c.OwnerId != null)
-            .Select(c => c.SportType).Distinct().ToListAsync();
 
-        // Facilities with at least one active court (subscribed shown first)
+        var allSports = await _db.Courts
+            .Where(c => c.IsActive && c.OwnerId != null && allowedOwnerIds.Contains(c.OwnerId!))
+            .Select(c => new { c.OwnerId, c.SportType })
+            .ToListAsync();
+
+        // Group sports by facility owner
+        var facilitySports = allSports
+            .GroupBy(x => x.OwnerId!)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.SportType).Distinct().OrderBy(s => s).ToList());
+
+        // Court count per facility
+        var facilityCourtsCount = courts
+            .GroupBy(c => c.OwnerId!)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // All sports across all facilities (for the sport filter)
+        var sports = allSports.Select(x => x.SportType).Distinct().OrderBy(s => s).ToList();
+
+        // Facilities with at least one active court, sport-filtered if needed
         var activeFacilities = facilityMap.Values
-            .Where(s => courts.Any(c => c.OwnerId == s.OwnerId))
+            .Where(s => s.OwnerId != null
+                     && facilityCourtsCount.ContainsKey(s.OwnerId!)
+                     && (string.IsNullOrEmpty(sport) || (facilitySports.TryGetValue(s.OwnerId!, out var sp) && sp.Contains(sport))))
             .OrderByDescending(s => s.IsSubscribed)
             .ThenBy(s => s.DisplayName)
             .ToList();
 
-        ViewBag.Sports           = sports;
-        ViewBag.SelectedSport    = sport;
-        ViewBag.SelectedFacility = facility;
-        ViewBag.FacilityMap      = facilityMap;
-        ViewBag.ActiveFacilities = activeFacilities;
+        ViewBag.Sports             = sports;
+        ViewBag.SelectedSport      = sport;
+        ViewBag.FacilityMap        = facilityMap;
+        ViewBag.ActiveFacilities   = activeFacilities;
+        ViewBag.FacilitySports     = facilitySports;
+        ViewBag.FacilityCourtsCount = facilityCourtsCount;
         return View(courts);
     }
 
