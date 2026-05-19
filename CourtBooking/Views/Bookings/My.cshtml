@@ -4,10 +4,14 @@
     var facilityMap = ViewBag.FacilityMap as Dictionary<string, string> ?? new();
 }
 
-<div class="bg-primary text-white py-4 mb-4">
+<div class="cb-page-header">
     <div class="container">
-        <h1 class="fw-bold mb-1"><i class="bi bi-calendar-check me-2"></i>My Bookings</h1>
-        <p class="mb-0 opacity-75">Manage your upcoming and past reservations</p>
+        <div class="cb-fade-up">
+            <h1 class="mb-1" style="font-size:1.75rem;">
+                <i class="bi bi-calendar-check me-2" style="color:var(--cb-lime);"></i>My Bookings
+            </h1>
+            <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Manage your upcoming and past reservations</p>
+        </div>
     </div>
 </div>
 

@@ -6,10 +6,14 @@
     bool hasMaya  = !string.IsNullOrWhiteSpace(settings.MayaNumber);
 }
 
-<div class="bg-primary text-white py-4 mb-4">
+<div class="cb-page-header">
     <div class="container">
-        <h1 class="fw-bold mb-1"><i class="bi bi-credit-card me-2"></i>Complete Your Payment</h1>
-        <p class="mb-0 opacity-75">Booking #@Model.Id — @Model.Court.Name</p>
+        <div class="cb-fade-up">
+            <h1 class="mb-1" style="font-size:1.75rem;">
+                <i class="bi bi-credit-card me-2" style="color:var(--cb-lime);"></i>Complete Your Payment
+            </h1>
+            <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Booking #@Model.Id — @Model.Court.Name</p>
+        </div>
     </div>
 </div>
 

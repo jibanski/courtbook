@@ -5,32 +5,26 @@
     var fs = ViewBag.FacilitySettings as FacilitySettings;
 }
 
-<div class="bg-primary text-white py-4 mb-4">
+<div class="cb-page-header">
     <div class="container">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-2">
-                <li class="breadcrumb-item"><a href="/" class="text-white-50">Home</a></li>
-                <li class="breadcrumb-item"><a asp-controller="Courts" asp-action="Index" class="text-white-50">Courts</a></li>
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0" style="font-size:.825rem;">
+                <li class="breadcrumb-item"><a href="/" style="color:var(--cb-text-3);text-decoration:none;">Home</a></li>
+                <li class="breadcrumb-item"><a asp-controller="Courts" asp-action="Index" style="color:var(--cb-text-3);text-decoration:none;">Courts</a></li>
                 @if (fs != null)
                 {
-                    <li class="breadcrumb-item text-white-50">@fs.DisplayName</li>
+                    <li class="breadcrumb-item" style="color:var(--cb-text-3);">@fs.DisplayName</li>
                 }
-                <li class="breadcrumb-item active text-white">@Model.Court.Name</li>
+                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">@Model.Court.Name</li>
             </ol>
         </nav>
-        <h1 class="fw-bold mb-1">@Model.Court.Name</h1>
-        <p class="mb-0 opacity-75">
+        <h1 class="mb-1 cb-fade-up" style="font-size:1.75rem;font-weight:800;">@Model.Court.Name</h1>
+        <p class="mb-0" style="color:var(--cb-text-2);font-size:.9rem;">
             @Model.Court.SportType &bull; @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")
             @if (fs != null)
             {
-                <span class="ms-2 opacity-75">
+                <span class="ms-2" style="color:var(--cb-text-3);">
                     &bull; <i class="bi bi-buildings me-1"></i>@fs.DisplayName
-                    @if (fs.EffectiveIsSubscribed)
-                    {
-                        <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">
-                            <i class="bi bi-patch-check-fill me-1"></i>PRO
-                        </span>
-                    }
                 </span>
             }
         </p>
