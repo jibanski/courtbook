@@ -1,6 +1,7 @@
 using CourtBooking.Data;
 using CourtBooking.Filters;
 using CourtBooking.Models;
+using CourtBooking.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,8 +14,13 @@ namespace CourtBooking.Controllers;
 public class AdminController : Controller
 {
     private readonly ApplicationDbContext _db;
+    private readonly BookingService _bookingService;
 
-    public AdminController(ApplicationDbContext db) => _db = db;
+    public AdminController(ApplicationDbContext db, BookingService bookingService)
+    {
+        _db             = db;
+        _bookingService = bookingService;
+    }
 
     // ── Current-owner helpers ─────────────────────────────────────────────────
     private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -159,9 +165,62 @@ public class AdminController : Controller
             .OrderBy(s => s.StartHour)
             .ToListAsync();
 
-        ViewBag.Court = court;
-        ViewBag.Date  = selectedDate;
+        var bookedHours  = await _bookingService.GetBookedHoursAsync(id, selectedDate);
+        var blockedHours = slots
+            .Where(s => !s.IsActive)
+            .SelectMany(s => Enumerable.Range(s.StartHour, s.EndHour - s.StartHour))
+            .ToHashSet();
+
+        ViewBag.Court        = court;
+        ViewBag.Date         = selectedDate;
+        ViewBag.BookedHours  = bookedHours.ToHashSet();
+        ViewBag.BlockedHours = blockedHours;
         return View(slots);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> BlockHour(int courtId, DateOnly slotDate, int hour)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        // Upsert: if a 1-hour slot already exists for this hour, mark inactive; otherwise create one
+        var existing = await _db.CourtTimeSlots.FirstOrDefaultAsync(s =>
+            s.CourtId == courtId && s.SlotDate == slotDate &&
+            s.StartHour == hour && s.EndHour == hour + 1);
+
+        if (existing is not null)
+            existing.IsActive = false;
+        else
+            _db.CourtTimeSlots.Add(new CourtTimeSlot
+            {
+                CourtId   = courtId,
+                SlotDate  = slotDate,
+                StartHour = hour,
+                EndHour   = hour + 1,
+                IsActive  = false
+            });
+
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(ManageSlots), new { id = courtId, date = slotDate });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnblockHour(int courtId, DateOnly slotDate, int hour)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        // Remove any inactive 1-hour marker for this hour
+        var slot = await _db.CourtTimeSlots.FirstOrDefaultAsync(s =>
+            myCourtIds.Contains(s.CourtId) && s.CourtId == courtId &&
+            s.SlotDate == slotDate && s.StartHour == hour && s.EndHour == hour + 1 && !s.IsActive);
+
+        if (slot is not null)
+        {
+            _db.CourtTimeSlots.Remove(slot);
+            await _db.SaveChangesAsync();
+        }
+
+        return RedirectToAction(nameof(ManageSlots), new { id = courtId, date = slotDate });
     }
 
     [HttpPost, ValidateAntiForgeryToken]

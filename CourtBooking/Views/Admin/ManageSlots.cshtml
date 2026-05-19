@@ -1,40 +1,57 @@
 @model List<CourtBooking.Models.CourtTimeSlot>
 @{
-    ViewData["Title"] = "Manage Schedule";
-    var court    = ViewBag.Court as CourtBooking.Models.Court;
-    var selDate  = (DateOnly)ViewBag.Date;
-    var prevDate = selDate.AddDays(-1);
-    var nextDate = selDate.AddDays(1);
-    var today    = DateOnly.FromDateTime(DateTime.Today);
+    ViewData["Title"] = "Manage Availability";
+    var court        = ViewBag.Court        as CourtBooking.Models.Court;
+    var selDate      = (DateOnly)ViewBag.Date;
+    var bookedHours  = ViewBag.BookedHours  as HashSet<int> ?? new HashSet<int>();
+    var blockedHours = ViewBag.BlockedHours as HashSet<int> ?? new HashSet<int>();
+    var prevDate     = selDate.AddDays(-1);
+    var nextDate     = selDate.AddDays(1);
+    var today        = DateOnly.FromDateTime(DateTime.Today);
+
+    // Active = custom multi-hour windows; inactive = hour-block markers
+    var activeSlots = Model.Where(s => s.IsActive).ToList();
 }
 
-<div class="bg-dark text-white py-4 mb-4">
+<div class="cb-page-header">
     <div class="container">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-2">
-                <li class="breadcrumb-item"><a asp-action="Courts" class="text-white-50">Courts</a></li>
-                <li class="breadcrumb-item"><a asp-action="EditCourt" asp-route-id="@court!.Id" class="text-white-50">@court.Name</a></li>
-                <li class="breadcrumb-item active text-white">Schedule</li>
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0" style="font-size:.8rem;">
+                <li class="breadcrumb-item">
+                    <a asp-action="Courts" style="color:var(--cb-text-3);text-decoration:none;">Courts</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a asp-action="EditCourt" asp-route-id="@court!.Id" style="color:var(--cb-text-3);text-decoration:none;">@court.Name</a>
+                </li>
+                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">Availability</li>
             </ol>
         </nav>
-        <h1 class="fw-bold mb-1"><i class="bi bi-calendar-week me-2"></i>@court!.Name — Schedule</h1>
-        <p class="mb-0 opacity-75">Define bookable time slots per date</p>
+        <div class="d-flex align-items-center gap-3">
+            <span class="d-inline-flex align-items-center justify-content-center rounded-3"
+                  style="width:48px;height:48px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);flex-shrink:0;">
+                <i class="bi bi-calendar-week fs-4" style="color:var(--cb-lime);"></i>
+            </span>
+            <div>
+                <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">@court!.Name — Availability</h1>
+                <p class="mb-0" style="color:var(--cb-text-3);font-size:.875rem;">Block hours or define custom bookable windows per date</p>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="container">
+<div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-lg-6">
+        <div class="col-xl-8 col-lg-10">
 
-            <!-- Date Navigator -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between gap-2">
-                        <a asp-action="ManageSlots" asp-route-id="@court.Id" asp-route-date="@prevDate.ToString("yyyy-MM-dd")"
+            @* ── Date Navigator ── *@
+            <div class="card mb-4">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <a asp-action="ManageSlots" asp-route-id="@court.Id"
+                           asp-route-date="@prevDate.ToString("yyyy-MM-dd")"
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-chevron-left"></i>
                         </a>
-
                         <form method="get" class="flex-fill">
                             <input type="hidden" name="id" value="@court.Id" />
                             <div class="input-group input-group-sm">
@@ -43,60 +60,151 @@
                                        onchange="this.form.submit()" />
                                 @if (selDate != today)
                                 {
-                                    <a asp-action="ManageSlots" asp-route-id="@court.Id" asp-route-date="@today.ToString("yyyy-MM-dd")"
-                                       class="btn btn-outline-primary btn-sm">Today</a>
+                                    <a asp-action="ManageSlots" asp-route-id="@court.Id"
+                                       asp-route-date="@today.ToString("yyyy-MM-dd")"
+                                       class="btn btn-outline-secondary btn-sm">Today</a>
                                 }
                             </div>
                         </form>
-
-                        <a asp-action="ManageSlots" asp-route-id="@court.Id" asp-route-date="@nextDate.ToString("yyyy-MM-dd")"
+                        <a asp-action="ManageSlots" asp-route-id="@court.Id"
+                           asp-route-date="@nextDate.ToString("yyyy-MM-dd")"
                            class="btn btn-outline-secondary btn-sm">
                             <i class="bi bi-chevron-right"></i>
                         </a>
                     </div>
-                    <div class="text-center text-muted small mt-2">
-                        <strong>@selDate.ToString("dddd, MMMM d, yyyy")</strong>
+                    <div class="text-center mt-2" style="color:var(--cb-text-2);font-size:.875rem;font-weight:600;">
+                        @selDate.ToString("dddd, MMMM d, yyyy")
+                        @if (selDate == today)
+                        {
+                            <span class="badge ms-1" style="background:var(--cb-lime-dim);color:var(--cb-lime);font-size:.7rem;">Today</span>
+                        }
                     </div>
                 </div>
             </div>
 
-            <!-- Slots for selected date -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold"><i class="bi bi-clock me-2 text-primary"></i>Slots for @selDate.ToString("MMM d")</span>
-                    <span class="badge bg-@(Model.Any(s => s.IsActive) ? "success" : (Model.Any() ? "warning" : "secondary"))">
-                        @Model.Count(s => s.IsActive) active
-                    </span>
+            @* ── Section 1: Hourly Availability Grid ── *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
+                                <i class="bi bi-grid-3x3-gap me-2" style="color:var(--cb-lime);"></i>Hourly Availability
+                            </h6>
+                            <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                                Click <span style="color:#4ade80;font-weight:600;">Available</span> to block &bull;
+                                Click <span style="color:var(--cb-text-2);font-weight:600;">Blocked</span> to unblock &bull;
+                                <span style="color:#f87171;font-weight:600;">Booked</span> slots cannot be changed
+                            </p>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    @if (Model.Any())
+                <div class="card-body p-4">
+                    <div class="row g-2">
+                        @for (int h = court.OpeningHour; h < court.ClosingHour; h++)
+                        {
+                            bool isBooked  = bookedHours.Contains(h);
+                            bool isBlocked = blockedHours.Contains(h);
+                            var label      = $"{h:D2}:00 – {h + 1:D2}:00";
+
+                            <div class="col-6 col-sm-4 col-md-3">
+                                @if (isBooked)
+                                {
+                                    <div class="rounded-3 p-3 text-center"
+                                         style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);cursor:default;"
+                                         title="Has an active booking — cannot be changed">
+                                        <div style="font-size:.82rem;font-weight:700;color:#f87171;">@label</div>
+                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:3px;">
+                                            <i class="bi bi-calendar-check me-1"></i>Booked
+                                        </div>
+                                    </div>
+                                }
+                                else if (isBlocked)
+                                {
+                                    <form asp-action="UnblockHour" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="courtId"  value="@court.Id" />
+                                        <input type="hidden" name="slotDate" value="@selDate.ToString("yyyy-MM-dd")" />
+                                        <input type="hidden" name="hour"     value="@h" />
+                                        <button type="submit" class="rounded-3 p-3 text-center w-100 d-block"
+                                                style="background:var(--cb-surface-2);border:1px dashed var(--cb-border);cursor:pointer;transition:border-color .15s;"
+                                                title="Click to unblock this hour"
+                                                onmouseover="this.style.borderColor='rgba(163,255,18,0.5)';this.style.color='var(--cb-lime)'"
+                                                onmouseout="this.style.borderColor='var(--cb-border)';this.style.color=''">
+                                            <div style="font-size:.82rem;font-weight:700;color:var(--cb-text-3);">@label</div>
+                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:3px;">
+                                                <i class="bi bi-slash-circle me-1"></i>Blocked
+                                            </div>
+                                        </button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <form asp-action="BlockHour" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="courtId"  value="@court.Id" />
+                                        <input type="hidden" name="slotDate" value="@selDate.ToString("yyyy-MM-dd")" />
+                                        <input type="hidden" name="hour"     value="@h" />
+                                        <button type="submit" class="rounded-3 p-3 text-center w-100 d-block"
+                                                style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.25);cursor:pointer;transition:all .15s;"
+                                                title="Click to block this hour"
+                                                onmouseover="this.style.background='rgba(239,68,68,0.07)';this.style.borderColor='rgba(239,68,68,0.3)'"
+                                                onmouseout="this.style.background='rgba(34,197,94,0.07)';this.style.borderColor='rgba(34,197,94,0.25)'">
+                                            <div style="font-size:.82rem;font-weight:700;color:#4ade80;">@label</div>
+                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:3px;">
+                                                <i class="bi bi-check-circle me-1"></i>Available
+                                            </div>
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @* ── Section 2: Custom Slot Windows ── *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
+                        <i class="bi bi-clock me-2" style="color:var(--cb-lime);"></i>Custom Slot Windows
+                        @if (activeSlots.Any())
+                        {
+                            <span class="badge ms-1" style="background:var(--cb-lime-dim);color:var(--cb-lime);font-size:.7rem;">@activeSlots.Count active</span>
+                        }
+                    </h6>
+                    <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                        Define multi-hour bookable windows (e.g. 09:00–11:00 for a 2-hr session). When set, replaces the hourly grid for customers.
+                    </p>
+                </div>
+                <div class="card-body p-4">
+                    @if (activeSlots.Any())
                     {
                         <div class="d-flex flex-wrap gap-2 mb-4">
-                            @foreach (var slot in Model)
+                            @foreach (var slot in activeSlots)
                             {
                                 decimal price = court.PricePerHour * slot.DurationHours;
                                 <div class="d-flex align-items-center gap-1">
-                                    <span class="badge @(slot.IsActive ? "bg-success" : "bg-secondary") fs-6 px-3 py-2">
-                                        @slot.TimeLabel
-                                        <span class="ms-1 text-white-50 small">₱@price.ToString("N0")</span>
-                                    </span>
+                                    <div class="rounded-3 px-3 py-2 d-flex align-items-center gap-2"
+                                         style="background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
+                                        <span style="font-size:.875rem;font-weight:700;color:var(--cb-lime);">@slot.TimeLabel</span>
+                                        <span style="font-size:.75rem;color:var(--cb-text-3);">₱@price.ToString("N0")</span>
+                                    </div>
                                     <form asp-action="ToggleCourtSlot" method="post" class="d-inline">
                                         @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@slot.Id" />
-                                        <input type="hidden" name="courtId" value="@court.Id" />
+                                        <input type="hidden" name="id"       value="@slot.Id" />
+                                        <input type="hidden" name="courtId"  value="@court.Id" />
                                         <input type="hidden" name="slotDate" value="@selDate.ToString("yyyy-MM-dd")" />
-                                        <button type="submit" class="btn btn-sm @(slot.IsActive ? "btn-outline-warning" : "btn-outline-success")"
-                                                title="@(slot.IsActive ? "Disable" : "Enable")">
-                                            <i class="bi @(slot.IsActive ? "bi-pause-fill" : "bi-play-fill")"></i>
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Pause this window">
+                                            <i class="bi bi-pause-fill"></i>
                                         </button>
                                     </form>
                                     <form asp-action="DeleteCourtSlot" method="post" class="d-inline"
-                                          onsubmit="return confirm('Remove this slot?')">
+                                          onsubmit="return confirm('Remove this slot window?')">
                                         @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@slot.Id" />
-                                        <input type="hidden" name="courtId" value="@court.Id" />
+                                        <input type="hidden" name="id"       value="@slot.Id" />
+                                        <input type="hidden" name="courtId"  value="@court.Id" />
                                         <input type="hidden" name="slotDate" value="@selDate.ToString("yyyy-MM-dd")" />
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete this window">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
@@ -106,18 +214,18 @@
                     }
                     else
                     {
-                        <p class="text-muted small mb-4">
-                            <i class="bi bi-info-circle me-1"></i>No slots defined for this date — customers will see the full hourly grid.
+                        <p class="mb-4" style="color:var(--cb-text-3);font-size:.825rem;">
+                            <i class="bi bi-info-circle me-1" style="color:var(--cb-lime);"></i>
+                            No custom windows — customers see the hourly grid with blocked hours removed.
                         </p>
                     }
 
-                    <!-- Add Slot -->
                     <form asp-action="AddCourtSlot" method="post" class="row g-2 align-items-end">
                         @Html.AntiForgeryToken()
-                        <input type="hidden" name="courtId" value="@court.Id" />
+                        <input type="hidden" name="courtId"  value="@court.Id" />
                         <input type="hidden" name="slotDate" value="@selDate.ToString("yyyy-MM-dd")" />
                         <div class="col-5">
-                            <label class="form-label small fw-semibold mb-1">Start</label>
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Start</label>
                             <select name="startHour" class="form-select form-select-sm">
                                 @for (int h = court.OpeningHour; h < court.ClosingHour; h++)
                                 {
@@ -126,7 +234,7 @@
                             </select>
                         </div>
                         <div class="col-5">
-                            <label class="form-label small fw-semibold mb-1">End</label>
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">End</label>
                             <select name="endHour" class="form-select form-select-sm">
                                 @for (int h = court.OpeningHour + 1; h <= court.ClosingHour; h++)
                                 {
@@ -135,14 +243,13 @@
                             </select>
                         </div>
                         <div class="col-2">
-                            <button type="submit" class="btn btn-primary btn-sm w-100" title="Add slot">
+                            <button type="submit" class="btn btn-primary btn-sm w-100" title="Add window">
                                 <i class="bi bi-plus-lg"></i>
                             </button>
                         </div>
                         <div class="col-12">
-                            <small class="text-muted">
-                                Rate: ₱@court.PricePerHour.ToString("N0")/hr &bull;
-                                Hours: @court.OpeningHour:00–@court.ClosingHour:00
+                            <small style="color:var(--cb-text-3);">
+                                ₱@court.PricePerHour.ToString("N0")/hr &bull; Operating hours: @court.OpeningHour:00–@court.ClosingHour:00
                             </small>
                         </div>
                     </form>

@@ -40,6 +40,9 @@ public class CourtAvailabilityViewModel
     public List<int> AvailableHours { get; set; } = new();
     public List<int> BookedHours { get; set; } = new();
 
+    // Fallback-mode blocked hours (admin-marked unavailable, no booking)
+    public List<int> BlockedHours { get; set; } = new();
+
     // Slot-based availability (used when court has defined time slots)
     public List<CourtBooking.Models.CourtTimeSlot> TimeSlots { get; set; } = new();
     public List<int> UnavailableSlotIds { get; set; } = new();

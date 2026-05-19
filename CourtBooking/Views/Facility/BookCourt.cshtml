@@ -216,14 +216,23 @@
                         <div class="row g-2">
                             @for (int h = Model.Court.OpeningHour; h < Model.Court.ClosingHour; h++)
                             {
-                                bool isBooked = Model.BookedHours.Contains(h);
-                                var timeLabel = $"{h:D2}:00 – {h + 1:D2}:00";
+                                bool isBooked  = Model.BookedHours.Contains(h);
+                                bool isBlocked = Model.BlockedHours.Contains(h);
+                                var timeLabel  = $"{h:D2}:00 – {h + 1:D2}:00";
                                 <div class="col-6 col-sm-4 col-md-3">
                                     @if (isBooked)
                                     {
                                         <div class="slot-booked p-2 text-center rounded-3" style="opacity:.7;">
                                             <div style="font-size:.8rem;color:#f87171;font-weight:600;">@timeLabel</div>
                                             <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Booked</div>
+                                        </div>
+                                    }
+                                    else if (isBlocked)
+                                    {
+                                        <div class="p-2 text-center rounded-3"
+                                             style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.55;cursor:default;">
+                                            <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
+                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Unavailable</div>
                                         </div>
                                     }
                                     else

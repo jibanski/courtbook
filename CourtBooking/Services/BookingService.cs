@@ -25,8 +25,29 @@ public class BookingService
         return bookedHours;
     }
 
+    /// <summary>Returns hours the admin has explicitly blocked (inactive CourtTimeSlot records).</summary>
+    public async Task<List<int>> GetBlockedHoursAsync(int courtId, DateOnly date)
+    {
+        var blockedSlots = await _db.CourtTimeSlots
+            .Where(s => s.CourtId == courtId && s.SlotDate == date && !s.IsActive)
+            .ToListAsync();
+        return blockedSlots
+            .SelectMany(s => Enumerable.Range(s.StartHour, s.EndHour - s.StartHour))
+            .Distinct()
+            .ToList();
+    }
+
     public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end)
     {
+        // Reject if the admin has blocked any overlapping hour window
+        var blocked = await _db.CourtTimeSlots.AnyAsync(s =>
+            s.CourtId == courtId &&
+            s.SlotDate == date &&
+            !s.IsActive &&
+            s.StartHour < end.Hour &&
+            s.EndHour   > start.Hour);
+        if (blocked) return false;
+
         return !await _db.Bookings.AnyAsync(b =>
             b.CourtId == courtId &&
             b.BookingDate == date &&

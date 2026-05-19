@@ -115,11 +115,13 @@ public class FacilityController : Controller
         }
         else
         {
-            var bookedHours = await _bookingService.GetBookedHoursAsync(courtId, selectedDate);
+            var bookedHours  = await _bookingService.GetBookedHoursAsync(courtId, selectedDate);
+            var blockedHours = await _bookingService.GetBlockedHoursAsync(courtId, selectedDate);
             vm.BookedHours    = bookedHours;
+            vm.BlockedHours   = blockedHours;
             vm.AvailableHours = Enumerable
                 .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
-                .Where(h => !bookedHours.Contains(h))
+                .Where(h => !bookedHours.Contains(h) && !blockedHours.Contains(h))
                 .ToList();
         }
 
