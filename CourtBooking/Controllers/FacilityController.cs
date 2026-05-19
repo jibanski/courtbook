@@ -58,10 +58,21 @@ public class FacilityController : Controller
             .Where(c => c.OwnerId == settings.OwnerId && c.IsActive)
             .Select(c => c.SportType).Distinct().ToListAsync();
 
-        ViewBag.FacilitySettings = settings;
-        ViewBag.Sports           = sports;
-        ViewBag.SelectedSport    = sport;
-        ViewBag.Slug             = slug;
+        // Show "Browse all facilities" back-link for authenticated customers
+        // who do not have a preferred facility pinned (they came from the directory).
+        bool showBackToDirectory = false;
+        if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Admin"))
+        {
+            var uid  = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = uid != null ? await _db.Users.FindAsync(uid) : null;
+            showBackToDirectory = string.IsNullOrEmpty((user as CourtBooking.Models.ApplicationUser)?.PreferredFacilitySlug);
+        }
+
+        ViewBag.FacilitySettings    = settings;
+        ViewBag.Sports              = sports;
+        ViewBag.SelectedSport       = sport;
+        ViewBag.Slug                = slug;
+        ViewBag.ShowBackToDirectory = showBackToDirectory;
         return View(courts);
     }
 

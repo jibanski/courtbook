@@ -44,10 +44,15 @@ public class CourtsController : Controller
                 return RedirectToAction("Index", "Facility", new { slug = user.PreferredFacilitySlug });
         }
 
-        // Unauthenticated visitor who arrived via a shared facility link
-        var cookieSlug = Request.Cookies["facilitySlug"];
-        if (!string.IsNullOrEmpty(cookieSlug))
-            return RedirectToAction("Index", "Facility", new { slug = cookieSlug });
+        // Unauthenticated visitor who arrived via a shared facility link —
+        // authenticated customers without a preferred facility can always reach
+        // the directory, so skip the cookie redirect for them.
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            var cookieSlug = Request.Cookies["facilitySlug"];
+            if (!string.IsNullOrEmpty(cookieSlug))
+                return RedirectToAction("Index", "Facility", new { slug = cookieSlug });
+        }
 
         var query = _db.Courts.Where(c => c.IsActive && c.OwnerId != null);
 
