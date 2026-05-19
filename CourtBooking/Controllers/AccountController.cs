@@ -79,6 +79,14 @@ public class AccountController : Controller
 
     public IActionResult Login(string? returnUrl = null)
     {
+        // If the user arrived at the login page directly (not via a facility link),
+        // clear any stale facilitySlug cookie so they are not silently redirected
+        // to a facility they visited days ago.
+        var referer = Request.Headers["Referer"].ToString();
+        bool fromFacility = !string.IsNullOrEmpty(referer) && referer.Contains("/sportshub/");
+        if (!fromFacility && Request.Cookies.ContainsKey("facilitySlug"))
+            Response.Cookies.Delete("facilitySlug");
+
         ViewData["ReturnUrl"] = returnUrl;
         return View();
     }

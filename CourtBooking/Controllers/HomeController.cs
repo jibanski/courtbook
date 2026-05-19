@@ -27,6 +27,12 @@ public class HomeController : Controller
         // any approved + featured testimonials from real facility owners.
         if (User.Identity?.IsAuthenticated != true)
         {
+            // Clear any lingering facility cookie so users who navigate to the
+            // main CourtBook site (rather than a facility's shared link) are not
+            // silently pinned to the last facility they visited.
+            if (Request.Cookies.ContainsKey("facilitySlug"))
+                Response.Cookies.Delete("facilitySlug");
+
             var featured = await _db.Reviews
                 .Where(r => r.IsApproved && r.IsFeatured)
                 .OrderBy(r => r.DisplayOrder)
