@@ -9,78 +9,83 @@
     ViewData["Title"] = fs?.DisplayName ?? "Courts";
 }
 
-<!-- Facility Hero Banner -->
-<div class="py-4 mb-4 text-white" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
+<!-- Facility Hero -->
+<div class="cb-facility-hero">
     <div class="container">
-        <div class="d-flex align-items-center gap-3 mb-2">
+        <div class="d-flex align-items-center gap-4 flex-wrap">
+            <!-- Logo / Icon -->
             @if (fs != null && !string.IsNullOrWhiteSpace(fs.BrandLogoUrl))
             {
-                <img src="@fs.BrandLogoUrl" alt="@fs.DisplayName" style="height:48px;object-fit:contain;" />
+                <img src="@fs.BrandLogoUrl" alt="@fs.DisplayName"
+                     style="height:60px;object-fit:contain;border-radius:12px;" />
             }
             else
             {
-                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center"
-                     style="width:48px;height:48px;flex-shrink:0;">
-                    <i class="bi bi-buildings-fill fs-4"></i>
+                <div class="d-flex align-items-center justify-content-center rounded-3"
+                     style="width:60px;height:60px;background:var(--cb-lime-dim);flex-shrink:0;border:1px solid rgba(163,255,18,0.25);">
+                    <i class="bi bi-buildings-fill fs-3" style="color:var(--cb-lime);"></i>
                 </div>
             }
-            <div>
-                <h1 class="fw-bold mb-0">@(fs?.DisplayName ?? "Courts")</h1>
+
+            <!-- Facility Info -->
+            <div class="flex-grow-1">
+                <h1 class="mb-1 cb-fade-up" style="font-size:2rem;font-weight:800;letter-spacing:-0.03em;">
+                    @(fs?.DisplayName ?? "Courts")
+                </h1>
                 @if (fs != null)
                 {
-                    <p class="mb-0 opacity-75 small">@fs.DisplayTagline</p>
+                    <p class="mb-1 cb-fade-up-delay-1" style="color:var(--cb-text-2);font-size:.9rem;">
+                        @fs.DisplayTagline
+                    </p>
                     @if (!string.IsNullOrWhiteSpace(fs.Address))
                     {
-                        <p class="mb-0 opacity-75 small">
-                            <i class="bi bi-geo-alt me-1"></i>@fs.Address
+                        <p class="mb-2 cb-fade-up-delay-1" style="color:var(--cb-text-3);font-size:.825rem;">
+                            <i class="bi bi-geo-alt me-1" style="color:var(--cb-lime);"></i>@fs.Address
                         </p>
                     }
                     @if (!string.IsNullOrWhiteSpace(fs.FacebookUrl) || !string.IsNullOrWhiteSpace(fs.InstagramUrl))
                     {
-                        <div class="d-flex gap-2 mt-2">
+                        <div class="d-flex gap-2 mt-2 cb-fade-up-delay-2">
                             @if (!string.IsNullOrWhiteSpace(fs.FacebookUrl))
                             {
                                 <a href="@fs.FacebookUrl" target="_blank" rel="noopener"
-                                   class="btn btn-sm btn-outline-light d-inline-flex align-items-center gap-1"
-                                   title="Visit our Facebook page">
-                                    <i class="bi bi-facebook"></i><span class="small">Facebook</span>
+                                   class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+                                   title="Facebook">
+                                    <i class="bi bi-facebook" style="color:#1877f2;"></i>
+                                    <span style="font-size:.78rem;">Facebook</span>
                                 </a>
                             }
                             @if (!string.IsNullOrWhiteSpace(fs.InstagramUrl))
                             {
                                 <a href="@fs.InstagramUrl" target="_blank" rel="noopener"
-                                   class="btn btn-sm btn-outline-light d-inline-flex align-items-center gap-1"
-                                   title="Follow us on Instagram">
-                                    <i class="bi bi-instagram"></i><span class="small">Instagram</span>
+                                   class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+                                   title="Instagram">
+                                    <i class="bi bi-instagram" style="color:#e1306c;"></i>
+                                    <span style="font-size:.78rem;">Instagram</span>
                                 </a>
                             }
                         </div>
                     }
                 }
             </div>
-            @if (false) // PRO badge removed — CourtBook is free
-            {
-                <span class="badge bg-warning text-dark ms-auto align-self-start" style="font-size:.7rem;">
-                    <i class="bi bi-patch-check-fill me-1"></i>PRO
-                </span>
-            }
         </div>
     </div>
 </div>
 
-<div class="container">
+<div class="container py-4">
 
-    <!-- Sport Filter -->
+    <!-- Sport Filter Pills -->
     @if (sports.Any())
     {
-        <div class="mb-4">
+        <div class="mb-4 cb-fade-up">
             <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="text-muted fw-semibold me-2 small">Sport:</span>
-                <a href="/sportshub/@slug" class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-primary")">All</a>
+                <span style="color:var(--cb-text-3);font-size:.75rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;">Sport:</span>
+                <a href="/sportshub/@slug"
+                   class="btn btn-sm @(selectedSport == null ? "btn-primary" : "btn-outline-secondary")">All</a>
                 @foreach (var sport in sports)
                 {
                     <a href="/sportshub/@slug?sport=@Uri.EscapeDataString(sport)"
-                       class="btn btn-sm @(selectedSport == sport ? "btn-primary" : "btn-outline-primary")">@sport</a>
+                       class="btn btn-sm @(selectedSport == sport ? "btn-primary" : "btn-outline-secondary")">@sport</a>
                 }
             </div>
         </div>
@@ -88,8 +93,13 @@
 
     @if (!Model.Any())
     {
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle me-2"></i>No courts available at this facility yet. Check back soon!
+        <div class="text-center py-5 cb-fade-up">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3"
+                 style="width:72px;height:72px;background:var(--cb-surface-2);border:1px solid var(--cb-border);">
+                <i class="bi bi-buildings display-5" style="color:var(--cb-text-3);"></i>
+            </div>
+            <h5 style="color:var(--cb-text-2);">No courts available yet</h5>
+            <p style="color:var(--cb-text-3);font-size:.875rem;">Check back soon — courts are being added.</p>
         </div>
     }
     else
@@ -97,47 +107,62 @@
         <div class="row g-4">
             @foreach (var court in Model)
             {
-                <div class="col-sm-6 col-lg-4">
-                    <div class="card h-100 shadow-sm court-card">
+                <div class="col-sm-6 col-lg-4 cb-fade-up">
+                    <div class="card h-100 court-card" style="overflow:hidden;">
 
+                        <!-- Court image or sport placeholder -->
                         @if (!string.IsNullOrWhiteSpace(court.ImageUrl))
                         {
-                            <div class="position-relative">
+                            <div class="position-relative" style="height:200px;overflow:hidden;">
                                 <img src="@court.ImageUrl" alt="@court.Name"
-                                     class="card-img-top" style="height:180px; object-fit:cover;" />
+                                     style="width:100%;height:200px;object-fit:cover;transition:transform .4s ease;" />
                                 @if (court.IsIndoor)
                                 {
-                                    <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
+                                    <span class="badge position-absolute top-0 end-0 m-2" style="background:var(--cb-blue-dim);color:var(--cb-blue);border:1px solid rgba(0,194,255,.3);">Indoor</span>
                                 }
                             </div>
                         }
                         else
                         {
-                            <div class="court-placeholder d-flex flex-column align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()">
-                                <i class="bi @SportIcon(court.SportType) display-2 text-white"></i>
-                                <span class="text-white fw-semibold mt-2 small text-uppercase opacity-75">@court.SportType</span>
+                            <div class="court-placeholder d-flex flex-column align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()"
+                                 style="height:200px;">
+                                <i class="bi @SportIcon(court.SportType) display-3 text-white" style="filter:drop-shadow(0 4px 12px rgba(0,0,0,.5));"></i>
+                                <span class="text-white fw-bold mt-2 small text-uppercase" style="letter-spacing:.12em;opacity:.85;">@court.SportType</span>
                                 @if (court.IsIndoor)
                                 {
-                                    <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
+                                    <span class="badge position-absolute top-0 end-0 m-2" style="background:var(--cb-blue-dim);color:var(--cb-blue);border:1px solid rgba(0,194,255,.3);">Indoor</span>
                                 }
                             </div>
                         }
 
-                        <div class="card-body">
+                        <div class="card-body p-4">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h5 class="card-title mb-0">@court.Name</h5>
-                                <span class="badge bg-secondary">@court.SportType</span>
+                                <h5 class="mb-0" style="font-weight:700;font-size:1.05rem;">@court.Name</h5>
+                                <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-2);font-size:.7rem;">
+                                    @court.SportType
+                                </span>
                             </div>
-                            <p class="card-text text-muted small">@court.Description</p>
-                            <div class="small text-muted">
-                                <i class="bi bi-clock me-1"></i>@court.OpeningHour:00 – @court.ClosingHour:00
+                            @if (!string.IsNullOrWhiteSpace(court.Description))
+                            {
+                                <p style="color:var(--cb-text-3);font-size:.825rem;margin-bottom:.75rem;line-height:1.5;">
+                                    @court.Description
+                                </p>
+                            }
+                            <div style="color:var(--cb-text-3);font-size:.8rem;">
+                                <i class="bi bi-clock me-1" style="color:var(--cb-lime);"></i>
+                                @court.OpeningHour:00 – @court.ClosingHour:00
                             </div>
                         </div>
 
-                        <div class="card-footer d-flex justify-content-between align-items-center">
-                            <span class="fw-bold text-primary fs-5">₱@court.PricePerHour.ToString("N0")<small class="fs-6 fw-normal text-muted">/hr</small></span>
-                            <a href="/sportshub/@slug/book/@court.Id" class="btn btn-primary">
-                                <i class="bi bi-calendar-plus me-1"></i>Book
+                        <div class="card-footer p-4 d-flex justify-content-between align-items-center">
+                            <div>
+                                <span style="font-size:1.4rem;font-weight:800;color:var(--cb-lime);letter-spacing:-0.02em;">
+                                    ₱@court.PricePerHour.ToString("N0")
+                                </span>
+                                <span style="color:var(--cb-text-3);font-size:.8rem;font-weight:400;">/hr</span>
+                            </div>
+                            <a href="/sportshub/@slug/book/@court.Id" class="btn btn-primary btn-sm px-4">
+                                <i class="bi bi-calendar-plus me-1"></i>Book Now
                             </a>
                         </div>
                     </div>

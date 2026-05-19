@@ -6,109 +6,154 @@
     ViewData["Title"] = $"Book {Model.Court.Name}";
 }
 
-<div class="py-4 mb-4 text-white" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
+<!-- Hero -->
+<div class="cb-facility-hero">
     <div class="container">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-2">
-                <li class="breadcrumb-item"><a href="/sportshub/@slug" class="text-white-50">@(fs?.DisplayName ?? "Courts")</a></li>
-                <li class="breadcrumb-item active text-white">@Model.Court.Name</li>
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0" style="font-size:.825rem;">
+                <li class="breadcrumb-item">
+                    <a href="/sportshub/@slug" style="color:var(--cb-text-3);text-decoration:none;">
+                        <i class="bi bi-buildings me-1"></i>@(fs?.DisplayName ?? "Courts")
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">@Model.Court.Name</li>
             </ol>
         </nav>
-        <div class="d-flex align-items-center gap-2">
-            <h1 class="fw-bold mb-1">@Model.Court.Name</h1>
-            @if (fs?.EffectiveIsSubscribed == true)
-            {
-                <span class="badge bg-warning text-dark" style="font-size:.7rem;">
-                    <i class="bi bi-patch-check-fill me-1"></i>PRO
-                </span>
-            }
+        <div class="d-flex align-items-start gap-3 flex-wrap">
+            <div>
+                <h1 class="mb-1 cb-fade-up" style="font-size:1.75rem;font-weight:800;letter-spacing:-0.03em;">
+                    @Model.Court.Name
+                </h1>
+                <div class="d-flex flex-wrap gap-2 align-items-center cb-fade-up-delay-1">
+                    <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-2);">@Model.Court.SportType</span>
+                    <span class="badge" style="background:var(--cb-blue-dim);color:var(--cb-blue);">
+                        <i class="bi bi-@(Model.Court.IsIndoor ? "house" : "sun") me-1"></i>@(Model.Court.IsIndoor ? "Indoor" : "Outdoor")
+                    </span>
+                    @if (fs != null)
+                    {
+                        <span style="color:var(--cb-text-3);font-size:.8rem;">
+                            <i class="bi bi-buildings me-1"></i>@fs.DisplayName
+                        </span>
+                    }
+                </div>
+                @if (fs != null && !string.IsNullOrWhiteSpace(fs.Address))
+                {
+                    <p class="mt-2 mb-0 cb-fade-up-delay-2" style="color:var(--cb-text-3);font-size:.8rem;">
+                        <i class="bi bi-geo-alt me-1" style="color:var(--cb-lime);"></i>@fs.Address
+                    </p>
+                }
+            </div>
         </div>
-        <p class="mb-0 opacity-75">
-            @Model.Court.SportType &bull; @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")
-            @if (fs != null)
-            {
-                <span class="ms-2">&bull; <i class="bi bi-buildings me-1"></i>@fs.DisplayName</span>
-            }
-        </p>
-        @if (fs != null && !string.IsNullOrWhiteSpace(fs.Address))
-        {
-            <p class="mb-0 opacity-75 small mt-1">
-                <i class="bi bi-geo-alt me-1"></i>@fs.Address
-            </p>
-        }
     </div>
 </div>
 
-<div class="container">
+<div class="container py-4">
     <div class="row g-4">
-        <!-- Court Info -->
+
+        <!-- ── Court Info Sidebar ─────────────────────────────────────── -->
         <div class="col-lg-4">
-            <div class="card shadow-sm mb-4">
+
+            <!-- Court image / placeholder -->
+            <div class="card mb-3 cb-fade-up" style="overflow:hidden;">
                 @if (!string.IsNullOrWhiteSpace(Model.Court.ImageUrl))
                 {
-                    <div class="position-relative">
-                        <img src="@Model.Court.ImageUrl" alt="@Model.Court.Name"
-                             class="card-img-top" style="height:200px; object-fit:cover;" />
-                        @if (Model.Court.IsIndoor)
-                        {
-                            <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
-                        }
-                    </div>
+                    <img src="@Model.Court.ImageUrl" alt="@Model.Court.Name"
+                         style="width:100%;height:220px;object-fit:cover;" />
                 }
                 else
                 {
-                    <div class="court-placeholder-lg d-flex flex-column align-items-center justify-content-center position-relative court-bg-@Model.Court.SportType.ToLower()">
-                        <i class="bi @SportIcon(Model.Court.SportType) display-1 text-white"></i>
-                        <span class="text-white fw-bold mt-2 text-uppercase opacity-75">@Model.Court.SportType</span>
-                        @if (Model.Court.IsIndoor)
-                        {
-                            <span class="badge bg-info position-absolute top-0 end-0 m-2">Indoor</span>
-                        }
+                    <div class="court-placeholder-lg d-flex flex-column align-items-center justify-content-center court-bg-@Model.Court.SportType.ToLower()"
+                         style="height:220px;">
+                        <i class="bi @SportIcon(Model.Court.SportType) display-1 text-white"
+                           style="filter:drop-shadow(0 4px 12px rgba(0,0,0,.5));"></i>
+                        <span class="text-white fw-bold mt-2 text-uppercase" style="letter-spacing:.12em;opacity:.85;font-size:.85rem;">
+                            @Model.Court.SportType
+                        </span>
                     </div>
                 }
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-info-circle me-2 text-primary"></i>Court Details</h5>
-                    <hr />
-                    <p class="text-muted">@Model.Court.Description</p>
-                    <ul class="list-unstyled">
-                        <li class="mb-2"><i class="bi bi-tag me-2 text-primary"></i><strong>Sport:</strong> @Model.Court.SportType</li>
-                        <li class="mb-2"><i class="bi bi-house me-2 text-primary"></i><strong>Type:</strong> @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")</li>
-                        <li class="mb-2"><i class="bi bi-clock me-2 text-primary"></i><strong>Hours:</strong> @Model.Court.OpeningHour:00 – @Model.Court.ClosingHour:00</li>
-                        <li class="mb-2"><i class="bi bi-currency-dollar me-2 text-primary"></i><strong>Rate:</strong> ₱@Model.Court.PricePerHour.ToString("N0")/hour</li>
-                    </ul>
+                <div class="card-body p-4">
+                    <h6 class="mb-3 fw-bold" style="font-size:.875rem;color:var(--cb-text-2);letter-spacing:.05em;">
+                        COURT DETAILS
+                    </h6>
+                    @if (!string.IsNullOrWhiteSpace(Model.Court.Description))
+                    {
+                        <p style="color:var(--cb-text-3);font-size:.825rem;line-height:1.6;margin-bottom:1rem;">@Model.Court.Description</p>
+                    }
+                    <div class="d-flex flex-column gap-2">
+                        <div class="d-flex align-items-center gap-2" style="font-size:.85rem;">
+                            <i class="bi bi-tag" style="color:var(--cb-lime);width:16px;"></i>
+                            <span style="color:var(--cb-text-3);">Sport</span>
+                            <span class="ms-auto fw-semibold">@Model.Court.SportType</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2" style="font-size:.85rem;">
+                            <i class="bi bi-house" style="color:var(--cb-lime);width:16px;"></i>
+                            <span style="color:var(--cb-text-3);">Type</span>
+                            <span class="ms-auto fw-semibold">@(Model.Court.IsIndoor ? "Indoor" : "Outdoor")</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2" style="font-size:.85rem;">
+                            <i class="bi bi-clock" style="color:var(--cb-lime);width:16px;"></i>
+                            <span style="color:var(--cb-text-3);">Hours</span>
+                            <span class="ms-auto fw-semibold">@Model.Court.OpeningHour:00 – @Model.Court.ClosingHour:00</span>
+                        </div>
+                        <hr style="margin:.5rem 0;" />
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-lightning-charge-fill" style="color:var(--cb-lime);width:16px;"></i>
+                            <span style="color:var(--cb-text-3);font-size:.85rem;">Rate</span>
+                            <span class="ms-auto fw-bold" style="font-size:1.1rem;color:var(--cb-lime);">
+                                ₱@Model.Court.PricePerHour.ToString("N0")<span style="font-size:.75rem;font-weight:400;color:var(--cb-text-3);">/hr</span>
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Date Picker -->
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h6 class="fw-bold mb-3"><i class="bi bi-calendar me-2 text-primary"></i>Select Date</h6>
+            <!-- Date picker -->
+            <div class="card cb-fade-up-delay-1">
+                <div class="card-body p-4">
+                    <h6 class="mb-3 fw-bold" style="font-size:.875rem;color:var(--cb-text-2);letter-spacing:.05em;">
+                        <i class="bi bi-calendar3 me-2" style="color:var(--cb-lime);"></i>SELECT DATE
+                    </h6>
                     <form method="get">
-                        <div class="input-group">
+                        <div class="d-flex gap-2">
                             <input type="date" name="date" class="form-control"
                                    value="@Model.Date.ToString("yyyy-MM-dd")"
                                    min="@DateTime.Today.ToString("yyyy-MM-dd")"
                                    max="@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")" />
-                            <button type="submit" class="btn btn-primary">Go</button>
+                            <button type="submit" class="btn btn-primary px-3">Go</button>
                         </div>
                     </form>
-                    <small class="text-muted mt-2 d-block">Viewing: <strong>@Model.Date.ToString("dddd, MMMM d, yyyy")</strong></small>
+                    <div class="mt-3 p-2 rounded-2 text-center" style="background:var(--cb-surface-2);font-size:.8rem;color:var(--cb-text-2);">
+                        <i class="bi bi-calendar-event me-1" style="color:var(--cb-lime);"></i>
+                        <strong>@Model.Date.ToString("dddd, MMMM d, yyyy")</strong>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Availability Grid -->
+        <!-- ── Availability Grid ──────────────────────────────────────── -->
         <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5 class="fw-bold mb-1"><i class="bi bi-clock me-2 text-primary"></i>Available Time Slots</h5>
-                    <p class="text-muted small mb-3">Click an available slot to start your booking</p>
-
-                    <div class="d-flex flex-wrap gap-2 mb-4">
-                        <span class="badge bg-success px-3 py-2">Available</span>
-                        <span class="badge bg-danger px-3 py-2">Booked</span>
+            <div class="card cb-fade-up-delay-1">
+                <div class="card-header">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <h5 class="mb-0" style="font-size:1rem;font-weight:700;">
+                                <i class="bi bi-clock me-2" style="color:var(--cb-lime);"></i>Available Slots
+                            </h5>
+                            <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                                Tap an available slot to start your booking
+                            </p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);font-size:.72rem;padding:.4em .75em;">
+                                <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Available
+                            </span>
+                            <span class="badge" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);font-size:.72rem;padding:.4em .75em;">
+                                <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Booked
+                            </span>
+                        </div>
                     </div>
-
+                </div>
+                <div class="card-body p-4">
                     @if (Model.HasSlots)
                     {
                         <div class="row g-3">
@@ -119,10 +164,16 @@
                                 <div class="col-sm-6 col-md-4">
                                     @if (isUnavailable)
                                     {
-                                        <div class="card border-danger text-center p-3 opacity-75 h-100">
-                                            <div class="fw-bold text-danger">@slot.TimeLabel</div>
-                                            <div class="small text-muted">@slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull; ₱@price.ToString("N0")</div>
-                                            <div class="badge bg-danger mt-2"><i class="bi bi-x-circle me-1"></i>Booked</div>
+                                        <div class="slot-booked h-100 p-3 text-center rounded-3">
+                                            <div class="fw-bold mb-1" style="font-size:.95rem;color:#f87171;">@slot.TimeLabel</div>
+                                            <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                                @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull; ₱@price.ToString("N0")
+                                            </div>
+                                            <div class="mt-2">
+                                                <span class="badge" style="background:rgba(239,68,68,0.2);color:#f87171;font-size:.72rem;">
+                                                    <i class="bi bi-x-circle me-1"></i>Booked
+                                                </span>
+                                            </div>
                                         </div>
                                     }
                                     else
@@ -132,10 +183,17 @@
                                            asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
                                            asp-route-startHour="@slot.StartHour"
                                            asp-route-endHour="@slot.EndHour"
-                                           class="card border-success text-center p-3 text-decoration-none h-100 time-slot-btn d-block">
-                                            <div class="fw-bold text-success">@slot.TimeLabel</div>
-                                            <div class="small text-muted">@slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull; ₱@price.ToString("N0")</div>
-                                            <div class="badge bg-success mt-2"><i class="bi bi-calendar-plus me-1"></i>Book</div>
+                                           class="slot-available h-100 p-3 text-center rounded-3 d-block">
+                                            <div class="fw-bold mb-1" style="font-size:.95rem;color:#4ade80;">@slot.TimeLabel</div>
+                                            <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                                @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull;
+                                                <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
+                                            </div>
+                                            <div class="mt-2">
+                                                <span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
+                                                    <i class="bi bi-calendar-plus me-1"></i>Book
+                                                </span>
+                                            </div>
                                         </a>
                                     }
                                 </div>
@@ -144,8 +202,11 @@
 
                         @if (Model.TimeSlots.All(s => Model.UnavailableSlotIds.Contains(s.Id)))
                         {
-                            <div class="alert alert-warning mt-3">
-                                <i class="bi bi-exclamation-triangle me-2"></i>All slots are booked for this date. Try another day.
+                            <div class="text-center py-4 mt-3" style="border-top:1px solid var(--cb-border);">
+                                <i class="bi bi-calendar-x display-6 d-block mb-2" style="color:var(--cb-text-3);"></i>
+                                <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">
+                                    All slots are booked for this date. Try another day.
+                                </p>
                             </div>
                         }
                     }
@@ -159,8 +220,9 @@
                                 <div class="col-6 col-sm-4 col-md-3">
                                     @if (isBooked)
                                     {
-                                        <div class="btn btn-danger w-100 disabled opacity-75 small">
-                                            <i class="bi bi-x-circle me-1"></i>@timeLabel
+                                        <div class="slot-booked p-2 text-center rounded-3" style="opacity:.7;">
+                                            <div style="font-size:.8rem;color:#f87171;font-weight:600;">@timeLabel</div>
+                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Booked</div>
                                         </div>
                                     }
                                     else
@@ -169,8 +231,11 @@
                                            asp-route-courtId="@Model.Court.Id"
                                            asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
                                            asp-route-startHour="@h"
-                                           class="btn btn-outline-success w-100 small time-slot-btn">
-                                            <i class="bi bi-calendar-plus me-1"></i>@timeLabel
+                                           class="slot-available p-2 text-center rounded-3 d-block">
+                                            <div style="font-size:.8rem;color:#4ade80;font-weight:600;">@timeLabel</div>
+                                            <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
+                                                ₱@Model.Court.PricePerHour.ToString("N0")
+                                            </div>
                                         </a>
                                     }
                                 </div>
@@ -179,8 +244,11 @@
 
                         @if (!Model.AvailableHours.Any())
                         {
-                            <div class="alert alert-warning mt-3">
-                                <i class="bi bi-exclamation-triangle me-2"></i>All slots are booked for this date. Try another day.
+                            <div class="text-center py-4 mt-3" style="border-top:1px solid var(--cb-border);">
+                                <i class="bi bi-calendar-x display-6 d-block mb-2" style="color:var(--cb-text-3);"></i>
+                                <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">
+                                    All slots are booked for this date. Try another day.
+                                </p>
                             </div>
                         }
                     }
