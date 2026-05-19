@@ -7,6 +7,20 @@
     var slug         = ViewBag.Slug             as string;
 
     ViewData["Title"] = fs?.DisplayName ?? "Courts";
+
+    string SportDefaultImage(string sport) => sport?.ToLower() switch {
+        "tennis"       => "/images/sports/tennis.svg",
+        "badminton"    => "/images/sports/badminton.svg",
+        "basketball"   => "/images/sports/basketball.svg",
+        "volleyball"   => "/images/sports/volleyball.svg",
+        "football"     => "/images/sports/football.svg",
+        "futsal"       => "/images/sports/futsal.svg",
+        "swimming"     => "/images/sports/swimming.svg",
+        "table tennis" => "/images/sports/table-tennis.svg",
+        "billiards"    => "/images/sports/billiards.svg",
+        "pickleball"   => "/images/sports/pickleball.svg",
+        _              => "/images/sports/default.svg"
+    };
 }
 
 <!-- Facility Hero -->
@@ -110,30 +124,17 @@
                 <div class="col-sm-6 col-lg-4 cb-fade-up">
                     <div class="card h-100 court-card" style="overflow:hidden;">
 
-                        <!-- Court image or sport placeholder -->
-                        @if (!string.IsNullOrWhiteSpace(court.ImageUrl))
-                        {
-                            <div class="position-relative" style="height:200px;overflow:hidden;">
-                                <img src="@court.ImageUrl" alt="@court.Name"
-                                     style="width:100%;height:200px;object-fit:cover;transition:transform .4s ease;" />
-                                @if (court.IsIndoor)
-                                {
-                                    <span class="badge position-absolute top-0 end-0 m-2" style="background:var(--cb-blue-dim);color:var(--cb-blue);border:1px solid rgba(0,194,255,.3);">Indoor</span>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="court-placeholder d-flex flex-column align-items-center justify-content-center position-relative court-bg-@court.SportType.ToLower()"
-                                 style="height:200px;">
-                                <i class="bi @SportIcon(court.SportType) display-3 text-white" style="filter:drop-shadow(0 4px 12px rgba(0,0,0,.5));"></i>
-                                <span class="text-white fw-bold mt-2 small text-uppercase" style="letter-spacing:.12em;opacity:.85;">@court.SportType</span>
-                                @if (court.IsIndoor)
-                                {
-                                    <span class="badge position-absolute top-0 end-0 m-2" style="background:var(--cb-blue-dim);color:var(--cb-blue);border:1px solid rgba(0,194,255,.3);">Indoor</span>
-                                }
-                            </div>
-                        }
+                        <!-- Court image or sport default -->
+                        <div class="position-relative" style="height:200px;overflow:hidden;">
+                            <img src="@(!string.IsNullOrWhiteSpace(court.ImageUrl) ? court.ImageUrl : SportDefaultImage(court.SportType))"
+                                 alt="@court.Name"
+                                 style="width:100%;height:200px;object-fit:cover;transition:transform .4s ease;" />
+                            @if (court.IsIndoor)
+                            {
+                                <span class="badge position-absolute top-0 end-0 m-2"
+                                      style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.3);">Indoor</span>
+                            }
+                        </div>
 
                         <div class="card-body p-4">
                             <div class="d-flex justify-content-between align-items-start mb-2">

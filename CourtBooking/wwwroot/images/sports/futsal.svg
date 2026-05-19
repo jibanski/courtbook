@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" width="400" height="220">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b0764"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <clipPath id="fuClip">
+      <circle cx="200" cy="100" r="50"/>
+    </clipPath>
+  </defs>
+  <rect width="400" height="220" fill="url(#bg)"/>
+  <!-- Indoor court lines -->
+  <rect x="70" y="45" width="260" height="130" rx="4" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+  <circle cx="200" cy="110" r="35" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+  <!-- Shadow -->
+  <ellipse cx="200" cy="162" rx="52" ry="8" fill="rgba(0,0,0,0.3)"/>
+  <!-- Futsal ball (smaller, flat-ish seams) -->
+  <circle cx="200" cy="100" r="50" fill="white" opacity="0.9"/>
+  <g clip-path="url(#fuClip)">
+    <polygon points="200,55 215,68 210,84 190,84 185,68" fill="#2d1b69"/>
+    <polygon points="152,88 165,80 174,93 163,106 149,103" fill="#2d1b69"/>
+    <polygon points="248,88 235,80 226,93 237,106 251,103" fill="#2d1b69"/>
+    <polygon points="168,133 175,119 191,120 197,136 182,144" fill="#2d1b69"/>
+    <polygon points="232,133 225,119 209,120 203,136 218,144" fill="#2d1b69"/>
+  </g>
+  <ellipse cx="180" cy="77" rx="12" ry="8" fill="rgba(255,255,255,0.4)" transform="rotate(-25,180,77)"/>
+  <!-- Label -->
+  <text x="200" y="198" text-anchor="middle" fill="rgba(255,255,255,0.55)" font-family="Arial,Helvetica,sans-serif" font-size="11" letter-spacing="4" font-weight="700">FUTSAL</text>
+</svg>
