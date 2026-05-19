@@ -10,32 +10,6 @@
     </div>
 </div>
 
-@{
-    var fsTrial = ViewBag.FacilitySettings as CourtBooking.Models.FacilitySettings;
-}
-@if (fsTrial?.IsTrialExpired == true && fsTrial?.IsSubscribed != true)
-{
-    <div class="container mb-3" id="trialExpiredBanner">
-        <div class="alert alert-warning d-flex align-items-start gap-3 mb-0 shadow-sm" style="border-radius:12px;">
-            <i class="bi bi-hourglass-bottom fs-4 flex-shrink-0 mt-1"></i>
-            <div class="flex-grow-1">
-                <div class="fw-semibold">Your 30-day free trial has ended</div>
-                <div class="small text-muted mt-1">
-                    You can continue using CourtBook as usual — no rush at all.
-                    If you'd like to support the platform, you're welcome to
-                    <a asp-controller="Subscription" asp-action="Upgrade" class="fw-semibold">upgrade anytime</a>.
-                </div>
-            </div>
-            <button type="button" class="btn-close flex-shrink-0" aria-label="Dismiss"
-                    onclick="document.getElementById('trialExpiredBanner').style.display='none';sessionStorage.setItem('trialBannerDismissed','1');"></button>
-        </div>
-    </div>
-    <script>
-        if (sessionStorage.getItem('trialBannerDismissed') === '1') {
-            document.getElementById('trialExpiredBanner').style.display = 'none';
-        }
-    </script>
-}
 
 <div class="container">
     <!-- Stats Cards -->
@@ -110,27 +84,6 @@
                 </a>
             </div>
         }
-        @{
-            var fs = ViewBag.FacilitySettings as CourtBooking.Models.FacilitySettings;
-        }
-        @if (fs?.IsCommissionModel == true && fs.CommissionBalanceOwed > 0)
-        {
-            <div class="col-12 col-md-6">
-                <a asp-controller="Subscription" asp-action="Commission" class="text-decoration-none">
-                    <div class="card text-white shadow-sm h-100" style="background:#7c3aed;">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="fs-2 fw-bold">₱@fs.CommissionBalanceOwed.ToString("N2")</div>
-                                    <div class="small opacity-75">Commission Balance Owed — tap to pay</div>
-                                </div>
-                                <i class="bi bi-percent display-5 opacity-25"></i>
-                            </div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-        }
     </div>
 
     <!-- Quick Actions -->
@@ -198,4 +151,22 @@
             </table>
         </div>
     </div>
+
+    <!-- Donation nudge — subtle, non-intrusive -->
+    <div class="text-center py-4 mt-2" id="donationNudge">
+        <p class="text-muted small mb-1">
+            <i class="bi bi-heart-fill text-danger me-1"></i>
+            CourtBook is free. If it's been helpful, you're welcome to
+            <a asp-controller="Home" asp-action="Donate" class="text-decoration-none fw-semibold">support us with a small donation</a> — entirely optional. 🙏
+        </p>
+        <button class="btn btn-link btn-sm text-muted p-0" style="font-size:.75rem;"
+                onclick="document.getElementById('donationNudge').style.display='none';localStorage.setItem('donationNudgeHidden','1');">
+            Don't show this again
+        </button>
+    </div>
+    <script>
+        if (localStorage.getItem('donationNudgeHidden') === '1') {
+            document.getElementById('donationNudge').style.display = 'none';
+        }
+    </script>
 </div>

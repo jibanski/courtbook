@@ -259,63 +259,6 @@
                     </div>
                 }
 
-                <!-- Action row 3: billing model -->
-                <div class="row g-2 align-items-center mb-2">
-                    <div class="col-md-4 small text-secondary">
-                        <i class="bi bi-credit-card me-1"></i>Billing Model
-                    </div>
-                    <div class="col-md-8 d-flex align-items-center gap-2 flex-wrap">
-                        <span class="badge @(f.IsCommissionModel ? "bg-success" : "bg-primary")">
-                            @(f.IsCommissionModel ? $"Commission {f.CommissionRate}%" : "Subscription")
-                        </span>
-                        <form asp-action="ChangeBillingModel" method="post" class="d-flex gap-1">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="password" value="@password" />
-                            <input type="hidden" name="id"       value="@f.Id" />
-                            <select name="billingModel" class="form-select form-select-sm" style="width:auto;background:#0d1117;color:#e6edf3;border-color:#30363d;">
-                                <option value="Subscription" selected="@(!f.IsCommissionModel)">Subscription</option>
-                                <option value="Commission"   selected="@f.IsCommissionModel">Commission (2%)</option>
-                            </select>
-                            <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap">
-                                Switch
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Action row 4: commission balance -->
-                @if (f.IsCommissionModel)
-                {
-                    <div class="row g-2 align-items-center">
-                        <div class="col-md-4 small text-secondary">
-                            <i class="bi bi-percent me-1"></i>Commission Balance
-                        </div>
-                        <div class="col-md-8 d-flex align-items-center gap-2 flex-wrap">
-                            <span class="@(f.CommissionBalanceOwed > 0 ? "text-warning fw-semibold" : "text-secondary") small">
-                                Owed: ₱@f.CommissionBalanceOwed.ToString("N2")
-                            </span>
-                            <span class="text-secondary small">· Paid: ₱@f.CommissionTotalPaid.ToString("N2")</span>
-                            @if (f.CommissionBalanceOwed > 0)
-                            {
-                                <form asp-action="ClearCommission" method="post">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="password" value="@password" />
-                                    <input type="hidden" name="id"       value="@f.Id" />
-                                    <button type="submit" class="btn btn-sm btn-success text-nowrap"
-                                            onclick="return confirm('Mark ₱@f.CommissionBalanceOwed.ToString("N2") as paid and clear the balance for @Html.Raw(f.FacilityName)?')">
-                                        <i class="bi bi-check-circle me-1"></i>Mark Paid & Clear
-                                    </button>
-                                </form>
-                            }
-                            @if (f.CommissionPaymentSubmittedAt.HasValue)
-                            {
-                                <span class="badge bg-info text-dark small">
-                                    <i class="bi bi-clock me-1"></i>Payment submitted @f.CommissionPaymentSubmittedAt.Value.ToString("MMM d")
-                                </span>
-                            }
-                        </div>
-                    </div>
-                }
             </div>
         }
     }

@@ -1,0 +1,92 @@
+@{
+    ViewData["Title"] = "Support CourtBook";
+    Layout = "_LandingLayout";
+
+    var gcashNum  = "09XX-XXX-XXXX";   // TODO: update with real GCash number
+    var gcashName = "CourtBook";
+    var mayaNum   = "09XX-XXX-XXXX";   // TODO: update with real Maya number
+    var mayaName  = "CourtBook";
+    var email     = "courtbooksolutions@gmail.com";
+}
+
+<section class="py-5 bg-light min-vh-100">
+    <div class="container" style="max-width:640px;">
+
+        <div class="text-center mb-5">
+            <div class="d-inline-flex align-items-center justify-content-center bg-danger bg-opacity-10 rounded-circle mb-3"
+                 style="width:72px;height:72px;">
+                <i class="bi bi-heart-fill text-danger fs-2"></i>
+            </div>
+            <h2 class="fw-bold mb-2">Support CourtBook</h2>
+            <p class="text-muted lead" style="max-width:480px;margin:0 auto;">
+                CourtBook is <strong>completely free</strong> for facility owners and players.
+                If it's made running your courts a little easier, a small donation helps us keep the lights on. 🙏
+            </p>
+        </div>
+
+        <!-- What your support does -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3"><i class="bi bi-stars me-1 text-warning"></i>What your support helps with</h6>
+                <div class="row g-3">
+                    @foreach (var item in new[] {
+                        new { icon = "bi-server text-primary",       text = "Server & hosting costs" },
+                        new { icon = "bi-envelope-fill text-info",   text = "Email delivery for booking confirmations" },
+                        new { icon = "bi-wrench-adjustable text-success", text = "Ongoing development & new features" },
+                        new { icon = "bi-headset text-warning",      text = "Support for facility owners" },
+                    })
+                    {
+                        <div class="col-6 d-flex align-items-center gap-2 small text-muted">
+                            <i class="bi @item.icon fs-5 flex-shrink-0"></i>
+                            <span>@item.text</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- GCash / Maya -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold border-bottom">
+                <i class="bi bi-phone-fill me-1 text-primary"></i>Send via GCash or Maya
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border text-center">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/GCash_Logo.svg/240px-GCash_Logo.svg.png"
+                                 alt="GCash" height="28" class="mb-2" />
+                            <div class="fw-bold">@gcashNum</div>
+                            <div class="text-muted small">@gcashName</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border text-center">
+                            <div class="fw-bold text-primary mb-2" style="font-size:1.1rem;">Maya</div>
+                            <div class="fw-bold">@mayaNum</div>
+                            <div class="text-muted small">@mayaName</div>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-muted small mb-0">
+                    Any amount is appreciated — even ₱50 makes a difference.
+                    No need to notify us, but if you'd like to say hi, email us at
+                    <a href="mailto:@email">@email</a>. 😊
+                </p>
+            </div>
+        </div>
+
+        <!-- No pressure note -->
+        <div class="text-center text-muted small py-2">
+            <i class="bi bi-shield-check me-1 text-success"></i>
+            There's absolutely no obligation. CourtBook will always be free regardless.
+        </div>
+
+        <div class="text-center mt-4">
+            <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Home
+            </a>
+        </div>
+
+    </div>
+</section>

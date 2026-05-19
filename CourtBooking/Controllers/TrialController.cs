@@ -73,23 +73,20 @@ public class TrialController : Controller
             await _userManager.AddToRoleAsync(user, "Admin");
 
             // Each admin gets their own FacilitySettings record
-            var slug        = await GenerateUniqueSlugAsync(model.FacilityName!);
-            var billingModel = model.BillingModel == "Commission" ? "Commission" : "Subscription";
+            var slug     = await GenerateUniqueSlugAsync(model.FacilityName!);
             var settings = new FacilitySettings
             {
                 OwnerId             = user.Id,
                 FacilityName        = model.FacilityName!,
                 Slug                = slug,
                 TrialStartedAt      = DateTime.UtcNow,
-                BillingModel        = billingModel,
-                CommissionRate      = 2.0m,
                 PaymentInstructions = "Please send the exact amount and include your booking reference in the notes."
             };
             _db.FacilitySettings.Add(settings);
             await _db.SaveChangesAsync();
 
             await _signInManager.SignInAsync(user, isPersistent: false);
-            TempData["Success"] = $"Welcome! Your {FacilitySettings.TrialPeriodDays}-day free trial has started. Set up your courts and go live.";
+            TempData["Success"] = $"Welcome, {user.FirstName}! Your account is ready. Set up your courts and go live.";
 
             await SendRegistrationNotificationAsync(user, role: "Facility Owner", facilityName: model.FacilityName);
             await SendWelcomeEmailAsync(user, role: "Admin", facilityName: model.FacilityName);
@@ -187,7 +184,7 @@ public class TrialController : Controller
         if (role == "Admin")
         {
             var dashboardUrl = $"{baseUrl}/Admin";
-            subject = $"Welcome to CourtBook, {user.FirstName}! Your 30-day free trial has started.";
+            subject = $"Welcome to CourtBook, {user.FirstName}! Your account is ready.";
             html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
   <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
@@ -196,7 +193,7 @@ public class TrialController : Controller
       <div style='font-size:24px;font-weight:700;margin-top:6px;'>Welcome, {user.FirstName}! 🎉</div>
     </div>
     <div style='padding:24px;line-height:1.65;font-size:15px;'>
-      <p style='margin:0 0 14px;'>Thanks for joining CourtBook! Your <strong>30-day free trial</strong> is now active for <strong>{facilityName}</strong>.</p>
+      <p style='margin:0 0 14px;'>Thanks for joining CourtBook! Your account is ready for <strong>{facilityName}</strong> — start setting up your courts and go live.</p>
       <p style='margin:0 0 20px;'>Here's how to get started:</p>
       <table style='width:100%;border-collapse:collapse;margin-bottom:20px;'>
         <tr>
@@ -220,15 +217,14 @@ public class TrialController : Controller
       <p style='margin:0 0 22px;text-align:center;'>
         <a href='{dashboardUrl}' style='display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;font-weight:600;padding:13px 28px;border-radius:6px;font-size:15px;'>Go to My Dashboard</a>
       </p>
-      <p style='margin:0 0 8px;font-size:13px;color:#6c757d;'>Your trial runs for 30 days. After that, keep your facility going for just <strong>₱499/month</strong> or <strong>₱4,788/year</strong>.</p>
-      <p style='margin:0;font-size:13px;color:#6c757d;'>Questions? Reply to this email or reach us at <a href='mailto:{contactEmail}' style='color:#0d6efd;'>{contactEmail}</a>.</p>
+      <p style='margin:0;font-size:13px;color:#6c757d;'>CourtBook is free to use. If it helps your business, feel free to support us anytime — but there's no pressure. Questions? <a href='mailto:{contactEmail}' style='color:#0d6efd;'>{contactEmail}</a>.</p>
     </div>
     <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
       You're receiving this because you just created a CourtBook facility owner account.
     </div>
   </div>
 </body></html>";
-            plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour 30-day free trial for {facilityName} is now active.\n\nGet started:\n1. Add your courts at {dashboardUrl}\n2. Share your booking link with customers\n3. Confirm bookings and collect payments\n\nAfter your trial: ₱499/month or ₱4,788/year.\n\nQuestions? {contactEmail}";
+            plain = $"Welcome to CourtBook, {user.FirstName}!\n\nYour account for {facilityName} is ready.\n\nGet started:\n1. Add your courts at {dashboardUrl}\n2. Share your booking link with customers\n3. Confirm bookings and collect payments\n\nCourtBook is free to use. If it helps your business, feel free to support us anytime.\n\nQuestions? {contactEmail}";
         }
         else
         {

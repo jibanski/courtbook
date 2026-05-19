@@ -14,11 +14,7 @@ public class TrialRegistrationViewModel
     [Display(Name = "Facility / Business Name")]
     public string? FacilityName { get; set; }
 
-    /// <summary>"Subscription" or "Commission". Only applies when Role == Admin.</summary>
-    [MaxLength(20)]
-    public string BillingModel { get; set; } = "Subscription";
-
-    [Required, MaxLength(50)]
+[Required, MaxLength(50)]
     [Display(Name = "First Name")]
     public string FirstName { get; set; } = string.Empty;
 
