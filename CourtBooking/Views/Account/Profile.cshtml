@@ -1,0 +1,171 @@
+@model CourtBooking.ViewModels.ProfileViewModel
+@{
+    ViewData["Title"] = "My Profile";
+    var initial = (Model.FirstName?.Substring(0, 1) ?? Model.Email?.Substring(0, 1) ?? "?").ToUpper();
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <div class="d-flex align-items-center gap-3">
+            <span class="d-inline-flex align-items-center justify-content-center rounded-3"
+                  style="width:48px;height:48px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);flex-shrink:0;">
+                <i class="bi bi-person-fill fs-4" style="color:var(--cb-lime);"></i>
+            </span>
+            <div>
+                <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">My Profile</h1>
+                <p class="mb-0" style="color:var(--cb-text-3);font-size:.875rem;">Manage your account details and password</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center g-4">
+
+        <!-- ── Left: avatar + stats ─────────────────────────────────────── -->
+        <div class="col-lg-3 col-md-4">
+
+            <!-- Avatar card -->
+            <div class="card text-center p-4 mb-3">
+                <div class="d-flex align-items-center justify-content-center rounded-circle mx-auto mb-3"
+                     style="width:80px;height:80px;background:var(--cb-lime-dim);border:2px solid rgba(163,255,18,0.35);font-size:2rem;font-weight:800;color:var(--cb-lime);">
+                    @initial
+                </div>
+                <h5 class="fw-bold mb-0">@Model.FirstName @Model.LastName</h5>
+                <p class="mb-3" style="color:var(--cb-text-3);font-size:.82rem;">@Model.Email</p>
+
+                <div class="d-flex justify-content-center gap-3">
+                    <div class="text-center">
+                        <div style="font-size:1.5rem;font-weight:800;color:var(--cb-lime);">@Model.BookingCount</div>
+                        <div style="color:var(--cb-text-3);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;">Bookings</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account info card -->
+            <div class="card p-3">
+                <p class="mb-2" style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--cb-text-3);">Account Info</p>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-envelope" style="color:var(--cb-lime);font-size:.9rem;width:16px;"></i>
+                    <span style="font-size:.82rem;color:var(--cb-text-2);word-break:break-all;">@Model.Email</span>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.PhoneNumber))
+                {
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-phone" style="color:var(--cb-lime);font-size:.9rem;width:16px;"></i>
+                        <span style="font-size:.82rem;color:var(--cb-text-2);">@Model.PhoneNumber</span>
+                    </div>
+                }
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-calendar3" style="color:var(--cb-lime);font-size:.9rem;width:16px;"></i>
+                    <span style="font-size:.82rem;color:var(--cb-text-2);">Member since @Model.CreatedAt.ToString("MMM yyyy")</span>
+                </div>
+
+                <hr class="my-3" />
+
+                <a asp-controller="Bookings" asp-action="My"
+                   class="btn btn-sm w-100"
+                   style="background:var(--cb-surface-2);border:1px solid var(--cb-border);color:var(--cb-text);">
+                    <i class="bi bi-calendar-check me-1" style="color:var(--cb-lime);"></i>My Bookings
+                </a>
+            </div>
+        </div>
+
+        <!-- ── Right: edit form ──────────────────────────────────────────── -->
+        <div class="col-lg-7 col-md-8">
+            <form asp-action="Profile" method="post">
+                @Html.AntiForgeryToken()
+
+                <!-- Personal information -->
+                <div class="card mb-3">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-1" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--cb-lime);">
+                            <i class="bi bi-person me-1"></i>Personal Information
+                        </h6>
+                        <p class="mb-4" style="color:var(--cb-text-3);font-size:.8rem;">Update your name and contact details.</p>
+
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger small py-2" style="display:@(ViewData.ModelState.IsValid ? "none" : "block")"></div>
+
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label asp-for="FirstName" class="form-label fw-semibold small">First Name</label>
+                                <input asp-for="FirstName" class="form-control" />
+                                <span asp-validation-for="FirstName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-6">
+                                <label asp-for="LastName" class="form-label fw-semibold small">Last Name</label>
+                                <input asp-for="LastName" class="form-control" />
+                                <span asp-validation-for="LastName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold small">Email Address</label>
+                                <input type="email" class="form-control" value="@Model.Email" disabled
+                                       style="opacity:.6;cursor:not-allowed;" />
+                                <div style="font-size:.75rem;color:var(--cb-text-3);margin-top:.3rem;">
+                                    <i class="bi bi-lock me-1"></i>Email cannot be changed. Contact support if needed.
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label asp-for="PhoneNumber" class="form-label fw-semibold small">Phone Number</label>
+                                <input asp-for="PhoneNumber" class="form-control" placeholder="09XX XXX XXXX" />
+                                <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Change password -->
+                <div class="card mb-4">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-1" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--cb-lime);">
+                            <i class="bi bi-shield-lock me-1"></i>Change Password
+                        </h6>
+                        <p class="mb-4" style="color:var(--cb-text-3);font-size:.8rem;">Leave all three fields blank to keep your current password.</p>
+
+                        <div class="row g-3">
+                            @if (Model.HasPassword)
+                            {
+                                <div class="col-12">
+                                    <label asp-for="CurrentPassword" class="form-label fw-semibold small">Current Password</label>
+                                    <input asp-for="CurrentPassword" class="form-control" autocomplete="current-password" />
+                                    <span asp-validation-for="CurrentPassword" class="text-danger small"></span>
+                                </div>
+                            }
+                            <div class="col-sm-6">
+                                <label asp-for="NewPassword" class="form-label fw-semibold small">New Password</label>
+                                <input asp-for="NewPassword" class="form-control" autocomplete="new-password" />
+                                <span asp-validation-for="NewPassword" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-6">
+                                <label asp-for="ConfirmNewPassword" class="form-label fw-semibold small">Confirm New Password</label>
+                                <input asp-for="ConfirmNewPassword" class="form-control" autocomplete="new-password" />
+                                <span asp-validation-for="ConfirmNewPassword" class="text-danger small"></span>
+                            </div>
+                        </div>
+                        @if (!Model.HasPassword)
+                        {
+                            <div class="mt-3 p-3 rounded-2" style="background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.2);">
+                                <p class="mb-0 small" style="color:var(--cb-text-2);">
+                                    <i class="bi bi-info-circle me-1" style="color:var(--cb-lime);"></i>
+                                    You signed up with a social account. You can set a password here to also enable email login.
+                                </p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                        <i class="bi bi-check-lg me-1"></i>Save Changes
+                    </button>
+                    <a asp-action="Profile" class="btn btn-outline-secondary px-4">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,8 +1,11 @@
+using CourtBooking.Data;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using CourtBooking.ViewModels;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CourtBooking.Controllers;
 
@@ -14,6 +17,7 @@ public class AccountController : Controller
     private readonly IConfiguration _config;
     private readonly ILogger<AccountController> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ApplicationDbContext _db;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
@@ -21,7 +25,8 @@ public class AccountController : Controller
         EmailService email,
         IConfiguration config,
         ILogger<AccountController> logger,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        ApplicationDbContext db)
     {
         _userManager   = userManager;
         _signInManager = signInManager;
@@ -29,6 +34,7 @@ public class AccountController : Controller
         _config        = config;
         _logger        = logger;
         _scopeFactory  = scopeFactory;
+        _db            = db;
     }
 
     public IActionResult Register() => View();
@@ -143,6 +149,101 @@ public class AccountController : Controller
     {
         await _signInManager.SignOutAsync();
         return RedirectToAction("Index", "Home");
+    }
+
+    // ── My Profile ────────────────────────────────────────────────────────────
+
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> Profile()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return RedirectToAction(nameof(Login));
+
+        var bookingCount = await _db.Bookings
+            .CountAsync(b => b.UserId == user.Id);
+
+        var vm = new ProfileViewModel
+        {
+            FirstName    = user.FirstName,
+            LastName     = user.LastName,
+            PhoneNumber  = user.PhoneNumber,
+            Email        = user.Email,
+            CreatedAt    = user.CreatedAt,
+            BookingCount = bookingCount,
+            HasPassword  = await _userManager.HasPasswordAsync(user)
+        };
+        return View(vm);
+    }
+
+    [Authorize]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Profile(ProfileViewModel vm)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return RedirectToAction(nameof(Login));
+
+        // Password fields are optional — only validate when user is actually trying to change it
+        if (string.IsNullOrEmpty(vm.NewPassword))
+        {
+            ModelState.Remove(nameof(vm.CurrentPassword));
+            ModelState.Remove(nameof(vm.NewPassword));
+            ModelState.Remove(nameof(vm.ConfirmNewPassword));
+        }
+
+        // Repopulate read-only fields before returning on error
+        vm.Email        = user.Email;
+        vm.CreatedAt    = user.CreatedAt;
+        vm.HasPassword  = await _userManager.HasPasswordAsync(user);
+        vm.BookingCount = await _db.Bookings.CountAsync(b => b.UserId == user.Id);
+
+        if (!ModelState.IsValid)
+            return View(vm);
+
+        // Update personal info
+        user.FirstName   = vm.FirstName.Trim();
+        user.LastName    = vm.LastName.Trim();
+        user.PhoneNumber = vm.PhoneNumber?.Trim();
+
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            foreach (var e in updateResult.Errors)
+                ModelState.AddModelError("", e.Description);
+            return View(vm);
+        }
+
+        // Change password if the user filled in the new password field
+        if (!string.IsNullOrEmpty(vm.NewPassword))
+        {
+            if (vm.HasPassword && string.IsNullOrEmpty(vm.CurrentPassword))
+            {
+                ModelState.AddModelError(nameof(vm.CurrentPassword), "Please enter your current password.");
+                return View(vm);
+            }
+
+            IdentityResult pwResult;
+            if (vm.HasPassword)
+                pwResult = await _userManager.ChangePasswordAsync(user, vm.CurrentPassword!, vm.NewPassword);
+            else
+                pwResult = await _userManager.AddPasswordAsync(user, vm.NewPassword);
+
+            if (!pwResult.Succeeded)
+            {
+                foreach (var e in pwResult.Errors)
+                    ModelState.AddModelError("", e.Description);
+                return View(vm);
+            }
+
+            await _signInManager.RefreshSignInAsync(user);
+            TempData["Success"] = "Profile and password updated successfully.";
+        }
+        else
+        {
+            TempData["Success"] = "Profile updated successfully.";
+        }
+
+        return RedirectToAction(nameof(Profile));
     }
 
     // ── External (OAuth) Login ─────────────────────────────────────────────

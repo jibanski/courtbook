@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using CourtBooking.Validation;
+using CourtBooking.Models;
 
 namespace CourtBooking.ViewModels;
 
@@ -70,4 +71,40 @@ public class ResetPasswordViewModel
     [Compare("Password", ErrorMessage = "Passwords do not match.")]
     [Display(Name = "Confirm New Password")]
     public string ConfirmPassword { get; set; } = string.Empty;
+}
+
+public class ProfileViewModel
+{
+    [Required, MaxLength(50)]
+    [Display(Name = "First Name")]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required, MaxLength(50)]
+    [Display(Name = "Last Name")]
+    public string LastName { get; set; } = string.Empty;
+
+    [Phone]
+    [Display(Name = "Phone Number")]
+    public string? PhoneNumber { get; set; }
+
+    // Read-only display fields (populated by controller, not bound from form)
+    public string? Email      { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public int BookingCount   { get; set; }
+    public bool HasPassword   { get; set; }
+
+    // ── Optional password change ──────────────────────────────────────────
+    [DataType(DataType.Password)]
+    [Display(Name = "Current Password")]
+    public string? CurrentPassword { get; set; }
+
+    [MinLength(6, ErrorMessage = "New password must be at least 6 characters.")]
+    [DataType(DataType.Password)]
+    [Display(Name = "New Password")]
+    public string? NewPassword { get; set; }
+
+    [DataType(DataType.Password)]
+    [Compare("NewPassword", ErrorMessage = "Passwords do not match.")]
+    [Display(Name = "Confirm New Password")]
+    public string? ConfirmNewPassword { get; set; }
 }
