@@ -34,30 +34,8 @@ public class SubscriptionController : Controller
     private async Task<FacilitySettings?> GetMySettingsAsync() =>
         await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
 
-    // GET /Subscription/Upgrade
-    public async Task<IActionResult> Upgrade()
-    {
-        var settings = await GetMySettingsAsync();
-
-        // Active subscribers may visit this page to RENEW (early or after expiry).
-        // We only bounce people who are healthy AND not yet in the 14-day window,
-        // so they don't accidentally double-pay months in advance.
-        if (settings?.IsSubscribed == true
-            && !settings.IsSubscriptionExpired
-            && !settings.IsSubscriptionExpiringSoon)
-        {
-            TempData["Success"] = "Your subscription is active. You can renew once you're within 14 days of expiry.";
-            return RedirectToAction("Settings", "Admin");
-        }
-
-        // Pass renewal context to the view (used for header copy & button text).
-        ViewBag.IsRenewal           = settings?.IsSubscribed == true;
-        ViewBag.CurrentExpiry       = settings?.EffectiveSubscriptionExpiry;
-        ViewBag.IsExpired           = settings?.IsSubscriptionExpired ?? false;
-        ViewBag.DaysRemaining       = settings?.SubscriptionDaysRemaining ?? 0;
-
-        return View(BuildViewModel());
-    }
+    // GET /Subscription/Upgrade — CourtBook is now free; redirect to donation page
+    public IActionResult Upgrade() => RedirectToAction("Donate", "Home");
 
     // POST /Subscription/Upgrade
     [HttpPost, ValidateAntiForgeryToken]

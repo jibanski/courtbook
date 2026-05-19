@@ -17,108 +17,51 @@
             <form asp-action="Settings" method="post" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
 
-                <!-- ── Custom Branding (Pro only) ──────────────────── -->
-                <div class="card shadow-sm mb-4 @(Model.EffectiveIsSubscribed ? "" : "opacity-75")">
+                <!-- ── Custom Branding ────────────────────────────────── -->
+                <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
                         <span><i class="bi bi-palette me-2 text-primary"></i>Custom Branding</span>
-                        @if (Model.EffectiveIsSubscribed)
-                        {
-                            <span class="badge bg-success-subtle text-success">Pro Feature</span>
-                        }
-                        else if (Model.IsDowngraded)
-                        {
-                            <span class="badge bg-danger-subtle text-danger">Locked — Renew to Restore</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-secondary">Pro Only</span>
-                        }
+                        <span class="badge bg-success-subtle text-success">Available</span>
                     </div>
                     <div class="card-body">
-                        @if (Model.IsDowngraded)
-                        {
-                            <div class="alert alert-danger small mb-3 d-flex align-items-center gap-2">
-                                <i class="bi bi-unlock-fill fs-5"></i>
-                                <div>
-                                    <strong>Custom branding is locked</strong> — your subscription expired
-                                    @Model.DaysSinceExpiry day@(Model.DaysSinceExpiry == 1 ? "" : "s") ago and the
-                                    @FacilitySettings.GracePeriodDays-day grace period has ended. Your saved
-                                    name, tagline, and logo are preserved — renew to bring them back instantly.
-                                    <a asp-controller="Subscription" asp-action="Upgrade" class="ms-1 fw-semibold">Renew Now →</a>
-                                </div>
-                            </div>
-                        }
-                        else if (!Model.EffectiveIsSubscribed)
-                        {
-                            <div class="alert alert-secondary small mb-3 d-flex align-items-center gap-2">
-                                <i class="bi bi-lock-fill fs-5 text-muted"></i>
-                                <div>
-                                    <strong>Unlock custom branding</strong> by upgrading to CourtBook Pro.
-                                    Replace "CourtBook" with your facility name across the entire site.
-                                    <a asp-controller="Subscription" asp-action="Upgrade" class="ms-1 fw-semibold">Upgrade Now →</a>
-                                </div>
-                            </div>
-                        }
+                        <div class="mb-3">
+                            <label asp-for="BrandName" class="form-label fw-semibold small">
+                                Site Name <span class="text-muted fw-normal">(replaces "CourtBook" everywhere)</span>
+                            </label>
+                            <input asp-for="BrandName" class="form-control"
+                                   placeholder="e.g. Greenfield Sports Complex" />
+                        </div>
 
-                        @if (Model.EffectiveIsSubscribed)
-                        {
-                            <div class="mb-3">
-                                <label asp-for="BrandName" class="form-label fw-semibold small">
-                                    Site Name <span class="text-muted fw-normal">(replaces "CourtBook" everywhere)</span>
-                                </label>
-                                <input asp-for="BrandName" class="form-control"
-                                       placeholder="e.g. Greenfield Sports Complex" />
-                            </div>
+                        <div class="mb-3">
+                            <label asp-for="BrandTagline" class="form-label fw-semibold small">
+                                Tagline <span class="text-muted fw-normal">(shown in the footer)</span>
+                            </label>
+                            <input asp-for="BrandTagline" class="form-control"
+                                   placeholder="e.g. Your premier sports destination" />
+                        </div>
 
-                            <div class="mb-3">
-                                <label asp-for="BrandTagline" class="form-label fw-semibold small">
-                                    Tagline <span class="text-muted fw-normal">(shown in the footer)</span>
-                                </label>
-                                <input asp-for="BrandTagline" class="form-control"
-                                       placeholder="e.g. Your premier sports destination" />
-                            </div>
-
-                            <div class="mb-0">
-                                <label class="form-label fw-semibold small">
-                                    Logo <span class="text-muted fw-normal">(shown in navbar instead of the text name)</span>
-                                </label>
-                                @if (!string.IsNullOrWhiteSpace(Model.BrandLogoUrl))
-                                {
-                                    <div class="mb-2 p-2 bg-primary d-inline-block rounded">
-                                        <img src="@Model.BrandLogoUrl" alt="Current logo" id="logoPreview"
-                                             style="height:36px;max-width:180px;object-fit:contain;" />
-                                    </div>
-                                    <br />
-                                }
-                                else
-                                {
-                                    <img src="" id="logoPreview" class="d-none mb-2"
+                        <div class="mb-0">
+                            <label class="form-label fw-semibold small">
+                                Logo <span class="text-muted fw-normal">(shown in navbar instead of the text name)</span>
+                            </label>
+                            @if (!string.IsNullOrWhiteSpace(Model.BrandLogoUrl))
+                            {
+                                <div class="mb-2 p-2 bg-primary d-inline-block rounded">
+                                    <img src="@Model.BrandLogoUrl" alt="Current logo" id="logoPreview"
                                          style="height:36px;max-width:180px;object-fit:contain;" />
-                                }
-                                <input type="file" name="logo" class="form-control"
-                                       accept=".jpg,.jpeg,.png,.webp,.svg"
-                                       onchange="previewLogo(this)" />
-                                <div class="form-text">PNG, JPG, SVG. Recommended: transparent background, min 200px wide.</div>
-                            </div>
-                        }
-                        else
-                        {
-                            <!-- Locked preview -->
-                            <div class="pe-none opacity-50">
-                                <div class="mb-3">
-                                    <label class="form-label fw-semibold small">Site Name</label>
-                                    <input type="text" class="form-control" disabled placeholder="e.g. Greenfield Sports Complex" />
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label fw-semibold small">Tagline</label>
-                                    <input type="text" class="form-control" disabled placeholder="e.g. Your premier sports destination" />
-                                </div>
-                                <div class="mb-0">
-                                    <label class="form-label fw-semibold small">Logo</label>
-                                    <input type="file" class="form-control" disabled />
-                                </div>
-                            </div>
-                        }
+                                <br />
+                            }
+                            else
+                            {
+                                <img src="" id="logoPreview" class="d-none mb-2"
+                                     style="height:36px;max-width:180px;object-fit:contain;" />
+                            }
+                            <input type="file" name="logo" class="form-control"
+                                   accept=".jpg,.jpeg,.png,.webp,.svg"
+                                   onchange="previewLogo(this)" />
+                            <div class="form-text">PNG, JPG, SVG. Recommended: transparent background, min 200px wide.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -273,219 +216,25 @@
                 </div>
             </form>
 
-            <!-- ── Subscription ──────────────────────────────────────── -->
-            <div class="card shadow-sm mt-4">
+            <!-- ── Support CourtBook ──────────────────────────────────── -->
+            <div class="card shadow-sm mt-4 border-danger-subtle">
                 <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
-                    <span><i class="bi bi-trophy-fill text-warning me-2"></i>Subscription</span>
-                    @if (Model.IsRenewalPending)
-                    {
-                        <span class="badge bg-info text-dark">Renewal Pending</span>
-                    }
-                    else if (Model.IsSubscribed && Model.IsDowngraded)
-                    {
-                        <span class="badge bg-danger">Downgraded</span>
-                    }
-                    else if (Model.IsSubscribed && Model.IsInGracePeriod)
-                    {
-                        <span class="badge bg-warning text-dark">Grace Period</span>
-                    }
-                    else if (Model.IsSubscribed && Model.IsSubscriptionExpired)
-                    {
-                        <span class="badge bg-danger">Expired</span>
-                    }
-                    else if (Model.IsSubscribed && Model.IsSubscriptionExpiringSoon)
-                    {
-                        <span class="badge bg-warning text-dark">Expiring Soon</span>
-                    }
-                    else if (Model.IsSubscribed)
-                    {
-                        <span class="badge bg-success">Active</span>
-                    }
-                    else if (Model.IsSubscriptionPending)
-                    {
-                        <span class="badge bg-warning text-dark">Pending Verification</span>
-                    }
-                    else
-                    {
-                        <span class="badge bg-secondary">Free Trial</span>
-                    }
+                    <span><i class="bi bi-heart-fill text-danger me-2"></i>Support CourtBook</span>
+                    <span class="badge bg-success-subtle text-success">Free Forever</span>
                 </div>
                 <div class="card-body">
-
-                    @* ── Pending renewal alert (visible above the active-state details) ── *@
-                    @if (Model.IsRenewalPending)
-                    {
-                        <div class="alert alert-info small mb-3 d-flex align-items-start gap-2">
-                            <i class="bi bi-hourglass-split fs-5 mt-1"></i>
-                            <div class="flex-grow-1">
-                                <strong>Renewal payment received — awaiting verification.</strong>
-                                We'll email a new activation key within 24 hours. Your current Pro access continues uninterrupted.
-                                <div class="mt-2 row g-1 small">
-                                    <div class="col-5 text-muted">Plan submitted</div>
-                                    <div class="col-7 fw-semibold text-capitalize">
-                                        @(Model.SubscriptionPlan == "annual" ? "Annual" : "Monthly")
-                                    </div>
-                                    <div class="col-5 text-muted">Reference #</div>
-                                    <div class="col-7 fw-semibold font-monospace">@Model.SubscriptionPaymentRef</div>
-                                    <div class="col-5 text-muted">Submitted</div>
-                                    <div class="col-7 fw-semibold">
-                                        @Model.SubscriptionSubmittedAt?.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }
-
-                    @if (Model.IsSubscribed)
-                    {
-                        var planLabel = string.Equals(Model.SubscriptionPlan, "annual", StringComparison.OrdinalIgnoreCase)
-                            ? "Annual" : "Monthly";
-                        var expiry    = Model.EffectiveSubscriptionExpiry;
-                        var expired   = Model.IsSubscriptionExpired;
-                        var expSoon   = Model.IsSubscriptionExpiringSoon;
-                        var daysLeft  = Model.SubscriptionDaysRemaining;
-
-                        <div class="d-flex align-items-center gap-3 mb-3">
-                            <div class="@(expired ? "bg-danger-subtle" : "bg-success-subtle") rounded-circle d-flex align-items-center justify-content-center"
-                                 style="width:52px;height:52px;flex-shrink:0;">
-                                <i class="bi @(expired ? "bi-x-circle-fill text-danger" : "bi-check-circle-fill text-success") fs-4"></i>
-                            </div>
-                            <div>
-                                <div class="fw-bold">
-                                    CourtBook Pro — @(expired ? "Expired" : "Active")
-                                </div>
-                                <div class="text-muted small">@planLabel plan</div>
-                            </div>
-                        </div>
-
-                        <div class="bg-light rounded-3 p-3 small mb-3">
-                            <div class="row g-2">
-                                <div class="col-5 text-muted">Plan</div>
-                                <div class="col-7 fw-semibold">@planLabel</div>
-
-                                <div class="col-5 text-muted">Activated on</div>
-                                <div class="col-7 fw-semibold">
-                                    @(Model.SubscriptionActivatedAt?.ToLocalTime().ToString("MMMM d, yyyy") ?? "—")
-                                </div>
-
-                                <div class="col-5 text-muted">Expires on</div>
-                                <div class="col-7 fw-semibold @(expired ? "text-danger" : expSoon ? "text-warning" : "")">
-                                    <i class="bi bi-calendar-event me-1"></i>
-                                    @(expiry?.ToLocalTime().ToString("MMMM d, yyyy") ?? "—")
-                                </div>
-
-                                @if (expiry.HasValue)
-                                {
-                                    <div class="col-5 text-muted">Time remaining</div>
-                                    <div class="col-7 fw-semibold @(expired ? "text-danger" : expSoon ? "text-warning" : "text-success")">
-                                        @if (expired)
-                                        {
-                                            <i class="bi bi-exclamation-triangle me-1"></i><span>Expired</span>
-                                        }
-                                        else
-                                        {
-                                            <i class="bi bi-hourglass-split me-1"></i>
-                                            <span>@daysLeft day@(daysLeft == 1 ? "" : "s") left</span>
-                                        }
-                                    </div>
-                                }
-
-                                @if (!string.IsNullOrWhiteSpace(Model.SubscriptionPaymentRef))
-                                {
-                                    <div class="col-5 text-muted">Reference #</div>
-                                    <div class="col-7 fw-semibold font-monospace">@Model.SubscriptionPaymentRef</div>
-                                }
-                            </div>
-                        </div>
-
-                        @if (expired)
-                        {
-                            <div class="alert alert-danger small mb-3">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                <strong>Your subscription has expired.</strong>
-                                Pro features may be locked. Renew now to restore full access.
-                            </div>
-                            <a asp-controller="Subscription" asp-action="Upgrade" class="btn btn-danger fw-semibold">
-                                <i class="bi bi-arrow-repeat me-1"></i>Renew Subscription
-                            </a>
-                        }
-                        else if (expSoon)
-                        {
-                            <div class="alert alert-warning small mb-3">
-                                <i class="bi bi-bell-fill me-1"></i>
-                                <strong>Renewal reminder:</strong>
-                                Your subscription expires in @daysLeft day@(daysLeft == 1 ? "" : "s"). Renew early to avoid interruption.
-                            </div>
-                            <a asp-controller="Subscription" asp-action="Upgrade" class="btn btn-warning fw-semibold">
-                                <i class="bi bi-arrow-up-circle me-1"></i>Renew Early
-                            </a>
-                        }
-                        else
-                        {
-                            <p class="text-muted small mb-0">
-                                <i class="bi bi-shield-check me-1 text-success"></i>
-                                Your subscription is active. All features are fully unlocked.
-                            </p>
-                        }
-                    }
-                    else if (Model.IsSubscriptionPending)
-                    {
-                        <div class="alert alert-warning small mb-3">
-                            <i class="bi bi-hourglass-split me-2"></i>
-                            <strong>Payment submitted</strong> — awaiting verification.
-                            We'll email your activation key within 24 hours.
-                        </div>
-                        <div class="bg-light rounded-3 p-3 small mb-3">
-                            <div class="row g-2">
-                                <div class="col-5 text-muted">Plan</div>
-                                <div class="col-7 fw-semibold text-capitalize">
-                                    @(Model.SubscriptionPlan == "annual" ? "Annual" : "Monthly")
-                                </div>
-                                <div class="col-5 text-muted">Reference #</div>
-                                <div class="col-7 fw-semibold">@Model.SubscriptionPaymentRef</div>
-                                <div class="col-5 text-muted">Submitted</div>
-                                <div class="col-7 fw-semibold">
-                                    @Model.SubscriptionSubmittedAt?.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
-                                </div>
-                            </div>
-                        </div>
-                        <a asp-controller="Subscription" asp-action="Pending" class="btn btn-outline-warning btn-sm me-2">
-                            <i class="bi bi-clock me-1"></i>View Status
-                        </a>
-                        <a asp-controller="Subscription" asp-action="Upgrade" class="btn btn-outline-secondary btn-sm">
-                            <i class="bi bi-arrow-repeat me-1"></i>Resubmit
-                        </a>
-                    }
-                    else
-                    {
-                        <p class="text-muted small mb-3">
-                            You are currently on a <strong>Free Trial</strong>.
-                            Upgrade to CourtBook Pro for uninterrupted access.
-                        </p>
-                        <a asp-controller="Subscription" asp-action="Upgrade"
-                           class="btn btn-primary fw-semibold mb-4">
-                            <i class="bi bi-arrow-up-circle me-2"></i>Upgrade to Pro
-                        </a>
-                    }
-
-                    @if (!Model.IsSubscribed)
-                    {
-                        <hr />
-                        <h6 class="fw-bold mb-2"><i class="bi bi-key me-2"></i>Enter Activation Key</h6>
-                        <p class="text-muted small mb-3">
-                            Received your activation key by email? Enter it below to instantly unlock CourtBook Pro.
-                        </p>
-                        <form asp-controller="Subscription" asp-action="Activate" method="post" class="d-flex gap-2">
-                            @Html.AntiForgeryToken()
-                            <input type="text" name="Key" class="form-control form-control-sm font-monospace"
-                                   placeholder="e.g. COURTBOOK-ACTIVATE-XXXX"
-                                   style="max-width:300px;" required />
-                            <button type="submit" class="btn btn-success btn-sm fw-semibold text-nowrap">
-                                <i class="bi bi-unlock me-1"></i>Activate
-                            </button>
-                        </form>
-                    }
-
+                    <p class="text-muted small mb-3">
+                        CourtBook is <strong>completely free</strong> to use — no subscription required.
+                        If the platform has been helpful for your business, we'd greatly appreciate a small donation
+                        to help us cover server costs and keep improving the experience.
+                    </p>
+                    <a asp-controller="Home" asp-action="Donate" class="btn btn-outline-danger fw-semibold">
+                        <i class="bi bi-heart-fill me-2"></i>Support the Team
+                    </a>
+                    <p class="text-muted small mt-3 mb-0">
+                        <i class="bi bi-shield-check me-1 text-success"></i>
+                        No pressure at all — your account and all features remain free regardless.
+                    </p>
                 </div>
             </div>
 

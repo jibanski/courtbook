@@ -30,7 +30,7 @@
         <div class="row align-items-center g-5">
             <div class="col-lg-6">
                 <span class="badge bg-warning text-dark fw-semibold px-3 py-2 mb-3 fs-6">
-                    <i class="bi bi-stars me-1"></i>30-Day Free Trial — No Credit Card Needed
+                    <i class="bi bi-stars me-1"></i>100% Free — No Subscription, No Credit Card
                 </span>
                 <h1 class="display-4 fw-bold text-white lh-sm mb-4">
                     Run Your Sports Facility<br>
@@ -44,7 +44,7 @@
                 <div class="d-flex flex-wrap gap-3">
                     <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
                        class="btn btn-warning btn-lg fw-bold px-5 shadow">
-                        <i class="bi bi-rocket-takeoff me-2"></i>Start Free Trial
+                        <i class="bi bi-rocket-takeoff me-2"></i>Create Free Account
                     </a>
                     <a href="#how-it-works"
                        class="btn btn-outline-light btn-lg px-4">
@@ -52,9 +52,9 @@
                     </a>
                 </div>
                 <p class="text-white-50 small mt-3">
-                    <i class="bi bi-shield-check me-1"></i>Full access for 30 days &nbsp;·&nbsp;
+                    <i class="bi bi-shield-check me-1"></i>Free forever &nbsp;·&nbsp;
                     <i class="bi bi-credit-card me-1"></i>No credit card &nbsp;·&nbsp;
-                    <i class="bi bi-x-circle me-1"></i>Cancel anytime
+                    <i class="bi bi-heart me-1"></i>Donation-supported
                 </p>
             </div>
             <div class="col-lg-6 d-none d-lg-block text-center">
@@ -111,8 +111,8 @@
                 <div class="text-muted small">Digital Payments</div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="fw-bold fs-3 text-primary">30 Days</div>
-                <div class="text-muted small">Free Trial</div>
+                <div class="fw-bold fs-3 text-primary">Free</div>
+                <div class="text-muted small">Forever</div>
             </div>
         </div>
     </div>
@@ -215,7 +215,7 @@
             <div class="col-md-3 text-center">
                 <div class="step-circle bg-primary text-white mx-auto mb-3">1</div>
                 <h6 class="fw-bold">Create Your Account</h6>
-                <p class="text-muted small">Sign up with your facility name and email. Your 30-day free trial starts immediately.</p>
+                <p class="text-muted small">Sign up with your facility name and email. Your account is ready immediately — free forever.</p>
             </div>
             <div class="col-md-1 d-none d-md-flex align-items-center justify-content-center pt-2">
                 <i class="bi bi-arrow-right fs-3 text-muted"></i>
@@ -302,122 +302,83 @@
     </section>
 }
 
-<!-- ── Pricing ────────────────────────────────────────────────────────── -->
+<!-- ── Free & Donation ────────────────────────────────────────────────── -->
 <section id="pricing" class="py-6">
     <div class="container">
         <div class="text-center mb-5">
-            <span class="badge bg-warning-subtle text-warning fw-semibold px-3 py-2 mb-2">Pricing</span>
-            <h2 class="fw-bold fs-1">Start free. Upgrade when you're ready.</h2>
-            <p class="text-muted lead">No hidden fees. Simple, transparent pricing for every facility.</p>
+            <span class="badge bg-success-subtle text-success fw-semibold px-3 py-2 mb-2">Free Forever</span>
+            <h2 class="fw-bold fs-1">CourtBook is completely free.</h2>
+            <p class="text-muted lead">No plans. No subscriptions. No credit card. Just sign up and go.</p>
         </div>
+
         <div class="row justify-content-center g-4">
 
-            <!-- Free Trial -->
-            <div class="col-md-4">
-                <div class="pricing-card h-100 border rounded-4 p-4 bg-white shadow-sm d-flex flex-column">
+            <!-- Everything included -->
+            <div class="col-md-5">
+                <div class="h-100 border rounded-4 p-4 bg-white shadow-sm d-flex flex-column">
                     <div class="mb-3">
-                        <span class="badge bg-success-subtle text-success fw-semibold mb-2">Free Trial</span>
+                        <span class="badge bg-success fw-semibold mb-2 px-3">✓ Included — Free</span>
                         <div class="display-5 fw-bold mb-1">₱0</div>
-                        <p class="text-muted small mb-0">Full access for 30 days.<br>No credit card required.</p>
+                        <p class="text-muted small mb-0">Everything. Forever. No strings attached.</p>
                     </div>
                     <hr class="my-3" />
                     <ul class="list-unstyled mb-4 flex-grow-1">
                         @foreach (var f in new[] {
-                            "Unlimited courts",
+                            "Unlimited courts & bookings",
                             "Online booking system",
                             "GCash & Maya payments",
-                            "Admin dashboard",
+                            "Full admin dashboard",
                             "Time slot management",
                             "Court photo uploads",
-                            "Mobile-friendly"
+                            "Mobile-friendly & PWA",
+                            "All future updates"
                         })
                         {
                             <li class="mb-2 small"><i class="bi bi-check-circle-fill text-success me-2"></i>@f</li>
                         }
                     </ul>
                     <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-                       class="btn btn-outline-success w-100 fw-semibold mt-auto">
-                        <i class="bi bi-rocket-takeoff me-2"></i>Start Free Trial
+                       class="btn btn-success w-100 fw-bold mt-auto btn-lg">
+                        <i class="bi bi-rocket-takeoff me-2"></i>Create Free Account
                     </a>
                 </div>
             </div>
 
-            <!-- Starter — Monthly -->
-            <div class="col-md-4">
-                <div class="pricing-card h-100 border rounded-4 p-4 bg-white shadow-sm d-flex flex-column">
+            <!-- Donation -->
+            <div class="col-md-5">
+                <div class="h-100 border border-danger-subtle rounded-4 p-4 shadow-sm d-flex flex-column"
+                     style="background:linear-gradient(135deg,#fff5f5,#fff);">
                     <div class="mb-3">
-                        <span class="badge bg-primary-subtle text-primary fw-semibold mb-2">Starter</span>
-                        <div class="display-5 fw-bold mb-1">₱499<small class="fs-6 fw-normal text-muted">/mo</small></div>
-                        <p class="text-muted small mb-0">Billed monthly.<br>Cancel anytime.</p>
+                        <span class="badge bg-danger-subtle text-danger fw-semibold mb-2 px-3">
+                            <i class="bi bi-heart-fill me-1"></i>Optional Support
+                        </span>
+                        <div class="display-5 fw-bold mb-1">Any amount</div>
+                        <p class="text-muted small mb-0">If CourtBook helps your business, a small donation goes a long way.</p>
                     </div>
                     <hr class="my-3" />
                     <ul class="list-unstyled mb-4 flex-grow-1">
                         @foreach (var f in new[] {
-                            "Everything in Free Trial",
-                            "Uninterrupted access",
-                            "Custom facility branding",
-                            "Priority support",
-                            "All future updates",
-                            "Flexible month-to-month",
+                            "Helps cover server & hosting costs",
+                            "Keeps email notifications running",
+                            "Funds new features & improvements",
+                            "Supports a small indie team",
+                            "Completely optional — no pressure",
                         })
                         {
-                            <li class="mb-2 small"><i class="bi bi-check-circle-fill text-primary me-2"></i>@f</li>
+                            <li class="mb-2 small"><i class="bi bi-heart text-danger me-2"></i>@f</li>
                         }
                     </ul>
-                    <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-                       class="btn btn-primary w-100 fw-semibold mt-auto">
-                        <i class="bi bi-arrow-up-circle me-2"></i>Get Started
-                    </a>
-                </div>
-            </div>
-
-            <!-- Pro — Annual -->
-            <div class="col-md-4">
-                <div class="pricing-card h-100 border-primary border-2 rounded-4 p-4 bg-white shadow position-relative d-flex flex-column">
-                    <span class="badge bg-primary position-absolute top-0 start-50 translate-middle px-3 py-2 fw-semibold">
-                        🏆 Best Value
-                    </span>
-                    <div class="mb-3 mt-2">
-                        <span class="badge bg-warning text-dark fw-semibold mb-2">Pro Annual</span>
-                        <div class="display-5 fw-bold mb-1">
-                            ₱399<small class="fs-6 fw-normal text-muted">/mo</small>
-                        </div>
-                        <p class="text-muted small mb-0">
-                            Billed ₱4,788/year.
-                            <span class="text-success fw-semibold">Save ₱1,200</span> vs monthly.
-                        </p>
-                    </div>
-                    <hr class="my-3" />
-                    <ul class="list-unstyled mb-4 flex-grow-1">
-                        @foreach (var f in new[] {
-                            "Everything in Starter",
-                            "Lowest price per month",
-                            "Custom facility branding",
-                            "Priority support",
-                            "All future updates",
-                            "2+ months free vs monthly",
-                        })
-                        {
-                            <li class="mb-2 small"><i class="bi bi-check-circle-fill text-warning me-2"></i>@f</li>
-                        }
-                    </ul>
-                    <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-                       class="btn btn-primary w-100 fw-bold mt-auto">
-                        <i class="bi bi-stars me-2"></i>Get Pro Annual
+                    <a asp-controller="Home" asp-action="Donate"
+                       class="btn btn-outline-danger w-100 fw-semibold mt-auto">
+                        <i class="bi bi-heart-fill me-2"></i>Support the Team
                     </a>
                     <p class="text-center text-muted mt-2 mb-0" style="font-size:.75rem;">
-                        <i class="bi bi-shield-check me-1 text-success"></i>30-day money-back guarantee
+                        <i class="bi bi-shield-check me-1 text-success"></i>No obligation — CourtBook stays free regardless
                     </p>
                 </div>
             </div>
 
         </div>
-
-        <!-- Reassurance note -->
-        <p class="text-center text-muted small mt-4 mb-0">
-            <i class="bi bi-info-circle me-1"></i>
-            All plans include the same full-featured system. Upgrade or switch billing anytime after your trial.
-        </p>
     </div>
 </section>
 
@@ -436,12 +397,8 @@
 
                     @foreach (var item in new[] {
                         new {
-                            q = "Is CourtBook really free for 30 days?",
-                            a = "Yes — no credit card required. You get full access to every feature for 30 days. After the trial you can subscribe to keep your facility running, or let it expire at no charge."
-                        },
-                        new {
-                            q = "How much does CourtBook cost after the trial?",
-                            a = "₱499/month billed monthly, or ₱4,788/year (₱399/month) billed annually — saving you ₱1,200. Both plans include the complete system with no hidden fees."
+                            q = "Is CourtBook really free?",
+                            a = "Yes — completely free. No credit card, no subscription, no trial period. Create your account and start managing your facility right away."
                         },
                         new {
                             q = "How do I accept payments from customers?",
@@ -460,16 +417,8 @@
                             a = "No app needed. Customers book directly from your facility link on any browser. CourtBook also works as a Progressive Web App (PWA) — customers can add it to their home screen for an app-like experience."
                         },
                         new {
-                            q = "What happens when my trial expires?",
-                            a = "Your facility page and admin dashboard will pause — customers won't be able to make new bookings. Your data is kept safe. You can reactivate anytime by subscribing and entering your activation key."
-                        },
-                        new {
-                            q = "How do I subscribe after my trial?",
-                            a = "Go to Admin → Upgrade, choose your plan (Monthly or Annual), send payment via GCash or Maya, and submit your payment screenshot. We verify it and email you an activation key within 24 hours."
-                        },
-                        new {
-                            q = "Can I cancel my subscription anytime?",
-                            a = "Yes. There are no lock-in contracts. If you choose the monthly plan, you can simply not renew the following month. Annual subscribers can contact us for a prorated refund."
+                            q = "How does CourtBook sustain itself if it's free?",
+                            a = "CourtBook runs on voluntary donations from facility owners and players who find value in the platform. If it helps your business, we'd appreciate any support — but there's absolutely no obligation."
                         },
                         new {
                             q = "I'm not tech-savvy. Is CourtBook easy to use?",
@@ -518,14 +467,14 @@
         <h2 class="display-5 fw-bold mb-3">Ready to modernize your facility?</h2>
         <p class="lead text-white-75 mb-5">
             Join facility owners who have moved their court bookings online.<br>
-            Get started in minutes — completely free for 30 days.
+            Get started in minutes — free forever, no strings attached.
         </p>
         <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
            class="btn btn-warning btn-lg fw-bold px-5 py-3 shadow-lg">
-            <i class="bi bi-rocket-takeoff me-2"></i>Start Your Free Trial Now
+            <i class="bi bi-rocket-takeoff me-2"></i>Create Your Free Account Now
         </a>
         <p class="mt-3 text-white-50 small">
-            No credit card &nbsp;·&nbsp; Full access &nbsp;·&nbsp; Cancel anytime
+            No credit card &nbsp;·&nbsp; Free forever &nbsp;·&nbsp; Donation-supported
         </p>
     </div>
 </section>
