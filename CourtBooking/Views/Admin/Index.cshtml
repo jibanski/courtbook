@@ -10,6 +10,33 @@
     </div>
 </div>
 
+@{
+    var fsTrial = ViewBag.FacilitySettings as CourtBooking.Models.FacilitySettings;
+}
+@if (fsTrial?.IsTrialExpired == true && fsTrial?.IsSubscribed != true)
+{
+    <div class="container mb-3" id="trialExpiredBanner">
+        <div class="alert alert-warning d-flex align-items-start gap-3 mb-0 shadow-sm" style="border-radius:12px;">
+            <i class="bi bi-hourglass-bottom fs-4 flex-shrink-0 mt-1"></i>
+            <div class="flex-grow-1">
+                <div class="fw-semibold">Your 30-day free trial has ended</div>
+                <div class="small text-muted mt-1">
+                    You can continue using CourtBook as usual — no rush at all.
+                    If you'd like to support the platform, you're welcome to
+                    <a asp-controller="Subscription" asp-action="Upgrade" class="fw-semibold">upgrade anytime</a>.
+                </div>
+            </div>
+            <button type="button" class="btn-close flex-shrink-0" aria-label="Dismiss"
+                    onclick="document.getElementById('trialExpiredBanner').style.display='none';sessionStorage.setItem('trialBannerDismissed','1');"></button>
+        </div>
+    </div>
+    <script>
+        if (sessionStorage.getItem('trialBannerDismissed') === '1') {
+            document.getElementById('trialExpiredBanner').style.display = 'none';
+        }
+    </script>
+}
+
 <div class="container">
     <!-- Stats Cards -->
     <div class="row g-3 mb-4">

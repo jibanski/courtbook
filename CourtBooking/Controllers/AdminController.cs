@@ -10,7 +10,6 @@ using System.Text.RegularExpressions;
 namespace CourtBooking.Controllers;
 
 [Authorize(Roles = "Admin")]
-[TypeFilter(typeof(TrialCheckFilter))]
 public class AdminController : Controller
 {
     private readonly ApplicationDbContext _db;
