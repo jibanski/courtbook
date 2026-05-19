@@ -507,6 +507,53 @@ public class DevController : Controller
         return View();
     }
 
+    // ── Donation QR ───────────────────────────────────────────────────────────
+
+    // GET /Dev/DonationQr
+    public async Task<IActionResult> DonationQr(string? password, string? error)
+    {
+        if (!string.IsNullOrEmpty(error)) ViewBag.Error = error;
+        ViewBag.Password = password ?? "";
+        ViewBag.IsUnlocked = IsValidPassword(password);
+        ViewBag.Config = await _db.PlatformConfig.FindAsync(1);
+        return View();
+    }
+
+    // POST /Dev/DonationQr
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DonationQr(string password, IFormFile? gcashQr, IFormFile? mayaQr)
+    {
+        if (!IsValidPassword(password))
+            return RedirectToAction(nameof(DonationQr), new { error = "Invalid password." });
+
+        var cfg = await _db.PlatformConfig.FindAsync(1);
+        if (cfg == null)
+        {
+            cfg = new CourtBooking.Models.PlatformConfig { Id = 1 };
+            _db.PlatformConfig.Add(cfg);
+        }
+
+        if (gcashQr is { Length: > 0 })
+        {
+            using var ms = new MemoryStream();
+            await gcashQr.CopyToAsync(ms);
+            cfg.GCashQrData        = ms.ToArray();
+            cfg.GCashQrContentType = gcashQr.ContentType;
+        }
+
+        if (mayaQr is { Length: > 0 })
+        {
+            using var ms = new MemoryStream();
+            await mayaQr.CopyToAsync(ms);
+            cfg.MayaQrData        = ms.ToArray();
+            cfg.MayaQrContentType = mayaQr.ContentType;
+        }
+
+        await _db.SaveChangesAsync();
+        TempData["Success"] = "Donation QR codes updated.";
+        return RedirectToAction(nameof(DonationQr), new { password });
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private bool IsValidPassword(string? password) =>

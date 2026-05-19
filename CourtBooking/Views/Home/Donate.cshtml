@@ -2,11 +2,13 @@
     ViewData["Title"] = "Support CourtBook";
     Layout = "_LandingLayout";
 
-    var gcashNum  = ViewBag.GCashNumber  as string;
-    var gcashName = ViewBag.GCashName    as string;
-    var mayaNum   = ViewBag.MayaNumber   as string;
-    var mayaName  = ViewBag.MayaName     as string;
-    var email     = ViewBag.ContactEmail as string ?? "courtbooksolutions@gmail.com";
+    var gcashNum    = ViewBag.GCashNumber  as string;
+    var gcashName   = ViewBag.GCashName    as string;
+    var mayaNum     = ViewBag.MayaNumber   as string;
+    var mayaName    = ViewBag.MayaName     as string;
+    var email       = ViewBag.ContactEmail as string ?? "courtbooksolutions@gmail.com";
+    var gcashQrSrc  = ViewBag.GCashQrSrc   as string;
+    var mayaQrSrc   = ViewBag.MayaQrSrc    as string;
 }
 
 <section class="py-5 bg-light min-vh-100">
@@ -58,6 +60,13 @@
                                  alt="GCash" height="28" class="mb-2" />
                             <div class="fw-bold">@gcashNum</div>
                             <div class="text-muted small">@gcashName</div>
+                            @if (gcashQrSrc != null)
+                            {
+                                <img src="@gcashQrSrc" alt="GCash QR Code"
+                                     class="mt-3 d-block mx-auto rounded"
+                                     style="width:150px;height:150px;object-fit:contain;background:#fff;padding:4px;" />
+                                <div class="text-muted small mt-1">Scan to pay</div>
+                            }
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -65,6 +74,13 @@
                             <div class="fw-bold text-primary mb-2" style="font-size:1.1rem;">Maya</div>
                             <div class="fw-bold">@mayaNum</div>
                             <div class="text-muted small">@mayaName</div>
+                            @if (mayaQrSrc != null)
+                            {
+                                <img src="@mayaQrSrc" alt="Maya QR Code"
+                                     class="mt-3 d-block mx-auto rounded"
+                                     style="width:150px;height:150px;object-fit:contain;background:#fff;padding:4px;" />
+                                <div class="text-muted small mt-1">Scan to pay</div>
+                            }
                         </div>
                     </div>
                 </div>

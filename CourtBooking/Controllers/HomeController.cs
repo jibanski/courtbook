@@ -57,7 +57,7 @@ public class HomeController : Controller
     public IActionResult Privacy() => View();
     public IActionResult About()   => View();
     public IActionResult Terms()   => View();
-    public IActionResult Donate()
+    public async Task<IActionResult> Donate()
     {
         var sub = _config.GetSection("Subscription");
         ViewBag.GCashNumber  = sub["GCashNumber"];
@@ -65,6 +65,15 @@ public class HomeController : Controller
         ViewBag.MayaNumber   = sub["MayaNumber"];
         ViewBag.MayaName     = sub["MayaName"];
         ViewBag.ContactEmail = sub["ContactEmail"];
+
+        var cfg = await _db.PlatformConfig.FindAsync(1);
+        ViewBag.GCashQrSrc = cfg?.GCashQrData is { Length: > 0 }
+            ? $"data:{cfg.GCashQrContentType};base64,{Convert.ToBase64String(cfg.GCashQrData)}"
+            : null;
+        ViewBag.MayaQrSrc = cfg?.MayaQrData is { Length: > 0 }
+            ? $"data:{cfg.MayaQrContentType};base64,{Convert.ToBase64String(cfg.MayaQrData)}"
+            : null;
+
         return View();
     }
 

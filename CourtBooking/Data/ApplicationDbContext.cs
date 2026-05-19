@@ -14,6 +14,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<FacilitySettings> FacilitySettings { get; set; }
     public DbSet<CourtTimeSlot> CourtTimeSlots { get; set; }
     public DbSet<Review> Reviews { get; set; }
+    public DbSet<PlatformConfig> PlatformConfig { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
