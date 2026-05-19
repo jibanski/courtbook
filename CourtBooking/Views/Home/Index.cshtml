@@ -108,122 +108,82 @@
     </div>
 </section>
 
-<!-- Pricing -->
+<!-- Free & Support -->
 <section id="pricing" class="py-5">
     <div class="container">
         <div class="text-center mb-5">
-            <span class="badge bg-warning-subtle text-warning fw-semibold px-3 py-2 mb-2">Pricing</span>
-            <h2 class="fw-bold">Start free. Upgrade when you're ready.</h2>
-            <p class="text-muted">No hidden fees. Simple, transparent pricing for every facility.</p>
+            <span class="badge bg-success-subtle text-success fw-semibold px-3 py-2 mb-2">Free Forever</span>
+            <h2 class="fw-bold">CourtBook is completely free.</h2>
+            <p class="text-muted">No plans, no subscriptions, no credit card. Just sign up and go.</p>
         </div>
 
         <div class="row justify-content-center g-4">
 
-            <!-- Free Trial -->
-            <div class="col-md-4">
+            <!-- Everything free -->
+            <div class="col-md-5">
                 <div class="card h-100 border rounded-4 shadow-sm d-flex flex-column">
                     <div class="card-body p-4 d-flex flex-column">
-                        <span class="badge bg-success-subtle text-success fw-semibold mb-3 align-self-start">Free Trial</span>
+                        <span class="badge bg-success fw-semibold mb-3 align-self-start px-3">✓ Included — Free</span>
                         <div class="display-5 fw-bold mb-1">₱0</div>
-                        <p class="text-muted small mb-3">Full access for 30 days.<br>No credit card required.</p>
+                        <p class="text-muted small mb-3">Everything. Forever. No strings attached.</p>
                         <hr />
                         <ul class="list-unstyled mb-4 flex-grow-1">
                             @foreach (var f in new[] {
-                                "Unlimited courts",
+                                "Unlimited courts & bookings",
                                 "Online booking system",
                                 "GCash & Maya payments",
-                                "Admin dashboard",
+                                "Full admin dashboard",
                                 "Time slot management",
-                                "Mobile-friendly"
+                                "Court photo uploads",
+                                "Mobile-friendly & PWA",
+                                "All future updates"
                             })
                             {
                                 <li class="mb-2 small"><i class="bi bi-check-circle-fill text-success me-2"></i>@f</li>
                             }
                         </ul>
                         <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-                           class="btn btn-outline-success w-100 fw-semibold mt-auto">
-                            <i class="bi bi-rocket-takeoff me-2"></i>Start Free Trial
+                           class="btn btn-success w-100 fw-bold mt-auto btn-lg">
+                            <i class="bi bi-rocket-takeoff me-2"></i>Create Free Account
                         </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Starter Monthly -->
-            <div class="col-md-4">
-                <div class="card h-100 border rounded-4 shadow-sm d-flex flex-column">
+            <!-- Optional donation -->
+            <div class="col-md-5">
+                <div class="card h-100 border-danger-subtle rounded-4 shadow-sm d-flex flex-column"
+                     style="background:linear-gradient(135deg,#fff5f5,#fff);">
                     <div class="card-body p-4 d-flex flex-column">
-                        <span class="badge bg-primary-subtle text-primary fw-semibold mb-3 align-self-start">Starter</span>
-                        <div class="display-5 fw-bold mb-1">
-                            ₱@monthlyPrice.ToString("N0")<small class="fs-6 fw-normal text-muted">/mo</small>
-                        </div>
-                        <p class="text-muted small mb-3">Billed monthly. Cancel anytime.</p>
+                        <span class="badge bg-danger-subtle text-danger fw-semibold mb-3 align-self-start px-3">
+                            <i class="bi bi-heart-fill me-1"></i>Optional Support
+                        </span>
+                        <div class="display-5 fw-bold mb-1">Any amount</div>
+                        <p class="text-muted small mb-3">If CourtBook helps your business, a small donation goes a long way.</p>
                         <hr />
                         <ul class="list-unstyled mb-4 flex-grow-1">
                             @foreach (var f in new[] {
-                                "Everything in Free Trial",
-                                "Uninterrupted access",
-                                "Custom facility branding",
-                                "Priority support",
-                                "All future updates",
-                                "Flexible month-to-month"
+                                "Helps cover server & hosting costs",
+                                "Keeps email notifications running",
+                                "Funds new features & improvements",
+                                "Supports a small indie team",
+                                "Completely optional — no pressure"
                             })
                             {
-                                <li class="mb-2 small"><i class="bi bi-check-circle-fill text-primary me-2"></i>@f</li>
+                                <li class="mb-2 small"><i class="bi bi-heart text-danger me-2"></i>@f</li>
                             }
                         </ul>
-                        <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-                           class="btn btn-primary w-100 fw-semibold mt-auto">
-                            <i class="bi bi-arrow-up-circle me-2"></i>Get Started
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pro Annual -->
-            <div class="col-md-4">
-                <div class="card h-100 border-primary border-2 rounded-4 shadow position-relative d-flex flex-column">
-                    <span class="badge bg-primary position-absolute top-0 start-50 translate-middle px-3 py-2 fw-semibold">
-                        🏆 Best Value
-                    </span>
-                    <div class="card-body p-4 mt-2 d-flex flex-column">
-                        <span class="badge bg-warning text-dark fw-semibold mb-3 align-self-start">Pro Annual</span>
-                        <div class="display-5 fw-bold mb-1">
-                            ₱@annualMonthly.ToString("N0")<small class="fs-6 fw-normal text-muted">/mo</small>
-                        </div>
-                        <p class="text-muted small mb-3">
-                            Billed ₱@annualPrice.ToString("N0")/year.
-                            <span class="text-success fw-semibold">Save ₱@annualSavings.ToString("N0")</span>.
-                        </p>
-                        <hr />
-                        <ul class="list-unstyled mb-4 flex-grow-1">
-                            @foreach (var f in new[] {
-                                "Everything in Starter",
-                                "Lowest price per month",
-                                "Custom facility branding",
-                                "Priority support",
-                                "All future updates",
-                                "2+ months free vs monthly"
-                            })
-                            {
-                                <li class="mb-2 small"><i class="bi bi-check-circle-fill text-warning me-2"></i>@f</li>
-                            }
-                        </ul>
-                        <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
-                           class="btn btn-primary w-100 fw-bold mt-auto">
-                            <i class="bi bi-stars me-2"></i>Get Pro Annual
+                        <a asp-controller="Home" asp-action="Donate"
+                           class="btn btn-outline-danger w-100 fw-semibold mt-auto">
+                            <i class="bi bi-heart-fill me-2"></i>Support the Team
                         </a>
                         <p class="text-center text-muted mt-2 mb-0" style="font-size:.75rem;">
-                            <i class="bi bi-shield-check me-1 text-success"></i>30-day money-back guarantee
+                            <i class="bi bi-shield-check me-1 text-success"></i>No obligation — CourtBook stays free regardless
                         </p>
                     </div>
                 </div>
             </div>
 
         </div>
-
-        <p class="text-center text-muted small mt-4 mb-0">
-            <i class="bi bi-info-circle me-1"></i>
-            All plans include the same full-featured system. Switch billing anytime after your trial.
-        </p>
     </div>
 </section>
