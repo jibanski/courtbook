@@ -105,11 +105,6 @@
                                 <i class="bi bi-box-arrow-in-right me-1"></i>Login
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="btn btn-warning btn-sm ms-2 my-1 fw-semibold" asp-controller="Trial" asp-action="Start">
-                                <i class="bi bi-rocket-takeoff me-1"></i>Free Trial
-                            </a>
-                        </li>
                         <li class="nav-item d-none" id="pwaInstallItem">
                             <button class="btn btn-outline-light btn-sm ms-2 my-1" id="pwaInstallBtn">
                                 <i class="bi bi-download me-1"></i>Install App
@@ -121,35 +116,6 @@
         </div>
     </nav>
 
-    @* ── Trial banner (admin only) ────────────────────────────────────── *@
-    @if (User.IsInRole("Admin") && _fs is not null && !_fs.IsSubscribed && _fs.TrialStartedAt.HasValue)
-    {
-        var daysLeft    = _fs.TrialDaysRemaining;
-        var bannerClass = daysLeft <= 2 ? "trial-banner-urgent" : "trial-banner-active";
-        var icon        = daysLeft <= 2 ? "bi-exclamation-triangle-fill" : "bi-hourglass-split";
-        <div class="trial-banner @bannerClass">
-            <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi @icon"></i>
-                    @if (daysLeft > 0)
-                    {
-                        <span>
-                            <strong>@daysLeft day@(daysLeft == 1 ? "" : "s") left</strong> in your free trial.
-                            Upgrade to keep your facility running uninterrupted.
-                        </span>
-                    }
-                    else
-                    {
-                        <span><strong>Your trial has expired.</strong> Upgrade now to restore access.</span>
-                    }
-                </div>
-                <a asp-controller="Subscription" asp-action="Upgrade"
-                   class="btn btn-sm btn-dark fw-semibold text-nowrap">
-                    <i class="bi bi-arrow-up-circle me-1"></i>Upgrade Now
-                </a>
-            </div>
-        </div>
-    }
 
     @* ── Suspended banner (admin only — highest priority) ──────────────── *@
     @if (User.IsInRole("Admin") && _fs is not null && _fs.IsSuspended)
