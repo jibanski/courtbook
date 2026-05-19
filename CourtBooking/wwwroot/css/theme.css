@@ -15,9 +15,9 @@
   --cb-lime:        #A3FF12;
   --cb-lime-dim:    rgba(163,255,18,0.12);
   --cb-lime-glow:   0 0 20px rgba(163,255,18,0.35);
-  --cb-blue:        #00C2FF;
-  --cb-blue-dim:    rgba(0,194,255,0.12);
-  --cb-blue-glow:   0 0 20px rgba(0,194,255,0.35);
+  --cb-blue:        #3B82F6;
+  --cb-blue-dim:    rgba(59,130,246,0.12);
+  --cb-blue-glow:   0 0 20px rgba(59,130,246,0.35);
   --cb-text:        #F8FAFC;
   --cb-text-2:      #CBD5E1;
   --cb-text-3:      #64748B;
@@ -274,11 +274,11 @@ h1, h2, h3, h4, h5, h6 {
   transform: translateY(-1px);
 }
 
-/* Info → Electric Blue */
+/* Info → Deep Blue */
 .btn-info {
   background: var(--cb-blue) !important;
   border-color: var(--cb-blue) !important;
-  color: #071827 !important;
+  color: #fff !important;
   font-weight: 700 !important;
 }
 .btn-info:hover {
@@ -475,7 +475,7 @@ textarea.form-control { resize: vertical; }
 .bg-success   { background: #22c55e !important; }
 .bg-danger    { background: #ef4444 !important; }
 .bg-warning   { background: #f59e0b !important; color: #071827 !important; }
-.bg-info      { background: var(--cb-blue) !important; color: #071827 !important; }
+.bg-info      { background: var(--cb-blue) !important; color: #fff !important; }
 .bg-secondary { background: var(--cb-surface-3) !important; color: var(--cb-text-2) !important; }
 .bg-dark      { background: var(--cb-surface-2) !important; color: var(--cb-text) !important; }
 .bg-light     { background: var(--cb-surface-3) !important; color: var(--cb-text) !important; }
