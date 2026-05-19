@@ -73,13 +73,16 @@ public class TrialController : Controller
             await _userManager.AddToRoleAsync(user, "Admin");
 
             // Each admin gets their own FacilitySettings record
-            var slug = await GenerateUniqueSlugAsync(model.FacilityName!);
+            var slug        = await GenerateUniqueSlugAsync(model.FacilityName!);
+            var billingModel = model.BillingModel == "Commission" ? "Commission" : "Subscription";
             var settings = new FacilitySettings
             {
                 OwnerId             = user.Id,
                 FacilityName        = model.FacilityName!,
                 Slug                = slug,
                 TrialStartedAt      = DateTime.UtcNow,
+                BillingModel        = billingModel,
+                CommissionRate      = 2.0m,
                 PaymentInstructions = "Please send the exact amount and include your booking reference in the notes."
             };
             _db.FacilitySettings.Add(settings);

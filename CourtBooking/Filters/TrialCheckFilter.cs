@@ -16,7 +16,9 @@ public class TrialCheckFilter : IAsyncActionFilter
     {
         var userId   = context.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == userId);
-        if (settings is not null && settings.IsTrialExpired)
+        // Commission-model facilities are never blocked after trial —
+        // they pay per booking rather than a fixed subscription.
+        if (settings is not null && settings.IsTrialExpired && !settings.IsCommissionModel)
         {
             context.Result = new RedirectToActionResult("Expired", "Trial", null);
             return;

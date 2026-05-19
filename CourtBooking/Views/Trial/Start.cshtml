@@ -88,6 +88,37 @@
                             <span asp-validation-for="FacilityName" class="text-danger small"></span>
                         </div>
 
+                        <!-- ── Billing model (Admin only) ─────────────── -->
+                        <div id="billingModelGroup" class="mb-4 @(Model.Role != "Admin" ? "d-none" : "")">
+                            <label class="form-label fw-semibold small">
+                                <i class="bi bi-credit-card me-1 text-primary"></i>Billing Model
+                            </label>
+                            <input type="hidden" name="BillingModel" id="billingModelInput" value="@Model.BillingModel" />
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <div id="cardSubscription"
+                                         class="billing-card @(Model.BillingModel != "Commission" ? "billing-card-active" : "")"
+                                         onclick="selectBilling('Subscription')"
+                                         style="cursor:pointer;border:2px solid #dee2e6;border-radius:10px;padding:12px;text-align:center;transition:.15s;">
+                                        <div class="fw-semibold small"><i class="bi bi-calendar-check me-1 text-primary"></i>Subscription</div>
+                                        <div class="text-muted" style="font-size:.72rem;">₱499/mo or ₱4,788/yr</div>
+                                        <div class="text-muted mt-1" style="font-size:.65rem;">Fixed monthly fee</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div id="cardCommission"
+                                         class="billing-card @(Model.BillingModel == "Commission" ? "billing-card-active" : "")"
+                                         onclick="selectBilling('Commission')"
+                                         style="cursor:pointer;border:2px solid #dee2e6;border-radius:10px;padding:12px;text-align:center;transition:.15s;">
+                                        <div class="fw-semibold small"><i class="bi bi-percent me-1 text-success"></i>Commission</div>
+                                        <div class="text-muted" style="font-size:.72rem;">2% per booking</div>
+                                        <div class="text-muted mt-1" style="font-size:.65rem;">Pay only when you earn</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="billingNote" class="mt-2 small text-muted"></div>
+                        </div>
+
                         <!-- ── Common fields ──────────────────────────── -->
                         <div class="row g-3 mb-3">
                             <div class="col-6">
@@ -239,18 +270,20 @@
         function selectRole(role) {
             document.getElementById('roleInput').value = role;
 
-            const cardAdmin    = document.getElementById('cardAdmin');
-            const cardCustomer = document.getElementById('cardCustomer');
-            const facilityGrp  = document.getElementById('facilityNameGroup');
-            const panelAdmin   = document.getElementById('panelAdmin');
-            const panelCustomer= document.getElementById('panelCustomer');
-            const submitIcon   = document.getElementById('submitIcon');
-            const submitText   = document.getElementById('submitText');
+            const cardAdmin       = document.getElementById('cardAdmin');
+            const cardCustomer    = document.getElementById('cardCustomer');
+            const facilityGrp     = document.getElementById('facilityNameGroup');
+            const billingGrp      = document.getElementById('billingModelGroup');
+            const panelAdmin      = document.getElementById('panelAdmin');
+            const panelCustomer   = document.getElementById('panelCustomer');
+            const submitIcon      = document.getElementById('submitIcon');
+            const submitText      = document.getElementById('submitText');
 
             if (role === 'Admin') {
                 cardAdmin.classList.add('role-card-active');
                 cardCustomer.classList.remove('role-card-active');
                 facilityGrp.classList.remove('d-none');
+                billingGrp.classList.remove('d-none');
                 panelAdmin.classList.remove('d-none');
                 panelCustomer.classList.add('d-none');
                 submitIcon.className = 'bi bi-rocket-takeoff me-2';
@@ -259,6 +292,7 @@
                 cardCustomer.classList.add('role-card-active');
                 cardAdmin.classList.remove('role-card-active');
                 facilityGrp.classList.add('d-none');
+                billingGrp.classList.add('d-none');
                 panelAdmin.classList.add('d-none');
                 panelCustomer.classList.remove('d-none');
                 submitIcon.className = 'bi bi-person-check me-2';
@@ -266,9 +300,31 @@
             }
         }
 
+        function selectBilling(model) {
+            document.getElementById('billingModelInput').value = model;
+            const cardSub  = document.getElementById('cardSubscription');
+            const cardCom  = document.getElementById('cardCommission');
+            const note     = document.getElementById('billingNote');
+
+            if (model === 'Commission') {
+                cardCom.style.borderColor  = '#198754';
+                cardCom.style.background   = '#f0fff4';
+                cardSub.style.borderColor  = '#dee2e6';
+                cardSub.style.background   = '';
+                note.textContent = '2% of each confirmed booking is added to your commission balance. Pay it off anytime via GCash or Maya.';
+            } else {
+                cardSub.style.borderColor  = '#0d6efd';
+                cardSub.style.background   = '#f0f4ff';
+                cardCom.style.borderColor  = '#dee2e6';
+                cardCom.style.background   = '';
+                note.textContent = 'Fixed monthly (₱499) or annual (₱4,788) fee. Activate via GCash or Maya after your 30-day trial.';
+            }
+        }
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function () {
             selectRole(document.getElementById('roleInput').value || 'Customer');
+            selectBilling(document.getElementById('billingModelInput').value || 'Subscription');
         });
     </script>
 }

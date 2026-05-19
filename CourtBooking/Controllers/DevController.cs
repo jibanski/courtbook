@@ -275,6 +275,42 @@ public class DevController : Controller
         return RedirectToActionFacilities(password);
     }
 
+    // POST /Dev/ChangeBillingModel
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangeBillingModel(string password, int id, string billingModel)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        var f = await _db.FacilitySettings.FindAsync(id);
+        if (f is null) return NotFound();
+
+        f.BillingModel = billingModel == "Commission" ? "Commission" : "Subscription";
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"\"{f.FacilityName}\" switched to {f.BillingModel} model.";
+        return RedirectToActionFacilities(password);
+    }
+
+    // POST /Dev/ClearCommission
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ClearCommission(string password, int id)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        var f = await _db.FacilitySettings.FindAsync(id);
+        if (f is null) return NotFound();
+
+        f.CommissionTotalPaid             += f.CommissionBalanceOwed;
+        f.CommissionBalanceOwed            = 0m;
+        f.CommissionPaymentRef             = null;
+        f.CommissionPaymentProofPath       = null;
+        f.CommissionPaymentSubmittedAt     = null;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Commission balance cleared for \"{f.FacilityName}\".";
+        return RedirectToActionFacilities(password);
+    }
+
     // After a suspend/lock POST we need to land back on the unlocked list. We
     // stash the dev password in TempData (single-use, server-side) and then
     // /Dev/Facilities re-runs the listing logic when that key is present.

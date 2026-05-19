@@ -54,6 +54,12 @@ public class Booking
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>Platform commission charged when this booking is confirmed (commission-model facilities only).</summary>
+    public decimal? CommissionAmount { get; set; }
+
+    /// <summary>True once the owner has paid off this booking's commission.</summary>
+    public bool CommissionPaid { get; set; } = false;
+
     public bool HasPaymentProof => !string.IsNullOrEmpty(PaymentReference);
     public double DurationHours => (EndTime - StartTime).TotalHours;
 }

@@ -178,6 +178,58 @@ public class SubscriptionController : Controller
         return RedirectToAction("Index", "Admin");
     }
 
+    // ── Commission payment ────────────────────────────────────────────────────
+
+    // GET /Subscription/Commission
+    public async Task<IActionResult> Commission()
+    {
+        var settings = await GetMySettingsAsync();
+        if (settings?.IsCommissionModel != true)
+            return RedirectToAction("Index", "Admin");
+
+        ViewBag.Settings     = settings;
+        ViewBag.GCashNumber  = _config["Subscription:GCashNumber"] ?? "";
+        ViewBag.GCashName    = _config["Subscription:GCashName"]   ?? "";
+        ViewBag.MayaNumber   = _config["Subscription:MayaNumber"]  ?? "";
+        ViewBag.MayaName     = _config["Subscription:MayaName"]    ?? "";
+        ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        return View();
+    }
+
+    // POST /Subscription/Commission
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Commission(string referenceNumber, IFormFile? proof)
+    {
+        var settings = await GetMySettingsAsync();
+        if (settings?.IsCommissionModel != true)
+            return RedirectToAction("Index", "Admin");
+
+        if (string.IsNullOrWhiteSpace(referenceNumber))
+            ModelState.AddModelError(nameof(referenceNumber), "Reference number is required.");
+        if (proof is not { Length: > 0 })
+            ModelState.AddModelError(nameof(proof), "Please upload your payment screenshot.");
+
+        if (!ModelState.IsValid)
+        {
+            ViewBag.Settings     = settings;
+            ViewBag.GCashNumber  = _config["Subscription:GCashNumber"] ?? "";
+            ViewBag.GCashName    = _config["Subscription:GCashName"]   ?? "";
+            ViewBag.MayaNumber   = _config["Subscription:MayaNumber"]  ?? "";
+            ViewBag.MayaName     = _config["Subscription:MayaName"]    ?? "";
+            ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+            return View();
+        }
+
+        var proofPath = await SaveProofAsync(proof!);
+        settings.CommissionPaymentRef             = referenceNumber.Trim();
+        settings.CommissionPaymentProofPath       = proofPath;
+        settings.CommissionPaymentSubmittedAt     = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = "Commission payment submitted! We'll verify and clear your balance within 24 hours.";
+        return RedirectToAction("Settings", "Admin");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private SubscriptionUpgradeViewModel BuildViewModel() => new()

@@ -58,6 +58,38 @@ public class FacilitySettings
     [MaxLength(500)]
     public string? SuspendedReason { get; set; }
 
+    // ── Billing Model ─────────────────────────────────────────────────────────
+    /// <summary>"Subscription" (default) or "Commission" (2% per confirmed booking).</summary>
+    [MaxLength(20)]
+    public string BillingModel { get; set; } = "Subscription";
+
+    /// <summary>Commission rate in percent, e.g. 2.0 means 2%. Set by platform admin.</summary>
+    [Column(TypeName = "numeric(5,2)")]
+    public decimal CommissionRate { get; set; } = 2.0m;
+
+    /// <summary>Accumulated unpaid commission balance (increases on each confirmed booking).</summary>
+    [Column(TypeName = "numeric(18,2)")]
+    public decimal CommissionBalanceOwed { get; set; } = 0m;
+
+    /// <summary>Total commission paid historically.</summary>
+    [Column(TypeName = "numeric(18,2)")]
+    public decimal CommissionTotalPaid { get; set; } = 0m;
+
+    /// <summary>GCash/Maya reference submitted by owner to pay off commission balance.</summary>
+    [MaxLength(100)]
+    public string? CommissionPaymentRef { get; set; }
+
+    [MaxLength(500)]
+    public string? CommissionPaymentProofPath { get; set; }
+
+    public DateTime? CommissionPaymentSubmittedAt { get; set; }
+
+    [NotMapped] public bool IsCommissionModel =>
+        string.Equals(BillingModel, "Commission", StringComparison.OrdinalIgnoreCase);
+
+    [NotMapped] public bool IsCommissionPaymentPending =>
+        CommissionPaymentSubmittedAt.HasValue && CommissionBalanceOwed > 0;
+
     // ── Trial ─────────────────────────────────────────────────────────────────
     /// <summary>Length of the free trial in days. Change here to retune.</summary>
     public const int TrialPeriodDays = 30;

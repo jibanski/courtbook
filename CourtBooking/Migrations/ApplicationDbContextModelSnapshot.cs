@@ -161,6 +161,12 @@ namespace CourtBooking.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<decimal?>("CommissionAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("CommissionPaid")
+                        .HasColumnType("boolean");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CourtId");
@@ -261,6 +267,32 @@ namespace CourtBooking.Migrations
                     b.Property<string>("Address")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
+
+                    b.Property<string>("BillingModel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasDefaultValue("Subscription")
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("CommissionBalanceOwed")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("CommissionTotalPaid")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CommissionPaymentRef")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CommissionPaymentProofPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("CommissionPaymentSubmittedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("BrandLogoUrl")
                         .HasColumnType("text");

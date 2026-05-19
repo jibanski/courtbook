@@ -1,0 +1,129 @@
+@{
+    ViewData["Title"] = "Pay Commission Balance";
+    var settings    = ViewBag.Settings as CourtBooking.Models.FacilitySettings;
+    var gcashNum    = ViewBag.GCashNumber as string;
+    var gcashName   = ViewBag.GCashName   as string;
+    var mayaNum     = ViewBag.MayaNumber  as string;
+    var mayaName    = ViewBag.MayaName    as string;
+    var contact     = ViewBag.ContactEmail as string;
+}
+
+<div class="container py-5" style="max-width:620px;">
+
+    <a asp-controller="Admin" asp-action="Index" class="text-muted small text-decoration-none d-inline-block mb-4">
+        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+    </a>
+
+    <h3 class="fw-bold mb-1"><i class="bi bi-percent me-2 text-success"></i>Pay Commission Balance</h3>
+    <p class="text-muted mb-4">Send your accumulated 2% booking commission via GCash or Maya.</p>
+
+    @if (TempData["Success"] is string s)
+    {
+        <div class="alert alert-success">@s</div>
+    }
+
+    <!-- Balance summary -->
+    <div class="card border-0 shadow-sm mb-4" style="background:#f0fff4;">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col">
+                    <div class="text-muted small">Current Balance Owed</div>
+                    <div class="fs-2 fw-bold text-success">₱@settings?.CommissionBalanceOwed.ToString("N2")</div>
+                    <div class="text-muted small">2% of ₱@((settings?.CommissionBalanceOwed / 0.02m ?? 0).ToString("N0")) in confirmed bookings</div>
+                </div>
+                <div class="col-auto">
+                    <i class="bi bi-percent fs-1 text-success opacity-25"></i>
+                </div>
+            </div>
+            @if (settings?.CommissionTotalPaid > 0)
+            {
+                <hr class="my-2" />
+                <div class="text-muted small">Total paid historically: <strong>₱@settings.CommissionTotalPaid.ToString("N2")</strong></div>
+            }
+        </div>
+    </div>
+
+    @if (settings?.CommissionPaymentSubmittedAt.HasValue == true)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-clock me-1"></i>
+            <strong>Payment submitted</strong> on @settings.CommissionPaymentSubmittedAt.Value.AddHours(8).ToString("MMM d, yyyy h:mm tt") PHT
+            — we're verifying it. Balance will be cleared within 24 hours.
+        </div>
+    }
+
+    <!-- Payment instructions -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold bg-white"><i class="bi bi-send me-1 text-primary"></i>Send Payment To</div>
+        <div class="card-body">
+            <div class="row g-3">
+                @if (!string.IsNullOrWhiteSpace(gcashNum))
+                {
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border text-center">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/GCash_Logo.svg/240px-GCash_Logo.svg.png"
+                                 alt="GCash" height="28" class="mb-2" />
+                            <div class="fw-bold">@gcashNum</div>
+                            <div class="text-muted small">@gcashName</div>
+                        </div>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(mayaNum))
+                {
+                    <div class="col-md-6">
+                        <div class="p-3 rounded border text-center">
+                            <div class="fw-bold text-primary mb-2" style="font-size:1.1rem;">Maya</div>
+                            <div class="fw-bold">@mayaNum</div>
+                            <div class="text-muted small">@mayaName</div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <p class="text-muted small mt-3 mb-0">
+                Send <strong>₱@settings?.CommissionBalanceOwed.ToString("N2")</strong> and include your facility name in the payment notes.
+            </p>
+        </div>
+    </div>
+
+    <!-- Submit proof -->
+    <div class="card shadow-sm">
+        <div class="card-header fw-semibold bg-white"><i class="bi bi-upload me-1 text-primary"></i>Submit Payment Proof</div>
+        <div class="card-body">
+            <form method="post" asp-action="Commission" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">GCash / Maya Reference Number</label>
+                    <input type="text" name="referenceNumber" class="form-control"
+                           placeholder="e.g. 2024051900123456" required />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Payment Screenshot</label>
+                    <input type="file" name="proof" class="form-control" accept="image/*,.pdf" required />
+                    <div class="form-text">Upload a screenshot of your completed GCash or Maya payment.</div>
+                </div>
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="alert alert-danger small">
+                        <ul class="mb-0 ps-3">
+                            @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                            {
+                                <li>@err.ErrorMessage</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                <button type="submit" class="btn btn-success w-100 fw-semibold">
+                    <i class="bi bi-check-circle me-1"></i>Submit Payment
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <p class="text-muted small text-center mt-4">
+        Questions? Contact us at <a href="mailto:@contact">@contact</a>
+    </p>
+</div>

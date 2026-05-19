@@ -40,6 +40,7 @@ public class AdminController : Controller
         ViewBag.TotalRevenue    = totalRevenue;
         ViewBag.ActiveCourts    = activeCourts;
         ViewBag.AwaitingPayment = awaitingPayment;
+        ViewBag.FacilitySettings = await GetMySettingsAsync();
 
         var recentBookings = await _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId))
@@ -85,6 +86,16 @@ public class AdminController : Controller
         booking.Status        = BookingStatus.Confirmed;
         booking.PaymentStatus = PaymentStatus.Paid;
         booking.PaidAt        = DateTime.UtcNow;
+
+        // Accrue platform commission for commission-model facilities
+        var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
+        if (settings?.IsCommissionModel == true && booking.TotalPrice > 0)
+        {
+            var commission = Math.Round(booking.TotalPrice * settings.CommissionRate / 100m, 2);
+            booking.CommissionAmount          = commission;
+            settings.CommissionBalanceOwed   += commission;
+        }
+
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Booking #{id} confirmed.";
         return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
