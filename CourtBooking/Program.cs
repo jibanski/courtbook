@@ -47,6 +47,34 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/Account/Login";
 });
 
+// ── External OAuth providers (Google & Facebook) ───────────────────────────
+// Credentials live in environment variables on Railway (Auth__Google__ClientId etc.)
+// If either key is absent the provider is simply skipped — no crash.
+var googleClientId     = builder.Configuration["Auth:Google:ClientId"];
+var googleClientSecret = builder.Configuration["Auth:Google:ClientSecret"];
+var fbAppId            = builder.Configuration["Auth:Facebook:AppId"];
+var fbAppSecret        = builder.Configuration["Auth:Facebook:AppSecret"];
+
+if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
+{
+    builder.Services.AddAuthentication()
+        .AddGoogle(o =>
+        {
+            o.ClientId     = googleClientId;
+            o.ClientSecret = googleClientSecret;
+        });
+}
+
+if (!string.IsNullOrEmpty(fbAppId) && !string.IsNullOrEmpty(fbAppSecret))
+{
+    builder.Services.AddAuthentication()
+        .AddFacebook(o =>
+        {
+            o.AppId     = fbAppId;
+            o.AppSecret = fbAppSecret;
+        });
+}
+
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<KeyGeneratorService>();
 builder.Services.AddScoped<EmailService>();

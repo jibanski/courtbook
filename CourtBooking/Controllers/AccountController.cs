@@ -145,6 +145,134 @@ public class AccountController : Controller
         return RedirectToAction("Index", "Home");
     }
 
+    // ── External (OAuth) Login ─────────────────────────────────────────────
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public IActionResult ExternalLogin(string provider, string? returnUrl = null)
+    {
+        var redirectUrl = Url.Action(nameof(ExternalLoginCallback), "Account", new { returnUrl });
+        var properties  = _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+        return Challenge(properties, provider);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExternalLoginCallback(string? returnUrl = null, string? remoteError = null)
+    {
+        if (remoteError != null)
+        {
+            TempData["Error"] = $"Social login error: {remoteError}";
+            return RedirectToAction(nameof(Login));
+        }
+
+        var info = await _signInManager.GetExternalLoginInfoAsync();
+        if (info == null)
+        {
+            TempData["Error"] = "Could not retrieve social login info. Please try again.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        // Sign in with an existing linked login
+        var signInResult = await _signInManager.ExternalLoginSignInAsync(
+            info.LoginProvider, info.ProviderKey, isPersistent: false, bypassTwoFactor: true);
+
+        if (signInResult.Succeeded)
+        {
+            var existingUser = await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+            return await RedirectAfterSocialLoginAsync(existingUser, returnUrl);
+        }
+
+        // No linked login found — look up by email or create a new account
+        var email = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.Email);
+        if (string.IsNullOrEmpty(email))
+        {
+            TempData["Error"] = "Your social account didn't share an email address. Please register with email instead.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        var userByEmail = await _userManager.FindByEmailAsync(email);
+        if (userByEmail != null)
+        {
+            // Link this social provider to the existing account and sign in
+            await _userManager.AddLoginAsync(userByEmail, info);
+
+            // Persist facility cookie if not already set
+            var cookieSlugExisting = Request.Cookies["facilitySlug"];
+            if (!string.IsNullOrEmpty(cookieSlugExisting) && string.IsNullOrEmpty(userByEmail.PreferredFacilitySlug))
+            {
+                userByEmail.PreferredFacilitySlug = cookieSlugExisting;
+                await _userManager.UpdateAsync(userByEmail);
+            }
+
+            await _signInManager.SignInAsync(userByEmail, isPersistent: false);
+            return await RedirectAfterSocialLoginAsync(userByEmail, returnUrl);
+        }
+
+        // Brand-new user — create a Customer account automatically
+        var firstName = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.GivenName) ?? "";
+        var lastName  = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.Surname)   ?? "";
+        if (string.IsNullOrEmpty(firstName) && string.IsNullOrEmpty(lastName))
+        {
+            var fullName = info.Principal.FindFirstValue(System.Security.Claims.ClaimTypes.Name) ?? email;
+            var parts    = fullName.Trim().Split(' ', 2);
+            firstName    = parts[0];
+            lastName     = parts.Length > 1 ? parts[1] : "";
+        }
+
+        var newUser = new ApplicationUser
+        {
+            UserName                = email,
+            Email                   = email,
+            FirstName               = firstName,
+            LastName                = lastName,
+            EmailConfirmed          = true,
+            PrivacyPolicyAcceptedAt = DateTime.UtcNow
+        };
+
+        var createResult = await _userManager.CreateAsync(newUser);
+        if (!createResult.Succeeded)
+        {
+            TempData["Error"] = "Could not create account. " + string.Join(" ", createResult.Errors.Select(e => e.Description));
+            return RedirectToAction(nameof(Login));
+        }
+
+        await _userManager.AddToRoleAsync(newUser, "Customer");
+        await _userManager.AddLoginAsync(newUser, info);
+
+        var cookieSlug = Request.Cookies["facilitySlug"];
+        if (!string.IsNullOrEmpty(cookieSlug))
+        {
+            newUser.PreferredFacilitySlug = cookieSlug;
+            await _userManager.UpdateAsync(newUser);
+        }
+
+        await _signInManager.SignInAsync(newUser, isPersistent: false);
+        await SendWelcomeEmailAsync(newUser, cookieSlug);
+
+        TempData["Success"] = $"Welcome, {newUser.FirstName}! Your account has been created.";
+
+        if (!string.IsNullOrEmpty(cookieSlug))
+            return RedirectToAction("Index", "Facility", new { slug = cookieSlug });
+
+        return RedirectToAction("Index", "Courts");
+    }
+
+    private async Task<IActionResult> RedirectAfterSocialLoginAsync(ApplicationUser? user, string? returnUrl)
+    {
+        if (user == null) return RedirectToAction(nameof(Login));
+
+        if (await _userManager.IsInRoleAsync(user, "Admin"))
+            return RedirectToAction("Index", "Admin");
+
+        if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)
+            && !returnUrl.StartsWith("/Account") && !returnUrl.StartsWith("/Trial"))
+            return LocalRedirect(returnUrl);
+
+        if (!string.IsNullOrEmpty(user.PreferredFacilitySlug))
+            return RedirectToAction("Index", "Facility", new { slug = user.PreferredFacilitySlug });
+
+        return RedirectToAction("Index", "Courts");
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Forgot / Reset Password — uses Identity's built-in token system.
     // To prevent account enumeration we always show the same confirmation
