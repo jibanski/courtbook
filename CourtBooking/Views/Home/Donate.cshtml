@@ -20,6 +20,85 @@
     bool hasBpi       = !string.IsNullOrWhiteSpace(bpiAccNum)       || !string.IsNullOrWhiteSpace(bpiAccName)       || bpiQrSrc != null;
 }
 
+<style>
+    .qr-thumb {
+        width: 150px;
+        height: 150px;
+        object-fit: contain;
+        background: #fff;
+        padding: 4px;
+        border-radius: 8px;
+        cursor: zoom-in;
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .qr-thumb:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    }
+    /* QR zoom modal */
+    #qrModal .modal-content {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+    }
+    #qrModal .modal-dialog {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+    }
+    #qrModal img {
+        width: min(85vw, 340px);
+        height: min(85vw, 340px);
+        object-fit: contain;
+        background: #fff;
+        border-radius: 16px;
+        padding: 12px;
+        box-shadow: 0 8px 40px rgba(0,0,0,.45);
+        display: block;
+        margin: 0 auto;
+    }
+    #qrModal .qr-label {
+        text-align: center;
+        color: #fff;
+        font-weight: 600;
+        font-size: 1rem;
+        margin-top: 12px;
+        text-shadow: 0 1px 4px rgba(0,0,0,.6);
+    }
+    #qrModal .btn-close-qr {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+        background: rgba(255,255,255,.15);
+        border: none;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 1.2rem;
+        cursor: pointer;
+        backdrop-filter: blur(4px);
+    }
+    #qrModal .btn-close-qr:hover { background: rgba(255,255,255,.3); }
+</style>
+
+<!-- QR Zoom Modal -->
+<div id="qrModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);"
+     onclick="closeQrModal()">
+    <button class="btn-close-qr" onclick="closeQrModal()" aria-label="Close">
+        <i class="bi bi-x-lg"></i>
+    </button>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:24px;">
+        <img id="qrModalImg" src="" alt="QR Code" onclick="event.stopPropagation()" />
+        <div id="qrModalLabel" class="qr-label"></div>
+        <div style="color:rgba(255,255,255,.6);font-size:.8rem;margin-top:8px;">Tap outside to close</div>
+    </div>
+</div>
+
 <section class="py-5 bg-light min-vh-100">
     <div class="container" style="max-width:640px;">
 
@@ -72,9 +151,12 @@
                             @if (gcashQrSrc != null)
                             {
                                 <img src="@gcashQrSrc" alt="GCash QR Code"
-                                     class="mt-3 d-block mx-auto rounded"
-                                     style="width:150px;height:150px;object-fit:contain;background:#fff;padding:4px;" />
-                                <div class="text-muted small mt-1">Scan to pay</div>
+                                     class="qr-thumb mt-3 d-block mx-auto"
+                                     onclick="openQrModal(this,'GCash')"
+                                     title="Tap to zoom" />
+                                <div class="text-muted small mt-1">
+                                    <i class="bi bi-zoom-in me-1"></i>Tap to scan
+                                </div>
                             }
                         </div>
                     </div>
@@ -86,9 +168,12 @@
                             @if (mayaQrSrc != null)
                             {
                                 <img src="@mayaQrSrc" alt="Maya QR Code"
-                                     class="mt-3 d-block mx-auto rounded"
-                                     style="width:150px;height:150px;object-fit:contain;background:#fff;padding:4px;" />
-                                <div class="text-muted small mt-1">Scan to pay</div>
+                                     class="qr-thumb mt-3 d-block mx-auto"
+                                     onclick="openQrModal(this,'Maya')"
+                                     title="Tap to zoom" />
+                                <div class="text-muted small mt-1">
+                                    <i class="bi bi-zoom-in me-1"></i>Tap to scan
+                                </div>
                             }
                         </div>
                     </div>
@@ -126,9 +211,12 @@
                                     @if (metrobankQrSrc != null)
                                     {
                                         <img src="@metrobankQrSrc" alt="Metrobank QR Code"
-                                             class="mt-3 d-block mx-auto rounded"
-                                             style="width:150px;height:150px;object-fit:contain;background:#fff;padding:4px;" />
-                                        <div class="text-muted small mt-1">Scan to pay</div>
+                                             class="qr-thumb mt-3 d-block mx-auto"
+                                             onclick="openQrModal(this,'Metrobank')"
+                                             title="Tap to zoom" />
+                                        <div class="text-muted small mt-1">
+                                            <i class="bi bi-zoom-in me-1"></i>Tap to scan
+                                        </div>
                                     }
                                 </div>
                             </div>
@@ -149,9 +237,12 @@
                                     @if (bpiQrSrc != null)
                                     {
                                         <img src="@bpiQrSrc" alt="BPI QR Code"
-                                             class="mt-3 d-block mx-auto rounded"
-                                             style="width:150px;height:150px;object-fit:contain;background:#fff;padding:4px;" />
-                                        <div class="text-muted small mt-1">Scan to pay</div>
+                                             class="qr-thumb mt-3 d-block mx-auto"
+                                             onclick="openQrModal(this,'BPI')"
+                                             title="Tap to zoom" />
+                                        <div class="text-muted small mt-1">
+                                            <i class="bi bi-zoom-in me-1"></i>Tap to scan
+                                        </div>
                                     }
                                 </div>
                             </div>
@@ -180,3 +271,34 @@
 
     </div>
 </section>
+
+<script>
+    function openQrModal(img, label) {
+        document.getElementById('qrModalImg').src = img.src;
+        document.getElementById('qrModalLabel').textContent = label + ' QR Code';
+        const modal = document.getElementById('qrModal');
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        // animate in
+        modal.style.opacity = '0';
+        requestAnimationFrame(() => {
+            modal.style.transition = 'opacity .2s ease';
+            modal.style.opacity = '1';
+        });
+    }
+
+    function closeQrModal() {
+        const modal = document.getElementById('qrModal');
+        modal.style.opacity = '0';
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modal.style.transition = '';
+            document.body.style.overflow = '';
+        }, 200);
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeQrModal();
+    });
+</script>
