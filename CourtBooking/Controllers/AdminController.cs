@@ -329,6 +329,18 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Settings(FacilitySettings model, IFormFile? logo)
     {
+        // These properties are not part of the settings form — remove any binding
+        // errors caused by nullable-reference-type implicit [Required] checks.
+        foreach (var key in new[] {
+            nameof(FacilitySettings.BillingModel),
+            nameof(FacilitySettings.OwnerId),
+            nameof(FacilitySettings.CommissionRate),
+            nameof(FacilitySettings.CommissionBalanceOwed),
+            nameof(FacilitySettings.CommissionTotalPaid),
+            nameof(FacilitySettings.BrandLogoUrl),
+        })
+            ModelState.Remove(key);
+
         if (!ModelState.IsValid) return View(model);
 
         var settings = await GetMySettingsAsync();
