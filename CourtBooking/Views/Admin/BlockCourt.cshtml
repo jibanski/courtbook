@@ -1,0 +1,261 @@
+@model List<CourtBooking.Models.CourtBlock>
+@{
+    ViewData["Title"] = "Block Court";
+    var court = ViewBag.Court as CourtBooking.Models.Court;
+    var today = DateOnly.FromDateTime(DateTime.Today);
+    var todayStr = today.ToString("yyyy-MM-dd");
+
+    // Split into upcoming / expired blocks for display
+    var upcoming = Model.Where(b => b.EndDate >= today).ToList();
+    var past     = Model.Where(b => b.EndDate <  today).ToList();
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0" style="font-size:.8rem;">
+                <li class="breadcrumb-item">
+                    <a asp-action="Courts" style="color:var(--cb-text-3);text-decoration:none;">Courts</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a asp-action="EditCourt" asp-route-id="@court!.Id" style="color:var(--cb-text-3);text-decoration:none;">@court.Name</a>
+                </li>
+                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">Block Periods</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-3">
+            <span class="d-inline-flex align-items-center justify-content-center rounded-3"
+                  style="width:48px;height:48px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);flex-shrink:0;">
+                <i class="bi bi-slash-circle fs-4" style="color:#f87171;"></i>
+            </span>
+            <div>
+                <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">@court!.Name — Block Periods</h1>
+                <p class="mb-0" style="color:var(--cb-text-3);font-size:.875rem;">
+                    Close the court for a date/time range — maintenance, events, holidays, etc.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-10">
+
+            @* ── Alerts ── *@
+            @if (TempData["Success"] is string succ)
+            {
+                <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
+                    <i class="bi bi-check-circle-fill"></i> @succ
+                </div>
+            }
+            @if (TempData["Error"] is string err)
+            {
+                <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
+                    <i class="bi bi-exclamation-triangle-fill"></i> @err
+                </div>
+            }
+
+            @* ── Add New Block ── *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
+                        <i class="bi bi-plus-circle me-2" style="color:var(--cb-lime);"></i>Add Block Period
+                    </h6>
+                    <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                        All hours between the start and end times will be unavailable for booking.
+                    </p>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="AddCourtBlock" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="courtId" value="@court.Id" />
+
+                        <div class="row g-3">
+                            @* Start *@
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Start Date</label>
+                                <input type="date" name="startDate" class="form-control"
+                                       value="@todayStr" min="@todayStr" required />
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Start Hour</label>
+                                <select name="startHour" class="form-select">
+                                    @for (int h = 0; h < 24; h++)
+                                    {
+                                        <option value="@h">@h.ToString("D2"):00</option>
+                                    }
+                                </select>
+                            </div>
+
+                            @* End *@
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">End Date</label>
+                                <input type="date" name="endDate" class="form-control"
+                                       value="@todayStr" min="@todayStr" required />
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">End Hour</label>
+                                <select name="endHour" class="form-select">
+                                    @for (int h = 1; h <= 24; h++)
+                                    {
+                                        <option value="@h" selected="@(h == 24)">@h.ToString("D2"):00</option>
+                                    }
+                                </select>
+                            </div>
+
+                            @* Reason *@
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Reason <span class="text-muted fw-normal">(optional)</span></label>
+                                <input type="text" name="reason" class="form-control"
+                                       placeholder="e.g. Maintenance, Private event, Public holiday…"
+                                       maxlength="300" />
+                            </div>
+
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-danger fw-semibold">
+                                    <i class="bi bi-slash-circle me-1"></i>Block This Period
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            @* ── Active / Upcoming Blocks ── *@
+            <div class="card mb-4">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
+                        <i class="bi bi-calendar-x me-2" style="color:#f87171;"></i>Active &amp; Upcoming Blocks
+                        @if (upcoming.Any())
+                        {
+                            <span class="badge ms-1" style="background:rgba(239,68,68,0.15);color:#f87171;font-size:.7rem;">@upcoming.Count</span>
+                        }
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    @if (!upcoming.Any())
+                    {
+                        <p class="p-4 mb-0" style="color:var(--cb-text-3);font-size:.825rem;">
+                            <i class="bi bi-check-circle me-1" style="color:#4ade80;"></i>No active blocks — this court is fully open.
+                        </p>
+                    }
+                    else
+                    {
+                        <ul class="list-group list-group-flush">
+                            @foreach (var blk in upcoming)
+                            {
+                                bool isOngoing = blk.StartDate <= today && blk.EndDate >= today;
+                                <li class="list-group-item d-flex align-items-start justify-content-between gap-3 py-3">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <div class="d-flex align-items-center justify-content-center rounded-2 flex-shrink-0"
+                                             style="width:40px;height:40px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);">
+                                            <i class="bi bi-slash-circle" style="color:#f87171;"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-semibold" style="font-size:.9rem;">
+                                                @blk.StartLabel
+                                                <span style="color:var(--cb-text-3);font-weight:400;"> → </span>
+                                                @blk.EndLabel
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(blk.Reason))
+                                            {
+                                                <div style="font-size:.8rem;color:var(--cb-text-3);">@blk.Reason</div>
+                                            }
+                                            <div class="mt-1 d-flex gap-2 flex-wrap">
+                                                @if (isOngoing)
+                                                {
+                                                    <span class="badge" style="background:rgba(239,68,68,0.15);color:#f87171;font-size:.68rem;">
+                                                        <i class="bi bi-record-circle me-1"></i>Ongoing
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24;font-size:.68rem;">
+                                                        <i class="bi bi-clock me-1"></i>Upcoming
+                                                    </span>
+                                                }
+                                                @if (blk.IsSingleDay)
+                                                {
+                                                    <span class="badge" style="background:var(--cb-surface-2);color:var(--cb-text-3);font-size:.68rem;">Single day</span>
+                                                }
+                                                else
+                                                {
+                                                    var days = (blk.EndDate.ToDateTime(TimeOnly.MinValue) - blk.StartDate.ToDateTime(TimeOnly.MinValue)).Days + 1;
+                                                    <span class="badge" style="background:var(--cb-surface-2);color:var(--cb-text-3);font-size:.68rem;">@days days</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <form asp-action="DeleteCourtBlock" method="post"
+                                          onsubmit="return confirm('Remove this block? Customers will be able to book these hours again.')">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id"      value="@blk.Id" />
+                                        <input type="hidden" name="courtId" value="@court.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger flex-shrink-0" title="Remove block">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+
+            @* ── Past Blocks (collapsed) ── *@
+            @if (past.Any())
+            {
+                <div class="card mb-4">
+                    <div class="card-header" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#pastBlocks">
+                        <h6 class="mb-0 fw-bold d-flex align-items-center justify-content-between" style="font-size:.875rem;">
+                            <span>
+                                <i class="bi bi-clock-history me-2" style="color:var(--cb-text-3);"></i>Past Blocks
+                                <span class="badge ms-1" style="background:var(--cb-surface-2);color:var(--cb-text-3);font-size:.7rem;">@past.Count</span>
+                            </span>
+                            <i class="bi bi-chevron-down" style="color:var(--cb-text-3);font-size:.75rem;"></i>
+                        </h6>
+                    </div>
+                    <div id="pastBlocks" class="collapse">
+                        <ul class="list-group list-group-flush">
+                            @foreach (var blk in past)
+                            {
+                                <li class="list-group-item d-flex align-items-center justify-content-between gap-3 py-3"
+                                    style="opacity:.65;">
+                                    <div>
+                                        <div class="fw-semibold" style="font-size:.875rem;color:var(--cb-text-2);">
+                                            @blk.StartLabel → @blk.EndLabel
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(blk.Reason))
+                                        {
+                                            <div style="font-size:.78rem;color:var(--cb-text-3);">@blk.Reason</div>
+                                        }
+                                    </div>
+                                    <form asp-action="DeleteCourtBlock" method="post"
+                                          onsubmit="return confirm('Delete this past block record?')">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id"      value="@blk.Id" />
+                                        <input type="hidden" name="courtId" value="@court.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Delete record">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+
+            <div class="d-flex gap-2">
+                <a asp-action="ManageSlots" asp-route-id="@court.Id" class="btn btn-outline-secondary">
+                    <i class="bi bi-calendar-week me-1"></i>Manage Slots
+                </a>
+                <a asp-action="Courts" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Courts
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>

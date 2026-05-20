@@ -5,6 +5,7 @@
     var selDate      = (DateOnly)ViewBag.Date;
     var bookedHours  = ViewBag.BookedHours  as HashSet<int> ?? new HashSet<int>();
     var blockedHours = ViewBag.BlockedHours as HashSet<int> ?? new HashSet<int>();
+    var rangeBanners = ViewBag.ActiveRangeBlocks as List<CourtBooking.Models.CourtBlock> ?? new();
     var prevDate     = selDate.AddDays(-1);
     var nextDate     = selDate.AddDays(1);
     var today        = DateOnly.FromDateTime(DateTime.Today);
@@ -81,6 +82,40 @@
                     </div>
                 </div>
             </div>
+
+            @* ── Range-block banner (when a CourtBlock covers the selected date) ── *@
+            @if (rangeBanners.Any())
+            {
+                <div class="alert mb-4 d-flex align-items-start gap-3"
+                     style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;color:var(--cb-text-2);">
+                    <i class="bi bi-slash-circle-fill flex-shrink-0 mt-1" style="color:#f87171;font-size:1.1rem;"></i>
+                    <div class="flex-fill">
+                        <div class="fw-bold mb-1" style="font-size:.875rem;color:#f87171;">
+                            Court blocked on this date
+                        </div>
+                        @foreach (var blk in rangeBanners)
+                        {
+                            var (from, to) = blk.HoursOn(selDate);
+                            <div style="font-size:.825rem;">
+                                @from.ToString("D2"):00 – @to.ToString("D2"):00
+                                @if (!string.IsNullOrWhiteSpace(blk.Reason))
+                                {
+                                    <span style="color:var(--cb-text-3);"> — @blk.Reason</span>
+                                }
+                                <span style="color:var(--cb-text-3);font-size:.75rem;">
+                                    (full range: @blk.StartLabel → @blk.EndLabel)
+                                </span>
+                            </div>
+                        }
+                        <div class="mt-2">
+                            <a asp-action="BlockCourt" asp-route-id="@court!.Id"
+                               class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-pencil me-1"></i>Manage Blocks
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
 
             @* ── Section 1: Hourly Availability Grid ── *@
             <div class="card mb-4">

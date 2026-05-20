@@ -149,6 +149,47 @@ using (var scope = app.Services.CreateScope())
 
     db.Database.Migrate();
 
+    // ── Ensure CourtBlocks table exists ──────────────────────────────────
+    // Added after the initial schema; created via raw SQL so no migration
+    // file is required (project has no committed migrations).
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtBlocks"" (
+                    ""Id""        serial                      PRIMARY KEY,
+                    ""CourtId""   integer                     NOT NULL,
+                    ""StartDate"" date                        NOT NULL,
+                    ""StartHour"" integer                     NOT NULL,
+                    ""EndDate""   date                        NOT NULL,
+                    ""EndHour""   integer                     NOT NULL,
+                    ""Reason""    character varying(300)      NULL,
+                    ""CreatedAt"" timestamp with time zone    NOT NULL DEFAULT NOW(),
+                    CONSTRAINT ""FK_CourtBlocks_Courts_CourtId""
+                        FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+        }
+        else
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtBlocks"" (
+                    ""Id""        INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""CourtId""   INTEGER  NOT NULL,
+                    ""StartDate"" TEXT     NOT NULL,
+                    ""StartHour"" INTEGER  NOT NULL,
+                    ""EndDate""   TEXT     NOT NULL,
+                    ""EndHour""   INTEGER  NOT NULL,
+                    ""Reason""    TEXT     NULL,
+                    ""CreatedAt"" TEXT     NOT NULL DEFAULT (datetime('now')),
+                    FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+        }
+    }
+    catch { /* table already exists or db not ready — non-fatal */ }
+
     foreach (var role in new[] { "Admin", "Customer" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));

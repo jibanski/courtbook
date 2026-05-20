@@ -171,10 +171,16 @@ public class AdminController : Controller
             .SelectMany(s => Enumerable.Range(s.StartHour, s.EndHour - s.StartHour))
             .ToHashSet();
 
-        ViewBag.Court        = court;
-        ViewBag.Date         = selectedDate;
-        ViewBag.BookedHours  = bookedHours.ToHashSet();
-        ViewBag.BlockedHours = blockedHours;
+        // Date/time range blocks that cover the selected date (for banner display)
+        var activeRangeBlocks = await _db.CourtBlocks
+            .Where(b => b.CourtId == id && b.StartDate <= selectedDate && b.EndDate >= selectedDate)
+            .ToListAsync();
+
+        ViewBag.Court             = court;
+        ViewBag.Date              = selectedDate;
+        ViewBag.BookedHours       = bookedHours.ToHashSet();
+        ViewBag.BlockedHours      = blockedHours;
+        ViewBag.ActiveRangeBlocks = activeRangeBlocks;
         return View(slots);
     }
 
@@ -498,6 +504,70 @@ public class AdminController : Controller
             .OrderBy(s => s.DisplayOrder).ThenBy(s => s.Name)
             .Select(s => s.Name)
             .ToListAsync();
+    }
+
+    // ── Court Date/Time Range Blocks ─────────────────────────────────────────
+
+    public async Task<IActionResult> BlockCourt(int id)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == id);
+        if (court is null) return NotFound();
+
+        var blocks = await _db.CourtBlocks
+            .Where(b => b.CourtId == id)
+            .OrderByDescending(b => b.StartDate).ThenByDescending(b => b.StartHour)
+            .ToListAsync();
+
+        ViewBag.Court = court;
+        return View(blocks);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddCourtBlock(int courtId,
+        DateOnly startDate, int startHour,
+        DateOnly endDate,   int endHour,
+        string?  reason)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        // Basic validation
+        var startDt = startDate.ToDateTime(new TimeOnly(startHour, 0));
+        var endDt   = endDate.ToDateTime(new TimeOnly(endHour,   0));
+        if (endDt <= startDt)
+        {
+            TempData["Error"] = "End must be after start.";
+            return RedirectToAction(nameof(BlockCourt), new { id = courtId });
+        }
+
+        _db.CourtBlocks.Add(new CourtBlock
+        {
+            CourtId   = courtId,
+            StartDate = startDate,
+            StartHour = startHour,
+            EndDate   = endDate,
+            EndHour   = endHour,
+            Reason    = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
+        });
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Court blocked from {startDate:MMM d} {startHour:D2}:00 to {endDate:MMM d} {endHour:D2}:00.";
+        return RedirectToAction(nameof(BlockCourt), new { id = courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteCourtBlock(int id, int courtId)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var blk = await _db.CourtBlocks.FirstOrDefaultAsync(b =>
+            b.Id == id && myCourtIds.Contains(b.CourtId));
+        if (blk is not null)
+        {
+            _db.CourtBlocks.Remove(blk);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Block removed.";
+        }
+        return RedirectToAction(nameof(BlockCourt), new { id = courtId });
     }
 
     [HttpPost, ValidateAntiForgeryToken]

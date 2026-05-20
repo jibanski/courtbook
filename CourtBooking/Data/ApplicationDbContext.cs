@@ -13,6 +13,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Sport> Sports { get; set; }
     public DbSet<FacilitySettings> FacilitySettings { get; set; }
     public DbSet<CourtTimeSlot> CourtTimeSlots { get; set; }
+    public DbSet<CourtBlock> CourtBlocks { get; set; }
     public DbSet<Review> Reviews { get; set; }
     public DbSet<PlatformConfig> PlatformConfig { get; set; }
 
@@ -36,6 +37,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(s => s.Court)
             .WithMany(c => c.TimeSlots)
             .HasForeignKey(s => s.CourtId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CourtBlock>()
+            .HasOne(b => b.Court)
+            .WithMany()
+            .HasForeignKey(b => b.CourtId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Sport>().HasData(

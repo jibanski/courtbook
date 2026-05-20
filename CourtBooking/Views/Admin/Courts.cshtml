@@ -55,13 +55,23 @@
                                 </span>
                             </td>
                             <td>
-                                <div class="d-flex gap-1">
-                                    <a asp-action="EditCourt" asp-route-id="@court.Id" class="btn btn-sm btn-outline-primary">
+                                <div class="d-flex gap-1 flex-wrap">
+                                    <a asp-action="EditCourt" asp-route-id="@court.Id"
+                                       class="btn btn-sm btn-outline-primary" title="Edit court">
                                         <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a asp-action="ManageSlots" asp-route-id="@court.Id"
+                                       class="btn btn-sm btn-outline-secondary" title="Manage availability">
+                                        <i class="bi bi-calendar-week"></i>
+                                    </a>
+                                    <a asp-action="BlockCourt" asp-route-id="@court.Id"
+                                       class="btn btn-sm btn-outline-danger" title="Block date/time periods">
+                                        <i class="bi bi-slash-circle"></i>
                                     </a>
                                     <form asp-action="ToggleCourt" asp-route-id="@court.Id" method="post">
                                         @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm @(court.IsActive ? "btn-outline-danger" : "btn-outline-success")">
+                                        <button type="submit" class="btn btn-sm @(court.IsActive ? "btn-outline-warning" : "btn-outline-success")"
+                                                title="@(court.IsActive ? "Deactivate" : "Activate") court">
                                             <i class="bi bi-@(court.IsActive ? "toggle-on" : "toggle-off")"></i>
                                         </button>
                                     </form>
