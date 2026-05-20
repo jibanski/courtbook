@@ -31,8 +31,10 @@ public class DevController : Controller
         _db          = db;
         _userManager = userManager;
         _email       = email;
-        _devPassword = config["Dev:Password"]
-            ?? throw new InvalidOperationException("Dev:Password is not configured.");
+        // Empty string means /Dev routes are locked out (password gate always rejects).
+        // Set Dev:Password via appsettings.Development.local.json locally,
+        // or the Dev__Password environment variable on Railway.
+        _devPassword = config["Dev:Password"] ?? string.Empty;
     }
 
     // GET /Dev/KeyGen
@@ -554,7 +556,10 @@ public class DevController : Controller
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // Returns false when _devPassword is empty (not configured) so all /Dev
+    // routes silently reject — prevents accidental open access in production.
     private bool IsValidPassword(string? password) =>
+        !string.IsNullOrEmpty(_devPassword) &&
         !string.IsNullOrWhiteSpace(password) &&
         string.Equals(password.Trim(), _devPassword, StringComparison.Ordinal);
 }

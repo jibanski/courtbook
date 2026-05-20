@@ -23,8 +23,8 @@ public class Court
 
     public string? ImageUrl { get; set; }
 
-    public int OpeningHour { get; set; } = 6;
-    public int ClosingHour { get; set; } = 22;
+    public int OpeningHour { get; set; } = 0;
+    public int ClosingHour { get; set; } = 24;
 
     /// <summary>The admin user who created/owns this court.</summary>
     public string? OwnerId { get; set; }
