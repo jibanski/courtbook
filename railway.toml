@@ -1,0 +1,7 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+startCommand = "dotnet CourtBooking.dll"
+healthcheckPath = "/"
+restartPolicyType = "on_failure"
