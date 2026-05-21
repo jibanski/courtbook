@@ -120,22 +120,20 @@
 
             <!-- Date picker -->
             <div class="card cb-fade-up-delay-1">
-                <div class="card-body p-4">
+                <div class="card-body p-3">
                     <h6 class="mb-3 fw-bold" style="font-size:.875rem;color:var(--cb-text-2);letter-spacing:.05em;">
                         <i class="bi bi-calendar3 me-2" style="color:var(--cb-lime);"></i>SELECT DATE
                     </h6>
-                    <form method="get">
-                        <div class="d-flex gap-2">
-                            <input type="date" name="date" class="form-control"
-                                   value="@Model.Date.ToString("yyyy-MM-dd")"
-                                   min="@DateTime.Today.ToString("yyyy-MM-dd")"
-                                   max="@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")" />
-                            <button type="submit" class="btn btn-primary px-3">Go</button>
-                        </div>
+                    <!-- Hidden form — submitted by JS when a day is picked -->
+                    <form method="get" id="datePickerForm">
+                        <input type="hidden" name="date" id="datePickerInput"
+                               value="@Model.Date.ToString("yyyy-MM-dd")" />
                     </form>
+                    <!-- Inline Flatpickr calendar renders here -->
+                    <div id="calendarInline" class="cb-calendar-wrap"></div>
                     <div class="mt-3 p-2 rounded-2 text-center" style="background:var(--cb-surface-2);font-size:.8rem;color:var(--cb-text-2);">
                         <i class="bi bi-calendar-event me-1" style="color:var(--cb-lime);"></i>
-                        <strong>@Model.Date.ToString("dddd, MMMM d, yyyy")</strong>
+                        <strong id="selectedDateLabel">@Model.Date.ToString("dddd, MMMM d, yyyy")</strong>
                     </div>
                 </div>
             </div>
@@ -320,4 +318,126 @@
         "pickleball"   => "bi-record2-fill",
         _              => "bi-trophy-fill"
     };
+}
+
+@section Scripts {
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+<style>
+    /* ── Flatpickr inline calendar — CourtBook dark theme ── */
+    .cb-calendar-wrap .flatpickr-calendar {
+        background: transparent;
+        box-shadow: none;
+        border: none;
+        width: 100%;
+    }
+    .cb-calendar-wrap .flatpickr-months {
+        background: var(--cb-surface-2);
+        border-radius: 10px 10px 0 0;
+        padding: .25rem 0;
+    }
+    .cb-calendar-wrap .flatpickr-month,
+    .cb-calendar-wrap .flatpickr-current-month,
+    .cb-calendar-wrap .flatpickr-monthDropdown-months,
+    .cb-calendar-wrap .numInputWrapper span,
+    .cb-calendar-wrap .cur-year {
+        color: var(--cb-text-1) !important;
+        fill: var(--cb-text-1) !important;
+    }
+    .cb-calendar-wrap .flatpickr-monthDropdown-months {
+        background: var(--cb-surface-2);
+    }
+    .cb-calendar-wrap .flatpickr-prev-month svg,
+    .cb-calendar-wrap .flatpickr-next-month svg {
+        fill: var(--cb-text-2) !important;
+    }
+    .cb-calendar-wrap .flatpickr-prev-month:hover svg,
+    .cb-calendar-wrap .flatpickr-next-month:hover svg {
+        fill: var(--cb-lime) !important;
+    }
+    .cb-calendar-wrap .flatpickr-innerContainer {
+        background: var(--cb-surface-2);
+        border-radius: 0 0 10px 10px;
+        padding: .25rem .5rem .5rem;
+    }
+    .cb-calendar-wrap .flatpickr-weekdays {
+        background: transparent;
+    }
+    .cb-calendar-wrap span.flatpickr-weekday {
+        background: transparent;
+        color: var(--cb-text-3);
+        font-size: .72rem;
+        font-weight: 600;
+        letter-spacing: .04em;
+    }
+    .cb-calendar-wrap .flatpickr-days {
+        width: 100% !important;
+        border: none !important;
+    }
+    .cb-calendar-wrap .dayContainer {
+        width: 100% !important;
+        min-width: unset !important;
+        max-width: unset !important;
+        justify-content: space-around;
+    }
+    .cb-calendar-wrap .flatpickr-day {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        color: var(--cb-text-2);
+        font-size: .82rem;
+        max-width: 36px;
+        height: 36px;
+        line-height: 34px;
+        transition: background .15s, color .15s, border-color .15s;
+        flex-basis: 13%;
+    }
+    .cb-calendar-wrap .flatpickr-day:hover:not(.flatpickr-disabled):not(.prevMonthDay):not(.nextMonthDay) {
+        background: var(--cb-surface-3);
+        border-color: var(--cb-border);
+        color: var(--cb-text-1);
+    }
+    .cb-calendar-wrap .flatpickr-day.selected,
+    .cb-calendar-wrap .flatpickr-day.selected:hover {
+        background: var(--cb-lime);
+        border-color: var(--cb-lime);
+        color: #0a0a0a;
+        font-weight: 700;
+    }
+    .cb-calendar-wrap .flatpickr-day.today:not(.selected) {
+        border-color: var(--cb-lime);
+        color: var(--cb-lime);
+        font-weight: 700;
+    }
+    .cb-calendar-wrap .flatpickr-day.flatpickr-disabled,
+    .cb-calendar-wrap .flatpickr-day.prevMonthDay,
+    .cb-calendar-wrap .flatpickr-day.nextMonthDay {
+        color: var(--cb-text-3);
+        opacity: .3;
+    }
+    .cb-calendar-wrap .numInputWrapper:hover {
+        background: transparent;
+    }
+    .cb-calendar-wrap .numInputWrapper span {
+        border-color: var(--cb-border) !important;
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+(function () {
+    var minDate = "@DateTime.Today.ToString("yyyy-MM-dd")";
+    var maxDate = "@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")";
+    var current = "@Model.Date.ToString("yyyy-MM-dd")";
+
+    flatpickr("#calendarInline", {
+        inline:      true,
+        defaultDate: current,
+        minDate:     minDate,
+        maxDate:     maxDate,
+        onChange: function (selectedDates, dateStr) {
+            document.getElementById("datePickerInput").value = dateStr;
+            document.getElementById("datePickerForm").submit();
+        }
+    });
+})();
+</script>
 }
