@@ -159,12 +159,18 @@ using (var scope = app.Services.CreateScope())
                 "ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"CheckoutSessionId\" character varying(100) NULL");
             await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"PayMongoSecretKey\" character varying(100) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"GCashQrCodePath\" character varying(300) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"MayaQrCodePath\" character varying(300) NULL");
         }
         else
         {
             // SQLite: ADD COLUMN IF NOT EXISTS isn't supported; ignore errors
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"CheckoutSessionId\" TEXT NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"PayMongoSecretKey\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"GCashQrCodePath\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"MayaQrCodePath\" TEXT NULL"); } catch { }
         }
     }
     catch { /* columns already exist — no-op */ }

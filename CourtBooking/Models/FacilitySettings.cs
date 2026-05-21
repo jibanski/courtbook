@@ -27,11 +27,19 @@ public class FacilitySettings
     [MaxLength(100)]
     public string? GCashName { get; set; }
 
+    /// <summary>Path to the uploaded GCash QR code image (e.g. /uploads/qr/gcash_xxx.png).</summary>
+    [MaxLength(300)]
+    public string? GCashQrCodePath { get; set; }
+
     [MaxLength(20)]
     public string? MayaNumber { get; set; }
 
     [MaxLength(100)]
     public string? MayaName { get; set; }
+
+    /// <summary>Path to the uploaded Maya QR code image (e.g. /uploads/qr/maya_xxx.png).</summary>
+    [MaxLength(300)]
+    public string? MayaQrCodePath { get; set; }
 
     [MaxLength(500)]
     public string? PaymentInstructions { get; set; }

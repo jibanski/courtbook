@@ -2,8 +2,10 @@
 @{
     ViewData["Title"] = "Complete Payment";
     var settings    = ViewBag.Settings as CourtBooking.Models.FacilitySettings ?? new CourtBooking.Models.FacilitySettings();
-    bool hasGCash   = !string.IsNullOrWhiteSpace(settings.GCashNumber);
-    bool hasMaya    = !string.IsNullOrWhiteSpace(settings.MayaNumber);
+    bool hasGCash      = !string.IsNullOrWhiteSpace(settings.GCashNumber);
+    bool hasMaya       = !string.IsNullOrWhiteSpace(settings.MayaNumber);
+    bool hasGCashQr    = !string.IsNullOrWhiteSpace(settings.GCashQrCodePath);
+    bool hasMayaQr     = !string.IsNullOrWhiteSpace(settings.MayaQrCodePath);
     bool hasCardPay = ViewBag.HasCardPay is true;
 }
 
@@ -127,13 +129,26 @@
                             {
                                 <div class="col-sm-6">
                                     <div class="border rounded p-3 text-center bg-light h-100">
-                                        <div class="fw-bold text-primary mb-1">
+                                        <div class="fw-bold text-primary mb-2">
                                             <i class="bi bi-phone me-1"></i>GCash
                                         </div>
+                                        @if (hasGCashQr)
+                                        {
+                                            <img src="@settings.GCashQrCodePath" alt="GCash QR Code"
+                                                 style="max-width:200px;width:100%;border-radius:8px;margin-bottom:.5rem;" />
+                                        }
                                         <div class="fs-5 fw-bold">@settings.GCashNumber</div>
                                         @if (!string.IsNullOrWhiteSpace(settings.GCashName))
                                         {
                                             <div class="text-muted small">@settings.GCashName</div>
+                                        }
+                                        @if (hasGCashQr)
+                                        {
+                                            <div class="mt-2">
+                                                <a href="@settings.GCashQrCodePath" download class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-download me-1"></i>Save QR Code
+                                                </a>
+                                            </div>
                                         }
                                     </div>
                                 </div>
@@ -142,13 +157,26 @@
                             {
                                 <div class="col-sm-6">
                                     <div class="border rounded p-3 text-center bg-light h-100">
-                                        <div class="fw-bold text-success mb-1">
+                                        <div class="fw-bold text-success mb-2">
                                             <i class="bi bi-phone me-1"></i>Maya
                                         </div>
+                                        @if (hasMayaQr)
+                                        {
+                                            <img src="@settings.MayaQrCodePath" alt="Maya QR Code"
+                                                 style="max-width:200px;width:100%;border-radius:8px;margin-bottom:.5rem;" />
+                                        }
                                         <div class="fs-5 fw-bold">@settings.MayaNumber</div>
                                         @if (!string.IsNullOrWhiteSpace(settings.MayaName))
                                         {
                                             <div class="text-muted small">@settings.MayaName</div>
+                                        }
+                                        @if (hasMayaQr)
+                                        {
+                                            <div class="mt-2">
+                                                <a href="@settings.MayaQrCodePath" download class="btn btn-sm btn-outline-success">
+                                                    <i class="bi bi-download me-1"></i>Save QR Code
+                                                </a>
+                                            </div>
                                         }
                                     </div>
                                 </div>

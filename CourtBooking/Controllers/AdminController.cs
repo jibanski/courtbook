@@ -392,7 +392,8 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Settings(FacilitySettings model, IFormFile? logo)
+    public async Task<IActionResult> Settings(FacilitySettings model, IFormFile? logo,
+        IFormFile? gcashQr, IFormFile? mayaQr)
     {
         // These properties are not part of the settings form — remove any binding
         // errors caused by nullable-reference-type implicit [Required] checks.
@@ -422,6 +423,11 @@ public class AdminController : Controller
             settings.GCashName           = model.GCashName;
             settings.MayaNumber          = model.MayaNumber;
             settings.MayaName            = model.MayaName;
+
+            if (gcashQr is { Length: > 0 })
+                settings.GCashQrCodePath = await SaveQrCodeAsync(gcashQr, "gcash", settings.GCashQrCodePath);
+            if (mayaQr is { Length: > 0 })
+                settings.MayaQrCodePath  = await SaveQrCodeAsync(mayaQr,  "maya",  settings.MayaQrCodePath);
             settings.PaymentInstructions = model.PaymentInstructions;
             settings.PayMongoSecretKey   = string.IsNullOrWhiteSpace(model.PayMongoSecretKey)
                                            ? null : model.PayMongoSecretKey.Trim();
@@ -453,6 +459,20 @@ public class AdminController : Controller
         await _db.SaveChangesAsync();
         TempData["Success"] = "Settings saved.";
         return RedirectToAction(nameof(Settings));
+    }
+
+    private async Task<string?> SaveQrCodeAsync(IFormFile file, string prefix, string? existing)
+    {
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp")) return existing;
+
+        var dir = Path.Combine(UploadsRoot, "uploads", "qr");
+        Directory.CreateDirectory(dir);
+        var fileName = $"{prefix}_{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(dir, fileName);
+        await using var stream = System.IO.File.Create(fullPath);
+        await file.CopyToAsync(stream);
+        return $"/uploads/qr/{fileName}";
     }
 
     private async Task<string?> SaveBrandLogoAsync(IFormFile file, string? existing)

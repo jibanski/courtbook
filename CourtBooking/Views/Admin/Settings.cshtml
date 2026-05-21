@@ -140,10 +140,23 @@
                             <input asp-for="GCashNumber" class="form-control" placeholder="09XXXXXXXXX" />
                             <span asp-validation-for="GCashNumber" class="text-danger small"></span>
                         </div>
-                        <div class="mb-0">
+                        <div class="mb-3">
                             <label asp-for="GCashName" class="form-label fw-semibold">Account Name</label>
                             <input asp-for="GCashName" class="form-control" placeholder="Full name on GCash account" />
                             <span asp-validation-for="GCashName" class="text-danger small"></span>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label fw-semibold">GCash QR Code</label>
+                            @if (!string.IsNullOrWhiteSpace(Model?.GCashQrCodePath))
+                            {
+                                <div class="mb-2 text-center">
+                                    <img src="@Model.GCashQrCodePath" alt="GCash QR Code"
+                                         style="max-width:180px;border-radius:8px;border:1px solid #dee2e6;" />
+                                    <div class="text-muted small mt-1">Current QR code — upload a new file to replace it.</div>
+                                </div>
+                            }
+                            <input type="file" name="gcashQr" class="form-control" accept="image/png,image/jpeg,image/webp" />
+                            <div class="form-text">Upload your GCash QR code image (PNG/JPG/WEBP). Customers will scan it to send payment.</div>
                         </div>
                     </div>
                 </div>
@@ -159,10 +172,23 @@
                             <input asp-for="MayaNumber" class="form-control" placeholder="09XXXXXXXXX" />
                             <span asp-validation-for="MayaNumber" class="text-danger small"></span>
                         </div>
-                        <div class="mb-0">
+                        <div class="mb-3">
                             <label asp-for="MayaName" class="form-label fw-semibold">Account Name</label>
                             <input asp-for="MayaName" class="form-control" placeholder="Full name on Maya account" />
                             <span asp-validation-for="MayaName" class="text-danger small"></span>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label fw-semibold">Maya QR Code</label>
+                            @if (!string.IsNullOrWhiteSpace(Model?.MayaQrCodePath))
+                            {
+                                <div class="mb-2 text-center">
+                                    <img src="@Model.MayaQrCodePath" alt="Maya QR Code"
+                                         style="max-width:180px;border-radius:8px;border:1px solid #dee2e6;" />
+                                    <div class="text-muted small mt-1">Current QR code — upload a new file to replace it.</div>
+                                </div>
+                            }
+                            <input type="file" name="mayaQr" class="form-control" accept="image/png,image/jpeg,image/webp" />
+                            <div class="form-text">Upload your Maya QR code image (PNG/JPG/WEBP). Customers will scan it to send payment.</div>
                         </div>
                     </div>
                 </div>
