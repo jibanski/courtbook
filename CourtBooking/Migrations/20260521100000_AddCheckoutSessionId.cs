@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CourtBooking.Migrations
 {
     /// <inheritdoc />
+    [Migration("20260521100000_AddCheckoutSessionId")]
     public partial class AddCheckoutSessionId : Migration
     {
         /// <inheritdoc />

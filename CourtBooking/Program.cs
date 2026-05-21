@@ -150,6 +150,25 @@ using (var scope = app.Services.CreateScope())
 
     db.Database.Migrate();
 
+    // ── Ensure new columns exist (fallback when migrations aren't discovered) ─
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"CheckoutSessionId\" character varying(100) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"PayMongoSecretKey\" character varying(100) NULL");
+        }
+        else
+        {
+            // SQLite: ADD COLUMN IF NOT EXISTS isn't supported; ignore errors
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"CheckoutSessionId\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"PayMongoSecretKey\" TEXT NULL"); } catch { }
+        }
+    }
+    catch { /* columns already exist — no-op */ }
+
     // ── Ensure CourtBlocks table exists ──────────────────────────────────
     // Added after the initial schema; created via raw SQL so no migration
     // file is required (project has no committed migrations).

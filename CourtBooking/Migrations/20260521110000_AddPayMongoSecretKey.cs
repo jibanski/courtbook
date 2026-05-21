@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CourtBooking.Migrations
 {
     /// <inheritdoc />
+    [Migration("20260521110000_AddPayMongoSecretKey")]
     public partial class AddPayMongoSecretKey : Migration
     {
         /// <inheritdoc />
