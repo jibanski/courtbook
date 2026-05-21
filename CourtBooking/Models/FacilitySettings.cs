@@ -36,6 +36,17 @@ public class FacilitySettings
     [MaxLength(500)]
     public string? PaymentInstructions { get; set; }
 
+    /// <summary>
+    /// PayMongo secret key for this facility (sk_test_… or sk_live_…).
+    /// When set, customers can pay by credit/debit card via PayMongo hosted checkout.
+    /// Money goes directly to the facility owner's PayMongo account.
+    /// </summary>
+    [MaxLength(100)]
+    public string? PayMongoSecretKey { get; set; }
+
+    [NotMapped]
+    public bool AcceptsCardPayment => !string.IsNullOrWhiteSpace(PayMongoSecretKey);
+
     // ── Social Media ──────────────────────────────────────────────────────────
     [MaxLength(300)]
     [Url(ErrorMessage = "Please enter a valid Facebook URL (e.g. https://facebook.com/yourpage).")]

@@ -1,11 +1,10 @@
 @model CourtBooking.Models.Booking
-@inject CourtBooking.Services.PayMongoService PayMongo
 @{
     ViewData["Title"] = "Complete Payment";
-    var settings      = ViewBag.Settings as CourtBooking.Models.FacilitySettings ?? new CourtBooking.Models.FacilitySettings();
-    bool hasGCash     = !string.IsNullOrWhiteSpace(settings.GCashNumber);
-    bool hasMaya      = !string.IsNullOrWhiteSpace(settings.MayaNumber);
-    bool hasCardPay   = PayMongo.IsConfigured;
+    var settings    = ViewBag.Settings as CourtBooking.Models.FacilitySettings ?? new CourtBooking.Models.FacilitySettings();
+    bool hasGCash   = !string.IsNullOrWhiteSpace(settings.GCashNumber);
+    bool hasMaya    = !string.IsNullOrWhiteSpace(settings.MayaNumber);
+    bool hasCardPay = ViewBag.HasCardPay is true;
 }
 
 <div class="cb-page-header">

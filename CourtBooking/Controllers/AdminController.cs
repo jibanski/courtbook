@@ -423,6 +423,8 @@ public class AdminController : Controller
             settings.MayaNumber          = model.MayaNumber;
             settings.MayaName            = model.MayaName;
             settings.PaymentInstructions = model.PaymentInstructions;
+            settings.PayMongoSecretKey   = string.IsNullOrWhiteSpace(model.PayMongoSecretKey)
+                                           ? null : model.PayMongoSecretKey.Trim();
             settings.FacebookUrl         = string.IsNullOrWhiteSpace(model.FacebookUrl)  ? null : model.FacebookUrl.Trim();
             settings.InstagramUrl        = string.IsNullOrWhiteSpace(model.InstagramUrl) ? null : model.InstagramUrl.Trim();
 

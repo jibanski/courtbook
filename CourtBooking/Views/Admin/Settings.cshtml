@@ -208,6 +208,39 @@
                     </div>
                 </div>
 
+                <!-- Credit / Debit Card (PayMongo) -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-credit-card-2-front me-2 text-primary"></i>Credit / Debit Card
+                        <span class="badge bg-secondary ms-1" style="font-size:.7rem;">Optional</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Enter your <strong>PayMongo secret key</strong> to let customers pay by Visa / Mastercard.
+                            Payments go directly to your PayMongo account — CourtBook does not handle the money.
+                            Leave blank to keep card payment hidden.
+                        </p>
+                        <div class="mb-2">
+                            <label asp-for="PayMongoSecretKey" class="form-label fw-semibold">PayMongo Secret Key</label>
+                            <input asp-for="PayMongoSecretKey" class="form-control font-monospace"
+                                   placeholder="sk_test_… or sk_live_…"
+                                   autocomplete="off" />
+                            <span asp-validation-for="PayMongoSecretKey" class="text-danger small"></span>
+                            <div class="form-text">
+                                Found in your <a href="https://dashboard.paymongo.com/developers" target="_blank" rel="noopener">PayMongo dashboard → Developers → API Keys</a>.
+                                Use a <em>test</em> key while testing, <em>live</em> key for real payments.
+                            </div>
+                        </div>
+                        @if (Model.AcceptsCardPayment)
+                        {
+                            <div class="alert alert-success py-2 mb-0 small">
+                                <i class="bi bi-check-circle-fill me-1"></i>
+                                Card payment is <strong>active</strong>. Customers will see a "Pay by Card" button on checkout.
+                            </div>
+                        }
+                    </div>
+                </div>
+
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-save me-1"></i>Save Settings
