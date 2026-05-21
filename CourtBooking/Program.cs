@@ -76,6 +76,7 @@ if (!string.IsNullOrEmpty(fbAppId) && !string.IsNullOrEmpty(fbAppSecret))
 }
 
 builder.Services.AddScoped<BookingService>();
+builder.Services.AddScoped<PayMongoService>();
 builder.Services.AddScoped<KeyGeneratorService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddHttpClient();                                 // for EmailService (Brevo HTTP API)

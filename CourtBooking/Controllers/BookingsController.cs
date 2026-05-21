@@ -12,15 +12,24 @@ namespace CourtBooking.Controllers;
 [Authorize]
 public class BookingsController : Controller
 {
-    private readonly ApplicationDbContext _db;
-    private readonly BookingService _bookingService;
+    private readonly ApplicationDbContext    _db;
+    private readonly BookingService          _bookingService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly PayMongoService         _payMongo;
+    private readonly IConfiguration         _config;
 
-    public BookingsController(ApplicationDbContext db, BookingService bookingService, UserManager<ApplicationUser> userManager)
+    public BookingsController(
+        ApplicationDbContext db,
+        BookingService bookingService,
+        UserManager<ApplicationUser> userManager,
+        PayMongoService payMongo,
+        IConfiguration config)
     {
-        _db = db;
+        _db             = db;
         _bookingService = bookingService;
-        _userManager = userManager;
+        _userManager    = userManager;
+        _payMongo       = payMongo;
+        _config         = config;
     }
 
     public async Task<IActionResult> My()
@@ -179,6 +188,90 @@ public class BookingsController : Controller
 
         TempData["Success"] = "Payment details submitted! Your booking will be confirmed once the admin verifies your payment.";
         return RedirectToAction(nameof(My));
+    }
+
+    // ── PayMongo card payment ─────────────────────────────────────────────────
+
+    /// <summary>Creates a PayMongo checkout session and redirects the customer to the hosted payment page.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> PayWithCard(int bookingId)
+    {
+        if (!_payMongo.IsConfigured)
+        {
+            TempData["Error"] = "Card payment is not configured yet. Please use GCash or Maya.";
+            return RedirectToAction(nameof(Pay), new { id = bookingId });
+        }
+
+        var userId  = _userManager.GetUserId(User)!;
+        var booking = await _db.Bookings
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == userId
+                                      && b.PaymentStatus == PaymentStatus.Unpaid);
+
+        if (booking is null) return NotFound();
+
+        var baseUrl    = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+        var successUrl = $"{baseUrl}/Bookings/PaymentSuccess?session_id={{CHECKOUT_SESSION_ID}}&bookingId={booking.Id}";
+        var cancelUrl  = $"{baseUrl}/Bookings/PaymentCancelled?bookingId={booking.Id}";
+
+        try
+        {
+            var (sessionId, checkoutUrl) = await _payMongo.CreateCheckoutSessionAsync(booking, successUrl, cancelUrl);
+
+            booking.CheckoutSessionId = sessionId;
+            await _db.SaveChangesAsync();
+
+            return Redirect(checkoutUrl);
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = "Could not start card payment. Please try again or use GCash/Maya.";
+            return RedirectToAction(nameof(Pay), new { id = bookingId });
+        }
+    }
+
+    /// <summary>
+    /// PayMongo redirects here after the customer completes (or attempts) payment.
+    /// We verify the session status and update the booking accordingly.
+    /// </summary>
+    public async Task<IActionResult> PaymentSuccess(string sessionId, int bookingId)
+    {
+        var userId  = _userManager.GetUserId(User)!;
+        var booking = await _db.Bookings
+            .Include(b => b.Court)
+            .FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == userId);
+
+        if (booking is null) return NotFound();
+
+        // Verify with PayMongo (don't trust the redirect alone)
+        if (!string.IsNullOrEmpty(sessionId) && _payMongo.IsConfigured)
+        {
+            var status = await _payMongo.GetSessionStatusAsync(sessionId);
+            if (status == "paid" && booking.PaymentStatus == PaymentStatus.Unpaid)
+            {
+                booking.PaymentStatus     = PaymentStatus.Paid;
+                booking.Status            = BookingStatus.Confirmed;
+                booking.PaymentMethod     = "Card";
+                booking.PaymentReference  = sessionId;
+                booking.PaidAt            = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        return View(booking);
+    }
+
+    /// <summary>PayMongo redirects here when the customer cancels or closes the hosted page.</summary>
+    public async Task<IActionResult> PaymentCancelled(int bookingId)
+    {
+        var userId  = _userManager.GetUserId(User)!;
+        var booking = await _db.Bookings
+            .Include(b => b.Court)
+            .FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == userId);
+
+        if (booking is null) return NotFound();
+        return View(booking);
     }
 
     [HttpPost, ValidateAntiForgeryToken]

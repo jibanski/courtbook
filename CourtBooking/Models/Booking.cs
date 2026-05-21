@@ -52,6 +52,9 @@ public class Booking
     public DateTime? PaymentProofSubmittedAt { get; set; }
     public DateTime? PaidAt { get; set; }
 
+    /// <summary>PayMongo checkout session ID when the customer chose to pay by card.</summary>
+    public string? CheckoutSessionId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Platform commission charged when this booking is confirmed (commission-model facilities only).</summary>

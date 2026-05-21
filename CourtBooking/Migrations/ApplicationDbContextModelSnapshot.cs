@@ -142,6 +142,10 @@ namespace CourtBooking.Migrations
                     b.Property<DateTime?>("PaymentProofSubmittedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CheckoutSessionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("PaymentReference")
                         .HasColumnType("text");
 

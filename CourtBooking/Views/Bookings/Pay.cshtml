@@ -1,9 +1,11 @@
 @model CourtBooking.Models.Booking
+@inject CourtBooking.Services.PayMongoService PayMongo
 @{
     ViewData["Title"] = "Complete Payment";
-    var settings = ViewBag.Settings as CourtBooking.Models.FacilitySettings ?? new CourtBooking.Models.FacilitySettings();
-    bool hasGCash = !string.IsNullOrWhiteSpace(settings.GCashNumber);
-    bool hasMaya  = !string.IsNullOrWhiteSpace(settings.MayaNumber);
+    var settings      = ViewBag.Settings as CourtBooking.Models.FacilitySettings ?? new CourtBooking.Models.FacilitySettings();
+    bool hasGCash     = !string.IsNullOrWhiteSpace(settings.GCashNumber);
+    bool hasMaya      = !string.IsNullOrWhiteSpace(settings.MayaNumber);
+    bool hasCardPay   = PayMongo.IsConfigured;
 }
 
 <div class="cb-page-header">
@@ -57,14 +59,56 @@
                 </div>
             </div>
 
-            @if (!hasGCash && !hasMaya)
+            @* ── TempData alerts ── *@
+            @if (TempData["Error"] is string err)
+            {
+                <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
+                    <i class="bi bi-exclamation-triangle-fill"></i> @err
+                </div>
+            }
+
+            @* ── Card Payment (PayMongo) ── *@
+            @if (hasCardPay)
+            {
+                <div class="card shadow-sm mb-4" style="border:1px solid rgba(163,255,18,0.2);">
+                    <div class="card-header fw-bold" style="background:var(--cb-lime-dim);">
+                        <i class="bi bi-credit-card-2-front me-2" style="color:var(--cb-lime);"></i>Pay by Credit / Debit Card
+                        <span class="badge ms-2" style="background:var(--cb-lime);color:#000;font-size:.7rem;">Instant</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3" style="font-size:.875rem;color:var(--cb-text-2);">
+                            Pay securely via PayMongo's hosted checkout — Visa, Mastercard, and more.
+                            Your booking is confirmed <strong>instantly</strong> once payment is complete.
+                        </p>
+                        <form asp-action="PayWithCard" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="bookingId" value="@Model.Id" />
+                            <button type="submit" class="btn btn-lg w-100 fw-bold"
+                                    style="background:var(--cb-lime);color:#000;">
+                                <i class="bi bi-lock-fill me-2"></i>Pay ₱@Model.TotalPrice.ToString("N0") by Card
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                @if (hasGCash || hasMaya)
+                {
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <hr class="flex-fill" />
+                        <span style="font-size:.8rem;color:var(--cb-text-3);">or pay manually via e-wallet</span>
+                        <hr class="flex-fill" />
+                    </div>
+                }
+            }
+
+            @if (!hasGCash && !hasMaya && !hasCardPay)
             {
                 <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle me-2"></i>
                     Payment details have not been set up yet. Please contact the facility to arrange payment.
                 </div>
             }
-            else
+            else if (hasGCash || hasMaya)
             {
                 <!-- Payment Instructions -->
                 <div class="card shadow-sm mb-4">
