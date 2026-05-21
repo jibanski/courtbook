@@ -5,6 +5,16 @@
     var slug = ViewBag.Slug as string;
     ViewData["Title"] = $"Book {Model.Court.Name}";
 
+    // ── Past-time detection (Philippine Standard Time = UTC+8) ──────────────
+    var   localNow   = DateTime.UtcNow.AddHours(8);
+    var   today      = DateOnly.FromDateTime(localNow);
+    bool  isPastDate = Model.Date < today;
+    bool  isToday    = Model.Date == today;
+    int   nowHour    = localNow.Hour;
+    // A slot starting at `h` is bookable only if date is future,
+    // OR date is today and we haven't yet reached that hour.
+    bool SlotIsPast(int startHour) => isPastDate || (isToday && startHour <= nowHour);
+
     string SportDefaultImage(string sport) => sport?.ToLower() switch {
         "tennis"       => "/images/sports/tennis.svg",
         "badminton"    => "/images/sports/badminton.svg",
@@ -161,9 +171,25 @@
                             @foreach (var slot in Model.TimeSlots)
                             {
                                 bool isUnavailable = Model.UnavailableSlotIds.Contains(slot.Id);
+                                bool isPast        = SlotIsPast(slot.StartHour);
                                 decimal price = Model.Court.PricePerHour * slot.DurationHours;
                                 <div class="col-sm-6 col-md-4">
-                                    @if (isUnavailable)
+                                    @if (isPast)
+                                    {
+                                        <div class="h-100 p-3 text-center rounded-3"
+                                             style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.5;cursor:default;">
+                                            <div class="fw-bold mb-1" style="font-size:.95rem;color:var(--cb-text-3);">@slot.TimeLabel</div>
+                                            <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                                @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull; ₱@price.ToString("N0")
+                                            </div>
+                                            <div class="mt-2">
+                                                <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-3);font-size:.72rem;">
+                                                    <i class="bi bi-clock-history me-1"></i>Past
+                                                </span>
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (isUnavailable)
                                     {
                                         <div class="slot-booked h-100 p-3 text-center rounded-3">
                                             <div class="fw-bold mb-1" style="font-size:.95rem;color:#f87171;">@slot.TimeLabel</div>
@@ -218,9 +244,20 @@
                             {
                                 bool isBooked  = Model.BookedHours.Contains(h);
                                 bool isBlocked = Model.BlockedHours.Contains(h);
+                                bool isPast    = SlotIsPast(h);
                                 var timeLabel  = $"{h:D2}:00 – {h + 1:D2}:00";
                                 <div class="col-6 col-sm-4 col-md-3">
-                                    @if (isBooked)
+                                    @if (isPast)
+                                    {
+                                        <div class="p-2 text-center rounded-3"
+                                             style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.45;cursor:default;">
+                                            <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
+                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">
+                                                <i class="bi bi-clock-history me-1"></i>Past
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (isBooked)
                                     {
                                         <div class="slot-booked p-2 text-center rounded-3" style="opacity:.7;">
                                             <div style="font-size:.8rem;color:#f87171;font-weight:600;">@timeLabel</div>

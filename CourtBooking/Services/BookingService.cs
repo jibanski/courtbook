@@ -57,6 +57,12 @@ public class BookingService
 
     public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end)
     {
+        // Reject past slots (Philippine Standard Time = UTC+8)
+        var localNow = DateTime.UtcNow.AddHours(8);
+        var today    = DateOnly.FromDateTime(localNow);
+        if (date < today) return false;
+        if (date == today && start.Hour <= localNow.Hour) return false;
+
         // Reject if an inactive time-slot marker overlaps
         var slotBlocked = await _db.CourtTimeSlots.AnyAsync(s =>
             s.CourtId == courtId &&

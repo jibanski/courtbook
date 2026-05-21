@@ -89,8 +89,13 @@ public class BookingsController : Controller
         if (court is null) return NotFound();
         vm.Court = court;
 
-        if (vm.BookingDate < DateOnly.FromDateTime(DateTime.Today))
+        // Past-date/time guard using Philippine Standard Time (UTC+8)
+        var localNow  = DateTime.UtcNow.AddHours(8);
+        var todayPht  = DateOnly.FromDateTime(localNow);
+        if (vm.BookingDate < todayPht)
             ModelState.AddModelError("BookingDate", "Cannot book a date in the past.");
+        else if (vm.BookingDate == todayPht && vm.StartHour <= localNow.Hour)
+            ModelState.AddModelError("StartHour", "This time slot has already passed. Please choose a future slot.");
 
         if (vm.StartHour < court.OpeningHour || vm.StartHour >= court.ClosingHour)
             ModelState.AddModelError("StartHour", $"Start hour must be between {court.OpeningHour}:00 and {court.ClosingHour - 1}:00.");
