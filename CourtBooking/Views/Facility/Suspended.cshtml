@@ -24,7 +24,7 @@
                     <div class="row g-2">
                         <div class="col-4 text-muted">Address</div>
                         <div class="col-8 fw-semibold">
-                            <i class="bi bi-geo-alt me-1 text-muted"></i>@Model.Address
+                            <i class="bi bi-geo-alt me-1 text-muted"></i><a href="https://maps.google.com/?q=@Uri.EscapeDataString(Model.Address)" target="_blank" rel="noopener noreferrer" class="text-dark">@Model.Address</a>
                         </div>
                     </div>
                 </div>

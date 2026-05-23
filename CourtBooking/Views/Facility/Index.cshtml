@@ -65,7 +65,7 @@
                     @if (!string.IsNullOrWhiteSpace(fs.Address))
                     {
                         <p class="mb-2 cb-fade-up-delay-1" style="color:var(--cb-text-3);font-size:.825rem;">
-                            <i class="bi bi-geo-alt me-1" style="color:var(--cb-lime);"></i>@fs.Address
+                            <i class="bi bi-geo-alt me-1" style="color:var(--cb-lime);"></i><a href="https://maps.google.com/?q=@Uri.EscapeDataString(fs.Address)" target="_blank" rel="noopener noreferrer" style="color:inherit;">@fs.Address</a>
                         </p>
                     }
                     @if (!string.IsNullOrWhiteSpace(fs.FacebookUrl) || !string.IsNullOrWhiteSpace(fs.InstagramUrl))

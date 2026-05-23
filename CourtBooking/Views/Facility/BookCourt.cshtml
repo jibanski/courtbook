@@ -63,7 +63,7 @@
                 @if (fs != null && !string.IsNullOrWhiteSpace(fs.Address))
                 {
                     <p class="mt-2 mb-0 cb-fade-up-delay-2" style="color:var(--cb-text-3);font-size:.8rem;">
-                        <i class="bi bi-geo-alt me-1" style="color:var(--cb-lime);"></i>@fs.Address
+                        <i class="bi bi-geo-alt me-1" style="color:var(--cb-lime);"></i><a href="https://maps.google.com/?q=@Uri.EscapeDataString(fs.Address)" target="_blank" rel="noopener noreferrer" style="color:inherit;">@fs.Address</a>
                     </p>
                 }
             </div>
