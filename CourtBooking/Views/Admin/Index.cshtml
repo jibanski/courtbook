@@ -37,6 +37,86 @@
 
 <div class="container py-4">
 
+    @* ── Setup Checklist (hidden once all REQUIRED steps are done & user dismisses) ── *@
+    @{
+        var setupSteps        = ViewBag.SetupSteps        as System.Collections.IEnumerable;
+        var setupRequiredDone = (bool)(ViewBag.SetupRequiredDone ?? false);
+        var setupDoneCount    = (int)(ViewBag.SetupDoneCount  ?? 0);
+        var setupTotalCount   = (int)(ViewBag.SetupTotalCount ?? 0);
+        var setupPct          = setupTotalCount > 0 ? (int)Math.Round(setupDoneCount * 100.0 / setupTotalCount) : 0;
+    }
+    @if (setupSteps is not null)
+    {
+        <div id="setupChecklist" class="cb-fade-up mb-4 @(setupRequiredDone ? "d-none" : "")">
+            <div class="card border-0 shadow-sm" style="border-left:4px solid var(--cb-lime)!important;">
+                <div class="card-body">
+                    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="mb-1" style="font-weight:700;">
+                                <i class="bi bi-rocket-takeoff me-2" style="color:var(--cb-lime);"></i>Get your facility ready
+                            </h5>
+                            <p class="mb-0 text-muted small">
+                                Finish these steps so customers can find and book your courts.
+                            </p>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge rounded-pill" style="background:var(--cb-lime-dim);color:var(--cb-lime);font-size:.8rem;">
+                                @setupDoneCount / @setupTotalCount complete
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="progress mb-3" style="height:6px;background:rgba(0,0,0,0.06);">
+                        <div class="progress-bar"
+                             role="progressbar"
+                             style="width:@(setupPct)%;background:var(--cb-lime);"
+                             aria-valuenow="@setupPct" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+
+                    <ul class="list-unstyled mb-0">
+                        @foreach (dynamic step in setupSteps)
+                        {
+                            <li class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                                <div class="d-flex align-items-center gap-3 flex-grow-1" style="min-width:0;">
+                                    @if ((bool)step.Done)
+                                    {
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle"
+                                              style="width:28px;height:28px;background:#198754;color:#fff;flex-shrink:0;">
+                                            <i class="bi bi-check-lg"></i>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle"
+                                              style="width:28px;height:28px;background:#f1f3f5;color:#6c757d;flex-shrink:0;">
+                                            <i class="bi @step.Icon"></i>
+                                        </span>
+                                    }
+                                    <div style="min-width:0;">
+                                        <div class="@((bool)step.Done ? "text-muted text-decoration-line-through" : "fw-semibold")">
+                                            @step.Title
+                                            @if (!(bool)step.Required)
+                                            {
+                                                <span class="badge bg-light text-secondary ms-1" style="font-size:.65rem;font-weight:500;">optional</span>
+                                            }
+                                        </div>
+                                        <div class="small text-muted text-truncate">@step.Hint</div>
+                                    </div>
+                                </div>
+                                @if (!(bool)step.Done)
+                                {
+                                    <a href="@step.Url" class="btn btn-sm btn-outline-primary ms-2 flex-shrink-0">
+                                        @step.Cta <i class="bi bi-arrow-right ms-1"></i>
+                                    </a>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- ── Stats Grid ──────────────────────────────────────────────────── -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3 cb-fade-up">
