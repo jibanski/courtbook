@@ -151,8 +151,10 @@ public class FacilitySettings
     public string? BrandLogoUrl { get; set; }    // Path to uploaded logo image
 
     [NotMapped]
-    public string DisplayName => !string.IsNullOrWhiteSpace(BrandName)
-        ? BrandName : "CourtBook";
+    public string DisplayName =>
+        !string.IsNullOrWhiteSpace(BrandName)    ? BrandName! :
+        !string.IsNullOrWhiteSpace(FacilityName) && FacilityName != "CourtBook" ? FacilityName :
+        "CourtBook";
 
     [NotMapped]
     public string DisplayTagline => !string.IsNullOrWhiteSpace(BrandTagline)
