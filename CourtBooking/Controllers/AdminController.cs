@@ -112,9 +112,12 @@ public class AdminController : Controller
             });
         }
 
+        // Payment mix — include legacy paid bookings that have no PaidAt by
+        // falling back to BookingDate, matching the 'paid30' counter below.
         var methodRows = await liveBookings
             .Where(b => b.PaymentStatus == PaymentStatus.Paid
-                        && b.PaidAt != null && b.PaidAt >= since30Dt)
+                        && ((b.PaidAt != null && b.PaidAt >= since30Dt)
+                            || (b.PaidAt == null && b.BookingDate >= since30)))
             .GroupBy(b => b.PaymentMethod ?? "Unknown")
             .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(b => b.TotalPrice) })
             .ToListAsync();

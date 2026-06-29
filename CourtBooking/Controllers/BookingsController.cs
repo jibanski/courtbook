@@ -163,9 +163,9 @@ public class BookingsController : Controller
         return View(booking);
     }
 
-    // User submits their GCash/Maya reference number + optional screenshot
+    // User submits their GCash/Maya screenshot (required) + optional reference number
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> SubmitProof(int bookingId, string method, string reference, IFormFile? screenshot)
+    public async Task<IActionResult> SubmitProof(int bookingId, string method, string? reference, IFormFile? screenshot)
     {
         var userId = _userManager.GetUserId(User)!;
         var booking = await _db.Bookings
@@ -174,33 +174,30 @@ public class BookingsController : Controller
 
         if (booking is null) return NotFound();
 
-        if (string.IsNullOrWhiteSpace(reference))
+        if (screenshot is null || screenshot.Length == 0)
         {
-            TempData["Error"] = "Please enter your transaction/reference number.";
+            TempData["Error"] = "Please upload a screenshot of your payment confirmation.";
             return RedirectToAction(nameof(Pay), new { id = bookingId });
         }
 
         string? screenshotPath = null;
-        if (screenshot is { Length: > 0 })
+        var ext = Path.GetExtension(screenshot.FileName).ToLower();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
         {
-            var ext = Path.GetExtension(screenshot.FileName).ToLower();
-            if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
-            {
-                TempData["Error"] = "Screenshot must be JPG, PNG, or WebP.";
-                return RedirectToAction(nameof(Pay), new { id = bookingId });
-            }
-
-            var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "proofs");
-            Directory.CreateDirectory(uploadsDir);
-            var fileName = $"{bookingId}_{Guid.NewGuid():N}{ext}";
-            var fullPath = Path.Combine(uploadsDir, fileName);
-            using var stream = System.IO.File.Create(fullPath);
-            await screenshot.CopyToAsync(stream);
-            screenshotPath = $"/uploads/proofs/{fileName}";
+            TempData["Error"] = "Screenshot must be JPG, PNG, or WebP.";
+            return RedirectToAction(nameof(Pay), new { id = bookingId });
         }
 
+        var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "proofs");
+        Directory.CreateDirectory(uploadsDir);
+        var fileName = $"{bookingId}_{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(uploadsDir, fileName);
+        using (var stream = System.IO.File.Create(fullPath))
+            await screenshot.CopyToAsync(stream);
+        screenshotPath = $"/uploads/proofs/{fileName}";
+
         booking.PaymentMethod = method;
-        booking.PaymentReference = reference.Trim();
+        booking.PaymentReference = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim();
         booking.PaymentProofPath = screenshotPath;
         booking.PaymentProofSubmittedAt = DateTime.UtcNow;
 
