@@ -209,11 +209,15 @@ public class BookingsController : Controller
         return RedirectToAction(nameof(My));
     }
 
-    // ── PayMongo card payment ─────────────────────────────────────────────────
+    // ── PayMongo instant payment (card / GCash / Maya / GrabPay / QRPh / bank) ─
 
     /// <summary>Creates a PayMongo checkout session using the facility's own secret key and redirects the customer.</summary>
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> PayWithCard(int bookingId)
+    [ActionName("PayWithCard")] // back-compat: existing form posts use action=PayWithCard
+    public Task<IActionResult> PayWithCardLegacy(int bookingId) => PayWithGateway(bookingId);
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> PayWithGateway(int bookingId)
     {
         var userId  = _userManager.GetUserId(User)!;
         var booking = await _db.Bookings
@@ -224,7 +228,7 @@ public class BookingsController : Controller
 
         if (booking is null) return NotFound();
 
-        // Load the facility's PayMongo secret key
+        // Load the facility's PayMongo secret key + enabled methods
         var settings  = booking.Court?.OwnerId != null
             ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == booking.Court.OwnerId)
             : null;
@@ -232,7 +236,7 @@ public class BookingsController : Controller
 
         if (string.IsNullOrWhiteSpace(secretKey))
         {
-            TempData["Error"] = "Card payment is not available for this facility.";
+            TempData["Error"] = "Instant payment is not available for this facility.";
             return RedirectToAction(nameof(Pay), new { id = bookingId });
         }
 
@@ -242,14 +246,16 @@ public class BookingsController : Controller
 
         try
         {
-            var (sessionId, checkoutUrl) = await _payMongo.CreateCheckoutSessionAsync(secretKey, booking, successUrl, cancelUrl);
+            var methods = settings!.EnabledPayMongoMethods;
+            var (sessionId, checkoutUrl) = await _payMongo.CreateCheckoutSessionAsync(
+                secretKey, booking, successUrl, cancelUrl, methods);
             booking.CheckoutSessionId = sessionId;
             await _db.SaveChangesAsync();
             return Redirect(checkoutUrl);
         }
         catch
         {
-            TempData["Error"] = "Could not start card payment. Please try again or use GCash/Maya.";
+            TempData["Error"] = "Could not start instant payment. Please try again later.";
             return RedirectToAction(nameof(Pay), new { id = bookingId });
         }
     }
@@ -276,12 +282,12 @@ public class BookingsController : Controller
 
             if (!string.IsNullOrEmpty(secretKey))
             {
-                var status = await _payMongo.GetSessionStatusAsync(secretKey, sessionId);
+                var (status, methodUsed) = await _payMongo.GetSessionDetailsAsync(secretKey, sessionId);
                 if (status == "paid" && booking.PaymentStatus == PaymentStatus.Unpaid)
                 {
                     booking.PaymentStatus    = PaymentStatus.Paid;
                     booking.Status           = BookingStatus.Confirmed;
-                    booking.PaymentMethod    = "Card";
+                    booking.PaymentMethod    = FormatMethodLabel(methodUsed);
                     booking.PaymentReference = sessionId;
                     booking.PaidAt           = DateTime.UtcNow;
                     await _db.SaveChangesAsync();
@@ -324,6 +330,20 @@ public class BookingsController : Controller
     }
 
     // ── Email notifications ───────────────────────────────────────────────────
+
+    /// <summary>Human-readable label for a PayMongo payment_method_used value.</summary>
+    private static string FormatMethodLabel(string? method) => (method ?? "").ToLowerInvariant() switch
+    {
+        "card"     => "Card",
+        "gcash"    => "GCash",
+        "paymaya"  => "Maya",
+        "grab_pay" => "GrabPay",
+        "qrph"     => "QRPh",
+        "dob"      => "Online Banking",
+        "billease" => "BillEase",
+        ""         => "Card",
+        _          => char.ToUpperInvariant(method![0]) + method[1..]
+    };
 
     /// <summary>
     /// Notifies the facility owner when a new booking is created.

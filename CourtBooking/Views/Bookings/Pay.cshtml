@@ -6,7 +6,13 @@
     bool hasMaya       = !string.IsNullOrWhiteSpace(settings.MayaNumber);
     bool hasGCashQr    = !string.IsNullOrWhiteSpace(settings.GCashQrCodePath);
     bool hasMayaQr     = !string.IsNullOrWhiteSpace(settings.MayaQrCodePath);
-    bool hasCardPay = ViewBag.HasCardPay is true;
+    bool hasInstantPay = ViewBag.HasCardPay is true; // PayMongo configured
+    // Manual e-wallet section is only shown as a fallback when the facility has
+    // no instant gateway configured (per platform policy).
+    bool showManualPay = !hasInstantPay && (hasGCash || hasMaya);
+
+    var enabledMethods = settings.EnabledPayMongoMethods;
+    bool m(string k) => enabledMethods.Contains(k);
 }
 
 <div class="cb-page-header">
@@ -68,48 +74,55 @@
                 </div>
             }
 
-            @* ── Card Payment (PayMongo) ── *@
-            @if (hasCardPay)
+            @* ── Instant Payment (PayMongo: Card / GCash / Maya / GrabPay / QRPh / Online Banking) ── *@
+            @if (hasInstantPay)
             {
                 <div class="card shadow-sm mb-4" style="border:1px solid rgba(163,255,18,0.2);">
                     <div class="card-header fw-bold" style="background:var(--cb-lime-dim);">
-                        <i class="bi bi-credit-card-2-front me-2" style="color:var(--cb-lime);"></i>Pay by Credit / Debit Card
-                        <span class="badge ms-2" style="background:var(--cb-lime);color:#000;font-size:.7rem;">Instant</span>
+                        <i class="bi bi-lightning-charge-fill me-2" style="color:var(--cb-lime);"></i>Pay Instantly
+                        <span class="badge ms-2" style="background:var(--cb-lime);color:#000;font-size:.7rem;">Confirmed in seconds</span>
                     </div>
                     <div class="card-body">
                         <p class="mb-3" style="font-size:.875rem;color:var(--cb-text-2);">
-                            Pay securely via PayMongo's hosted checkout — Visa, Mastercard, and more.
-                            Your booking is confirmed <strong>instantly</strong> once payment is complete.
+                            Secure checkout powered by <strong>PayMongo</strong> — your booking is confirmed
+                            <strong>automatically</strong> the moment your payment is received.
                         </p>
-                        <form asp-action="PayWithCard" method="post">
+
+                        <div class="d-flex flex-wrap gap-2 mb-3" aria-label="Accepted payment methods">
+                            @if (m("gcash"))    { <span class="badge bg-primary"><i class="bi bi-phone me-1"></i>GCash</span> }
+                            @if (m("paymaya"))  { <span class="badge bg-success"><i class="bi bi-phone me-1"></i>Maya</span> }
+                            @if (m("grab_pay")) { <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-car-front me-1"></i>GrabPay</span> }
+                            @if (m("qrph"))     { <span class="badge bg-warning text-dark"><i class="bi bi-qr-code me-1"></i>QRPh (InstaPay)</span> }
+                            @if (m("dob"))      { <span class="badge bg-info text-dark"><i class="bi bi-bank me-1"></i>Online Banking</span> }
+                            @if (m("card"))     { <span class="badge bg-dark"><i class="bi bi-credit-card-2-front me-1"></i>Visa / Mastercard</span> }
+                            @if (m("billease")) { <span class="badge bg-secondary"><i class="bi bi-cash-coin me-1"></i>BillEase</span> }
+                        </div>
+
+                        <form asp-action="PayWithGateway" method="post">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="bookingId" value="@Model.Id" />
                             <button type="submit" class="btn btn-lg w-100 fw-bold"
                                     style="background:var(--cb-lime);color:#000;">
-                                <i class="bi bi-lock-fill me-2"></i>Pay ₱@Model.TotalPrice.ToString("N0") by Card
+                                <i class="bi bi-shield-lock-fill me-2"></i>Pay ₱@Model.TotalPrice.ToString("N0") Securely
                             </button>
                         </form>
+
+                        <div class="text-center mt-3" style="font-size:.75rem;color:var(--cb-text-3);">
+                            <i class="bi bi-lock-fill me-1"></i>
+                            256-bit TLS. Payment data never touches CourtBook's servers.
+                        </div>
                     </div>
                 </div>
-
-                @if (hasGCash || hasMaya)
-                {
-                    <div class="d-flex align-items-center gap-3 mb-4">
-                        <hr class="flex-fill" />
-                        <span style="font-size:.8rem;color:var(--cb-text-3);">or pay manually via e-wallet</span>
-                        <hr class="flex-fill" />
-                    </div>
-                }
             }
 
-            @if (!hasGCash && !hasMaya && !hasCardPay)
+            @if (!hasInstantPay && !hasGCash && !hasMaya)
             {
                 <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle me-2"></i>
                     Payment details have not been set up yet. Please contact the facility to arrange payment.
                 </div>
             }
-            else if (hasGCash || hasMaya)
+            else if (showManualPay)
             {
                 <!-- Payment Instructions -->
                 <div class="card shadow-sm mb-4">
