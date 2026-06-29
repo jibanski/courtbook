@@ -1,0 +1,215 @@
+@{
+    ViewData["Title"] = "Analytics";
+    var settings = ViewBag.FacilitySettings as CourtBooking.Models.FacilitySettings;
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <div class="cb-fade-up d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <h1 class="mb-1" style="font-size:1.75rem;">
+                    <i class="bi bi-graph-up-arrow me-2" style="color:var(--cb-lime);"></i>Real-Time Analytics
+                </h1>
+                <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+                    Live booking and payment metrics for @(settings?.DisplayName ?? "your facility"). Auto-refreshes every 10s.
+                </p>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span id="analytics-live-dot" class="d-inline-block rounded-circle"
+                      style="width:10px;height:10px;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.7);
+                             animation:pulse 1.5s infinite;"></span>
+                <small id="analytics-updated" class="text-muted">Loading…</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small text-uppercase">Today</div>
+                <div class="fs-3 fw-bold" id="m-todayBookings">—</div>
+                <div class="small text-muted">bookings</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small text-uppercase">Today's Revenue</div>
+                <div class="fs-3 fw-bold text-success" id="m-todayRevenue">—</div>
+                <div class="small text-muted">paid today</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small text-uppercase">Awaiting Verification</div>
+                <div class="fs-3 fw-bold text-warning" id="m-awaiting">—</div>
+                <div class="small text-muted">manual proofs</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small text-uppercase">Conversion (30d)</div>
+                <div class="fs-3 fw-bold" id="m-conversion">—</div>
+                <div class="small text-muted"><span id="m-paid30">0</span> paid / <span id="m-bookings30">0</span> total</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-bar-chart-line me-2 text-primary"></i>Revenue — Last 30 Days
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-pie-chart-fill me-2 text-success"></i>Payment Methods (30d)
+                </div>
+                <div class="card-body">
+                    <canvas id="methodChart" height="200"></canvas>
+                    <div id="method-empty" class="text-center text-muted py-4 small d-none">
+                        No paid bookings in the last 30 days yet.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-5">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-collection me-2"></i>All-Time
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-7 text-muted">Total bookings</dt>
+                        <dd class="col-5 fw-bold text-end" id="m-totalBookings">—</dd>
+                        <dt class="col-7 text-muted">Total revenue</dt>
+                        <dd class="col-5 fw-bold text-end text-success" id="m-totalRevenue">—</dd>
+                        <dt class="col-7 text-muted">Pending (no proof)</dt>
+                        <dd class="col-5 fw-bold text-end" id="m-pendingNoProof">—</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-list-check me-2"></i>Payment Mix (30d)
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Method</th><th class="text-end">Bookings</th><th class="text-end">Revenue</th></tr>
+                        </thead>
+                        <tbody id="method-table"><tr><td colspan="3" class="text-center text-muted py-3">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @@keyframes pulse {
+        0%   { box-shadow: 0 0 0 0   rgba(34,197,94,.7); }
+        70%  { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+        100% { box-shadow: 0 0 0 0   rgba(34,197,94,0); }
+    }
+</style>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+            crossorigin="anonymous"></script>
+    <script>
+        const peso = v => '₱' + (Number(v) || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        const methodColors = {
+            'GCash': '#0ea5e9', 'Maya': '#22c55e', 'GrabPay': '#10b981',
+            'QRPh': '#f59e0b', 'Online Banking': '#6366f1', 'BillEase': '#a855f7',
+            'Card': '#111827', 'Unknown': '#94a3b8'
+        };
+        function colorFor(m) { return methodColors[m] || '#64748b'; }
+
+        let revenueChart, methodChart;
+
+        function initCharts() {
+            const ctx1 = document.getElementById('revenueChart').getContext('2d');
+            revenueChart = new Chart(ctx1, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Revenue', data: [], backgroundColor: 'rgba(163,255,18,0.6)', borderColor: 'rgba(0,0,0,0.2)', borderWidth: 1 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { callback: v => peso(v) } } },
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => peso(c.parsed.y) } } }
+                }
+            });
+
+            const ctx2 = document.getElementById('methodChart').getContext('2d');
+            methodChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        async function refresh() {
+            try {
+                const res = await fetch('@Url.Action("AnalyticsData", "Admin")', { credentials: 'same-origin' });
+                if (!res.ok) throw new Error(res.status);
+                const d = await res.json();
+
+                document.getElementById('m-todayBookings').textContent  = d.counters.todayBookings;
+                document.getElementById('m-todayRevenue').textContent   = peso(d.counters.todayRevenue);
+                document.getElementById('m-awaiting').textContent       = d.counters.awaitingPayment;
+                document.getElementById('m-conversion').textContent     = d.counters.conversionPct + '%';
+                document.getElementById('m-paid30').textContent         = d.counters.paidLast30;
+                document.getElementById('m-bookings30').textContent     = d.counters.bookingsLast30;
+                document.getElementById('m-totalBookings').textContent  = d.counters.totalBookings;
+                document.getElementById('m-totalRevenue').textContent   = peso(d.counters.totalRevenue);
+                document.getElementById('m-pendingNoProof').textContent = d.counters.pendingNoProof;
+
+                revenueChart.data.labels = d.revenueByDay.map(r => r.date.slice(5));
+                revenueChart.data.datasets[0].data = d.revenueByDay.map(r => Number(r.revenue));
+                revenueChart.update('none');
+
+                const methods = d.methodBreakdown || [];
+                document.getElementById('method-empty').classList.toggle('d-none', methods.length > 0);
+                methodChart.data.labels = methods.map(m => m.method);
+                methodChart.data.datasets[0].data = methods.map(m => m.count);
+                methodChart.data.datasets[0].backgroundColor = methods.map(m => colorFor(m.method));
+                methodChart.update('none');
+
+                const tbody = document.getElementById('method-table');
+                tbody.innerHTML = methods.length === 0
+                    ? '<tr><td colspan="3" class="text-center text-muted py-3">No paid bookings yet.</td></tr>'
+                    : methods.map(m =>
+                        `<tr>
+                            <td><span class="badge" style="background:${colorFor(m.method)};">${m.method}</span></td>
+                            <td class="text-end">${m.count}</td>
+                            <td class="text-end">${peso(m.revenue)}</td>
+                        </tr>`).join('');
+
+                const t = new Date(d.generatedAt);
+                document.getElementById('analytics-updated').textContent =
+                    'Updated ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            } catch (e) {
+                document.getElementById('analytics-updated').textContent = 'Update failed — retrying…';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            refresh();
+            setInterval(refresh, 10000);
+        });
+    </script>
+}

@@ -58,6 +58,98 @@ public class AdminController : Controller
         return View(recentBookings);
     }
 
+    // ── Real-time analytics ───────────────────────────────────────────────────
+
+    /// <summary>Analytics dashboard. Charts are populated by AnalyticsData() via polling.</summary>
+    public async Task<IActionResult> Analytics()
+    {
+        ViewBag.FacilitySettings = await GetMySettingsAsync();
+        return View();
+    }
+
+    /// <summary>
+    /// JSON endpoint backing /admin/analytics. Auto-refreshed every 10s by the page.
+    /// Returns counters, last-30-day revenue series, payment-method breakdown, conversion.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> AnalyticsData()
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var today    = DateOnly.FromDateTime(DateTime.Today);
+        var since30  = today.AddDays(-29);
+        var since30Dt = DateTime.UtcNow.AddDays(-30);
+        var todayDt  = DateTime.UtcNow.Date;
+
+        var liveBookings = _db.Bookings.Where(b => courtIds.Contains(b.CourtId));
+
+        var totalBookings   = await liveBookings.CountAsync(b => b.Status != BookingStatus.Cancelled);
+        var todayBookings   = await liveBookings.CountAsync(b => b.BookingDate == today && b.Status != BookingStatus.Cancelled);
+        var todayRevenue    = await liveBookings
+            .Where(b => b.PaidAt != null && b.PaidAt >= todayDt)
+            .SumAsync(b => (decimal?)b.TotalPrice) ?? 0m;
+        var totalRevenue    = await liveBookings
+            .Where(b => b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)
+            .SumAsync(b => (decimal?)b.TotalPrice) ?? 0m;
+        var awaitingPayment = await liveBookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentReference != null);
+        var pendingNoProof  = await liveBookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentReference == null);
+
+        var revenueRows = await liveBookings
+            .Where(b => b.BookingDate >= since30
+                        && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed))
+            .GroupBy(b => b.BookingDate)
+            .Select(g => new { Day = g.Key, Revenue = g.Sum(b => b.TotalPrice), Count = g.Count() })
+            .ToListAsync();
+
+        var revenueByDay = new List<object>();
+        for (var d = since30; d <= today; d = d.AddDays(1))
+        {
+            var row = revenueRows.FirstOrDefault(r => r.Day == d);
+            revenueByDay.Add(new
+            {
+                date    = d.ToString("yyyy-MM-dd"),
+                revenue = row?.Revenue ?? 0m,
+                count   = row?.Count   ?? 0
+            });
+        }
+
+        var methodRows = await liveBookings
+            .Where(b => b.PaymentStatus == PaymentStatus.Paid
+                        && b.PaidAt != null && b.PaidAt >= since30Dt)
+            .GroupBy(b => b.PaymentMethod ?? "Unknown")
+            .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(b => b.TotalPrice) })
+            .ToListAsync();
+
+        var bookings30 = await liveBookings
+            .CountAsync(b => b.BookingDate >= since30 && b.Status != BookingStatus.Cancelled);
+        var paid30 = await liveBookings
+            .CountAsync(b => b.BookingDate >= since30 && b.PaymentStatus == PaymentStatus.Paid);
+        var conversion = bookings30 > 0 ? Math.Round(paid30 * 100.0 / bookings30, 1) : 0.0;
+
+        return Json(new
+        {
+            generatedAt = DateTime.UtcNow,
+            counters = new
+            {
+                totalBookings,
+                todayBookings,
+                todayRevenue,
+                totalRevenue,
+                awaitingPayment,
+                pendingNoProof,
+                conversionPct  = conversion,
+                paidLast30     = paid30,
+                bookingsLast30 = bookings30
+            },
+            revenueByDay,
+            methodBreakdown = methodRows.Select(r => new
+            {
+                method  = r.Method,
+                count   = r.Count,
+                revenue = r.Revenue
+            })
+        });
+    }
+
     public async Task<IActionResult> Bookings(string? status, DateOnly? date, bool? awaitingConfirmation)
     {
         var courtIds = await GetMyCourtIdsAsync();
@@ -393,7 +485,7 @@ public class AdminController : Controller
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Settings(FacilitySettings model, IFormFile? logo,
-        IFormFile? gcashQr, IFormFile? mayaQr)
+        IFormFile? gcashQr, IFormFile? mayaQr, string[]? paymentMethods)
     {
         // These properties are not part of the settings form — remove any binding
         // errors caused by nullable-reference-type implicit [Required] checks.
@@ -431,6 +523,16 @@ public class AdminController : Controller
             settings.PaymentInstructions = model.PaymentInstructions;
             settings.PayMongoSecretKey   = string.IsNullOrWhiteSpace(model.PayMongoSecretKey)
                                            ? null : model.PayMongoSecretKey.Trim();
+
+            // Payment methods: keep only the supported ones. Fall back to QRPh
+            // when the user unticks everything so checkout never breaks.
+            var picked = (paymentMethods ?? Array.Empty<string>())
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Select(m => m.Trim().ToLowerInvariant())
+                .Where(Services.PayMongoService.AllPhilippinesMethods.Contains)
+                .Distinct()
+                .ToArray();
+            settings.PayMongoMethods = picked.Length == 0 ? "qrph" : string.Join(",", picked);
             settings.FacebookUrl         = string.IsNullOrWhiteSpace(model.FacebookUrl)  ? null : model.FacebookUrl.Trim();
             settings.InstagramUrl        = string.IsNullOrWhiteSpace(model.InstagramUrl) ? null : model.InstagramUrl.Trim();
 

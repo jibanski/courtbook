@@ -52,8 +52,26 @@ public class FacilitySettings
     [MaxLength(100)]
     public string? PayMongoSecretKey { get; set; }
 
+    /// <summary>
+    /// Comma-separated list of PayMongo Checkout payment methods enabled for this
+    /// facility. Defaults to QRPh only — the most universally available PH method
+    /// that doesn't require special merchant onboarding. Add more (card, gcash,
+    /// paymaya, grab_pay, dob, billease) once you've activated them on the
+    /// facility owner's PayMongo dashboard.
+    /// </summary>
+    [MaxLength(200)]
+    public string? PayMongoMethods { get; set; } = "qrph";
+
     [NotMapped]
     public bool AcceptsCardPayment => !string.IsNullOrWhiteSpace(PayMongoSecretKey);
+
+    /// <summary>Resolved list of enabled PayMongo methods, falling back to QRPh only.</summary>
+    [NotMapped]
+    public string[] EnabledPayMongoMethods => (PayMongoMethods ?? "qrph")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(s => s.ToLowerInvariant())
+        .Distinct()
+        .ToArray();
 
     // ── Social Media ──────────────────────────────────────────────────────────
     [MaxLength(300)]

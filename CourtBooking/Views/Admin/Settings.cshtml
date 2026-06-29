@@ -264,6 +264,44 @@
                                 Card payment is <strong>active</strong>. Customers will see a "Pay by Card" button on checkout.
                             </div>
                         }
+
+                        @{
+                            var enabled = Model.EnabledPayMongoMethods;
+                            (string Key, string Label, string Icon)[] options = new[]
+                            {
+                                ("qrph",     "QRPh (InstaPay)",     "bi-qr-code"),
+                                ("card",     "Visa / Mastercard",   "bi-credit-card-2-front"),
+                                ("gcash",    "GCash",               "bi-phone"),
+                                ("paymaya",  "Maya",                "bi-phone"),
+                                ("grab_pay", "GrabPay",             "bi-car-front"),
+                                ("dob",      "Online Banking",      "bi-bank"),
+                                ("billease", "BillEase",            "bi-cash-coin"),
+                            };
+                        }
+                        <hr class="my-3" />
+                        <div>
+                            <label class="form-label fw-semibold mb-2">Payment Methods Offered to Customers</label>
+                            <div class="form-text mb-2">
+                                Tick only methods you've <strong>activated on your PayMongo dashboard</strong>.
+                                QRPh works out of the box for most merchants and is enabled by default.
+                            </div>
+                            <div class="row g-2">
+                                @foreach (var opt in options)
+                                {
+                                    var isOn = enabled.Contains(opt.Key);
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check border rounded p-2 h-100">
+                                            <input class="form-check-input" type="checkbox"
+                                                   name="paymentMethods" value="@opt.Key"
+                                                   id="pm_@opt.Key" @(isOn ? "checked" : null) />
+                                            <label class="form-check-label small" for="pm_@opt.Key">
+                                                <i class="bi @opt.Icon me-1"></i>@opt.Label
+                                            </label>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
                     </div>
                 </div>
 
