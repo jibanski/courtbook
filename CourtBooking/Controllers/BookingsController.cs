@@ -18,6 +18,7 @@ public class BookingsController : Controller
     private readonly PayMongoService              _payMongo;
     private readonly IConfiguration              _config;
     private readonly EmailService                _email;
+    private readonly ILogger<BookingsController> _logger;
 
     public BookingsController(
         ApplicationDbContext db,
@@ -25,7 +26,8 @@ public class BookingsController : Controller
         UserManager<ApplicationUser> userManager,
         PayMongoService payMongo,
         IConfiguration config,
-        EmailService email)
+        EmailService email,
+        ILogger<BookingsController> logger)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -33,6 +35,7 @@ public class BookingsController : Controller
         _payMongo       = payMongo;
         _config         = config;
         _email          = email;
+        _logger         = logger;
     }
 
     public async Task<IActionResult> My()
@@ -132,9 +135,10 @@ public class BookingsController : Controller
         await _bookingService.CreateBookingAsync(booking);
 
         // Reload with navigation properties for email
-        var customer = await _userManager.FindByIdAsync(userId);
+        var customer  = await _userManager.FindByIdAsync(userId);
         var fullCourt = await _db.Courts.FindAsync(booking.CourtId);
-        _ = Task.Run(() => SendNewBookingNotificationAsync(booking, fullCourt, customer));
+        var owner     = fullCourt?.OwnerId is { } ownerId ? await _userManager.FindByIdAsync(ownerId) : null;
+        await SendNewBookingNotificationAsync(booking, fullCourt, customer, owner);
 
         return RedirectToAction(nameof(Pay), new { id = booking.Id });
     }
@@ -203,7 +207,11 @@ public class BookingsController : Controller
 
         // Notify the facility owner that proof was submitted
         var customer = await _userManager.FindByIdAsync(userId);
-        _ = Task.Run(() => SendProofSubmittedNotificationAsync(booking, customer));
+        if (booking.Court is null)
+            booking.Court = await _db.Courts.FindAsync(booking.CourtId);
+        var owner = booking.Court?.OwnerId is { } proofOwnerId
+            ? await _userManager.FindByIdAsync(proofOwnerId) : null;
+        await SendProofSubmittedNotificationAsync(booking, customer, owner);
 
         TempData["Success"] = "Payment details submitted! Your booking will be confirmed once the admin verifies your payment.";
         return RedirectToAction(nameof(My));
@@ -350,17 +358,15 @@ public class BookingsController : Controller
 
     /// <summary>
     /// Notifies the facility owner when a new booking is created.
-    /// Runs fire-and-forget so it never delays the user's redirect.
+    /// Awaited so DI-scoped services don't get disposed mid-send.
     /// </summary>
-    private async Task SendNewBookingNotificationAsync(Booking booking, Court? court, ApplicationUser? customer)
+    private async Task SendNewBookingNotificationAsync(Booking booking, Court? court, ApplicationUser? customer, ApplicationUser? owner)
     {
         try
         {
-            if (court?.OwnerId == null) return;
-            var owner = await _userManager.FindByIdAsync(court.OwnerId);
-            if (owner?.Email == null) return;
+            if (court is null || string.IsNullOrWhiteSpace(owner?.Email)) return;
 
-            var baseUrl    = _config["App:BaseUrl"]?.TrimEnd('/') ?? "https://courtbooksolutions.org";
+            var baseUrl    = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
             var bookingsUrl = $"{baseUrl}/Admin/Bookings";
             var bookedAt   = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
             var customerName  = customer?.FullName ?? "A customer";
@@ -405,36 +411,25 @@ public class BookingsController : Controller
             var plain = $"New Booking #{booking.Id}\n\nCourt: {courtName}\nDate: {dateLabel}\nTime: {timeLabel}\nAmount: ₱{amount}\nCustomer: {customerName} ({customerEmail})\nReceived: {bookedAt}\n\nView bookings: {bookingsUrl}";
 
             await _email.SendAsync(owner.Email, $"📅 New Booking — {courtName} on {dateLabel}", html, plain);
+            _logger?.LogInformation("[BookingsController] Sent new-booking notification for booking #{Id} to {Email}", booking.Id, owner.Email);
         }
         catch (Exception ex)
         {
-            // Fire-and-forget — log only, never throw
-            var logger = HttpContext?.RequestServices
-                .GetService<ILogger<BookingsController>>();
-            logger?.LogError(ex, "[BookingsController] Failed to send new booking notification for booking #{Id}", booking.Id);
+            _logger?.LogError(ex, "[BookingsController] Failed to send new booking notification for booking #{Id}", booking.Id);
         }
     }
 
     /// <summary>
     /// Notifies the facility owner when a customer submits payment proof.
-    /// Runs fire-and-forget so it never delays the user's redirect.
+    /// Awaited so DI-scoped services don't get disposed mid-send.
     /// </summary>
-    private async Task SendProofSubmittedNotificationAsync(Booking booking, ApplicationUser? customer)
+    private async Task SendProofSubmittedNotificationAsync(Booking booking, ApplicationUser? customer, ApplicationUser? owner)
     {
         try
         {
-            if (booking.Court?.OwnerId == null)
-            {
-                // Reload court if not included
-                var court2 = await _db.Courts.FindAsync(booking.CourtId);
-                if (court2?.OwnerId == null) return;
-                booking.Court = court2;
-            }
+            if (booking.Court is null || string.IsNullOrWhiteSpace(owner?.Email)) return;
 
-            var owner = await _userManager.FindByIdAsync(booking.Court.OwnerId!);
-            if (owner?.Email == null) return;
-
-            var baseUrl     = _config["App:BaseUrl"]?.TrimEnd('/') ?? "https://courtbooksolutions.org";
+            var baseUrl     = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
             var bookingsUrl = $"{baseUrl}/Admin/Bookings";
             var submittedAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
             var customerName  = customer?.FullName ?? "A customer";
@@ -481,12 +476,11 @@ public class BookingsController : Controller
             var plain = $"Payment Proof Submitted — Booking #{booking.Id}\n\nCourt: {courtName}\nDate: {dateLabel}\nTime: {timeLabel}\nAmount: ₱{amount}\nCustomer: {customerName}\nMethod: {method}\nReference: {reference}\nSubmitted: {submittedAt}\n\nReview and confirm: {bookingsUrl}";
 
             await _email.SendAsync(owner.Email, $"💳 Payment Proof Submitted — Booking #{booking.Id} needs verification", html, plain);
+            _logger?.LogInformation("[BookingsController] Sent proof-submitted notification for booking #{Id} to {Email}", booking.Id, owner.Email);
         }
         catch (Exception ex)
         {
-            var logger = HttpContext?.RequestServices
-                .GetService<ILogger<BookingsController>>();
-            logger?.LogError(ex, "[BookingsController] Failed to send proof notification for booking #{Id}", booking.Id);
+            _logger?.LogError(ex, "[BookingsController] Failed to send proof notification for booking #{Id}", booking.Id);
         }
     }
 
