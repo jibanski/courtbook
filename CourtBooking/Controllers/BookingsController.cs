@@ -269,6 +269,7 @@ public class BookingsController : Controller
         var userId  = _userManager.GetUserId(User)!;
         var booking = await _db.Bookings
             .Include(b => b.Court)
+            .Include(b => b.User)
             .FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == userId);
 
         if (booking is null) return NotFound();
@@ -291,6 +292,8 @@ public class BookingsController : Controller
                     booking.PaymentReference = sessionId;
                     booking.PaidAt           = DateTime.UtcNow;
                     await _db.SaveChangesAsync();
+
+                    _ = Task.Run(() => SendCustomerConfirmationAsync(booking));
                 }
             }
         }
@@ -485,5 +488,23 @@ public class BookingsController : Controller
                 .GetService<ILogger<BookingsController>>();
             logger?.LogError(ex, "[BookingsController] Failed to send proof notification for booking #{Id}", booking.Id);
         }
+    }
+
+    private async Task SendCustomerConfirmationAsync(Booking booking)
+    {
+        if (booking.Court is null || booking.User?.Email is null) return;
+        var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+        await _email.SendBookingConfirmedToCustomerAsync(
+            booking.User.Email,
+            booking.User.FirstName,
+            booking.Id,
+            booking.Court.Name,
+            booking.BookingDate,
+            booking.StartTime,
+            booking.EndTime,
+            booking.TotalPrice,
+            booking.PaymentMethod,
+            booking.PaymentReference,
+            baseUrl);
     }
 }

@@ -47,7 +47,7 @@
                             </div>
                         }
 
-                        <form asp-action="Start" method="post" id="regForm">
+                        <form asp-action="Start" method="post" id="regForm" enctype="multipart/form-data">
                             @Html.AntiForgeryToken()
 
                             <!-- ── Role selector ─────────────────────────── -->
@@ -146,6 +146,68 @@
                                 <input asp-for="FacilityName" class="form-control"
                                        placeholder="e.g. Greenfield Sports Complex" />
                                 <span asp-validation-for="FacilityName" class="text-danger small"></span>
+
+                                <label asp-for="FacilityAddress" class="form-label fw-semibold small mt-3">
+                                    <i class="bi bi-geo-alt me-1" style="color:var(--cb-lime);"></i>Facility Address
+                                    <span class="badge bg-secondary ms-1" style="font-size:.6rem;">Optional</span>
+                                </label>
+                                <input asp-for="FacilityAddress" class="form-control"
+                                       placeholder="e.g. 123 Rizal St., Brgy. San Roque, Quezon City" />
+                                <span asp-validation-for="FacilityAddress" class="text-danger small"></span>
+
+                                <label asp-for="BrandTagline" class="form-label fw-semibold small mt-3">
+                                    <i class="bi bi-chat-quote me-1" style="color:var(--cb-lime);"></i>Tagline
+                                    <span class="badge bg-secondary ms-1" style="font-size:.6rem;">Optional</span>
+                                </label>
+                                <input asp-for="BrandTagline" class="form-control"
+                                       placeholder="e.g. Book your court anytime, anywhere." maxlength="200" />
+                                <span asp-validation-for="BrandTagline" class="text-danger small"></span>
+
+                                <label asp-for="BrandLogo" class="form-label fw-semibold small mt-3">
+                                    <i class="bi bi-image me-1" style="color:var(--cb-lime);"></i>Logo
+                                    <span class="badge bg-secondary ms-1" style="font-size:.6rem;">Optional</span>
+                                </label>
+                                <input asp-for="BrandLogo" type="file" class="form-control"
+                                       accept=".jpg,.jpeg,.png,.webp,.svg" />
+                                <div class="form-text small" style="color:var(--cb-text-3);">JPG, PNG, WebP, or SVG. Square images look best.</div>
+                                <span asp-validation-for="BrandLogo" class="text-danger small"></span>
+                            </div>
+
+                            <!-- ── Payment details (Admin only, optional) ─────────────── -->
+                            <div id="paymentDetailsGroup" class="mb-3 @(Model.Role != "Admin" ? "d-none" : "")">
+                                <div class="border rounded p-3" style="background:rgba(163,255,18,0.04);border-color:rgba(163,255,18,0.15)!important;">
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <label class="form-label fw-semibold small mb-0">
+                                            <i class="bi bi-wallet2 me-1" style="color:var(--cb-lime);"></i>Manual Payment Details
+                                        </label>
+                                        <span class="badge bg-secondary" style="font-size:.65rem;">Optional</span>
+                                    </div>
+                                    <p class="small mb-3" style="color:var(--cb-text-3);">
+                                        Customers can pay you directly via GCash or Maya. You can also add these later in Settings.
+                                    </p>
+                                    <div class="row g-2">
+                                        <div class="col-7">
+                                            <label asp-for="GCashNumber" class="form-label small mb-1">GCash Number</label>
+                                            <input asp-for="GCashNumber" class="form-control form-control-sm" placeholder="09XX XXX XXXX" />
+                                            <span asp-validation-for="GCashNumber" class="text-danger small"></span>
+                                        </div>
+                                        <div class="col-5">
+                                            <label asp-for="GCashName" class="form-label small mb-1">Account Name</label>
+                                            <input asp-for="GCashName" class="form-control form-control-sm" placeholder="Juan D." />
+                                            <span asp-validation-for="GCashName" class="text-danger small"></span>
+                                        </div>
+                                        <div class="col-7">
+                                            <label asp-for="MayaNumber" class="form-label small mb-1">Maya Number</label>
+                                            <input asp-for="MayaNumber" class="form-control form-control-sm" placeholder="09XX XXX XXXX" />
+                                            <span asp-validation-for="MayaNumber" class="text-danger small"></span>
+                                        </div>
+                                        <div class="col-5">
+                                            <label asp-for="MayaName" class="form-label small mb-1">Account Name</label>
+                                            <input asp-for="MayaName" class="form-control form-control-sm" placeholder="Juan D." />
+                                            <span asp-validation-for="MayaName" class="text-danger small"></span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- ── Common fields ──────────────────────────── -->
@@ -305,6 +367,7 @@
             const cardAdmin     = document.getElementById('cardAdmin');
             const cardCustomer  = document.getElementById('cardCustomer');
             const facilityGrp   = document.getElementById('facilityNameGroup');
+            const paymentGrp    = document.getElementById('paymentDetailsGroup');
             const panelAdmin    = document.getElementById('panelAdmin');
             const panelCustomer = document.getElementById('panelCustomer');
             const submitIcon    = document.getElementById('submitIcon');
@@ -315,6 +378,7 @@
                 cardAdmin.classList.add('role-card-active');
                 cardCustomer.classList.remove('role-card-active');
                 facilityGrp.classList.remove('d-none');
+                paymentGrp.classList.remove('d-none');
                 panelAdmin.classList.remove('d-none');
                 panelCustomer.classList.add('d-none');
                 submitIcon.className = 'bi bi-rocket-takeoff me-2';
@@ -324,6 +388,7 @@
                 cardCustomer.classList.add('role-card-active');
                 cardAdmin.classList.remove('role-card-active');
                 facilityGrp.classList.add('d-none');
+                paymentGrp.classList.add('d-none');
                 panelAdmin.classList.add('d-none');
                 panelCustomer.classList.remove('d-none');
                 submitIcon.className = 'bi bi-person-check me-2';

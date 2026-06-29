@@ -47,6 +47,14 @@ public class TrialController : Controller
         if (model.Role == "Admin" && string.IsNullOrWhiteSpace(model.FacilityName))
             ModelState.AddModelError(nameof(model.FacilityName), "Facility name is required for facility owners.");
 
+        // Logo is optional; if uploaded must be an allowed image type.
+        if (model.Role == "Admin" && model.BrandLogo is { Length: > 0 })
+        {
+            var logoExt = Path.GetExtension(model.BrandLogo.FileName).ToLowerInvariant();
+            if (logoExt is not (".jpg" or ".jpeg" or ".png" or ".webp" or ".svg"))
+                ModelState.AddModelError(nameof(model.BrandLogo), "Logo must be a JPG, PNG, WebP, or SVG image.");
+        }
+
         if (!ModelState.IsValid)
             return View(model);
 
@@ -74,12 +82,22 @@ public class TrialController : Controller
 
             // Each admin gets their own FacilitySettings record
             var slug     = await GenerateUniqueSlugAsync(model.FacilityName!);
+            var logoUrl = await SaveBrandLogoAsync(model.BrandLogo);
+
             var settings = new FacilitySettings
             {
                 OwnerId             = user.Id,
                 FacilityName        = model.FacilityName!,
+                BrandName           = model.FacilityName!,   // brand the site automatically
+                BrandTagline        = string.IsNullOrWhiteSpace(model.BrandTagline) ? null : model.BrandTagline.Trim(),
+                BrandLogoUrl        = logoUrl,
                 Slug                = slug,
+                Address             = string.IsNullOrWhiteSpace(model.FacilityAddress) ? null : model.FacilityAddress.Trim(),
                 TrialStartedAt      = DateTime.UtcNow,
+                GCashNumber         = string.IsNullOrWhiteSpace(model.GCashNumber) ? null : model.GCashNumber.Trim(),
+                GCashName           = string.IsNullOrWhiteSpace(model.GCashName)   ? null : model.GCashName.Trim(),
+                MayaNumber          = string.IsNullOrWhiteSpace(model.MayaNumber)  ? null : model.MayaNumber.Trim(),
+                MayaName            = string.IsNullOrWhiteSpace(model.MayaName)    ? null : model.MayaName.Trim(),
                 PaymentInstructions = "Please send the exact amount and include your booking reference in the notes."
             };
             _db.FacilitySettings.Add(settings);
@@ -287,5 +305,22 @@ public class TrialController : Controller
             slug = $"{base_slug}-{counter++}";
         }
         return slug;
+    }
+
+    private static async Task<string?> SaveBrandLogoAsync(IFormFile? file)
+    {
+        if (file is not { Length: > 0 }) return null;
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp" or ".svg")) return null;
+
+        var uploadsRoot = Environment.GetEnvironmentVariable("UPLOADS_ROOT")
+                          ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+        var dir = Path.Combine(uploadsRoot, "uploads", "brand");
+        Directory.CreateDirectory(dir);
+        var fileName = $"logo_{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(dir, fileName);
+        await using var stream = System.IO.File.Create(fullPath);
+        await file.CopyToAsync(stream);
+        return $"/uploads/brand/{fileName}";
     }
 }

@@ -21,17 +21,20 @@ public class WebhookController : ControllerBase
     private readonly ApplicationDbContext      _db;
     private readonly PayMongoService           _payMongo;
     private readonly IConfiguration            _config;
+    private readonly EmailService              _email;
     private readonly ILogger<WebhookController> _logger;
 
     public WebhookController(
         ApplicationDbContext db,
         PayMongoService payMongo,
         IConfiguration config,
+        EmailService email,
         ILogger<WebhookController> logger)
     {
         _db       = db;
         _payMongo = payMongo;
         _config   = config;
+        _email    = email;
         _logger   = logger;
     }
 
@@ -79,6 +82,7 @@ public class WebhookController : ControllerBase
                 {
                     var booking = await _db.Bookings
                         .Include(b => b.Court)
+                        .Include(b => b.User)
                         .FirstOrDefaultAsync(b => b.Id == bookingId);
 
                     if (booking is not null && booking.PaymentStatus == PaymentStatus.Unpaid)
@@ -117,6 +121,24 @@ public class WebhookController : ControllerBase
                             _logger.LogInformation(
                                 "Booking #{BookingId} confirmed via PayMongo webhook ({Method}).",
                                 bookingId, booking.PaymentMethod);
+
+                            if (booking.Court is not null && !string.IsNullOrWhiteSpace(booking.User?.Email))
+                            {
+                                var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/')
+                                              ?? $"{Request.Scheme}://{Request.Host}";
+                                _ = Task.Run(() => _email.SendBookingConfirmedToCustomerAsync(
+                                    booking.User.Email!,
+                                    booking.User.FirstName,
+                                    booking.Id,
+                                    booking.Court.Name,
+                                    booking.BookingDate,
+                                    booking.StartTime,
+                                    booking.EndTime,
+                                    booking.TotalPrice,
+                                    booking.PaymentMethod,
+                                    booking.PaymentReference,
+                                    baseUrl));
+                            }
                         }
                     }
                 }
