@@ -29,4 +29,9 @@ public class PlatformConfig
     public byte[]? BpiQrData        { get; set; }
     [MaxLength(50)]
     public string? BpiQrContentType { get; set; }
+
+    // Platform logo (shown in landing page navbar / footer)
+    public byte[]? LogoData        { get; set; }
+    [MaxLength(50)]
+    public string? LogoContentType { get; set; }
 }

@@ -97,9 +97,12 @@
                         <div class="rounded-3 p-3 text-start" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);">
                             <div style="font-size:.7rem;color:var(--cb-text-3);font-weight:600;letter-spacing:.08em;margin-bottom:.75rem;">UPCOMING BOOKINGS</div>
                             @foreach (var item in new[] {
-                                new { name = "Miguel R.", court = "Court A – Tennis", time = "9:00 AM", confirmed = true },
-                                new { name = "Ana C.", court = "Court B – Badminton", time = "10:00 AM", confirmed = false },
-                                new { name = "John D.", court = "Court C – Basketball", time = "11:00 AM", confirmed = true },
+                                new { name = "Jayben",   court = "Court A – Tennis",     time = "9:00 AM",  confirmed = true  },
+                                new { name = "Ariyah",   court = "Court B – Badminton",  time = "10:00 AM", confirmed = false },
+                                new { name = "Isabelle", court = "Court C – Basketball", time = "11:00 AM", confirmed = true  },
+                                new { name = "Niegel",   court = "Court A – Tennis",     time = "2:00 PM",  confirmed = true  },
+                                new { name = "Chris",    court = "Court B – Badminton",  time = "3:00 PM",  confirmed = true  },
+                                new { name = "Keanne",   court = "Court D – Pickleball", time = "4:00 PM",  confirmed = false },
                             })
                             {
                                 <div class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid var(--cb-border);">
@@ -133,7 +136,7 @@
                 <div style="color:var(--cb-text-3);font-size:.82rem;">Setup Time</div>
             </div>
             <div class="col-6 col-md-3">
-                <div style="font-size:1.75rem;font-weight:800;color:var(--cb-lime);">GCash &amp; Maya</div>
+                <div style="font-size:1.75rem;font-weight:800;color:var(--cb-lime);">GCash, Maya &amp; Card</div>
                 <div style="color:var(--cb-text-3);font-size:.82rem;">Digital Payments</div>
             </div>
             <div class="col-6 col-md-3">
@@ -155,7 +158,7 @@
         <div class="row g-4">
             @foreach (var feat in new[] {
                 new { icon = "bi-calendar-check", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Online Court Booking", desc = "Customers can browse courts and book their slot online anytime — no phone calls, no manual scheduling." },
-                new { icon = "bi-phone", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "GCash & Maya Payments", desc = "Accept digital payments through GCash and Maya. Customers submit payment proof — you confirm and get paid." },
+                new { icon = "bi-phone", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "GCash, Maya, Card & More", desc = "Accept digital payments via GCash, Maya, credit/debit card, GrabPay, QRPh, and online banking. Manual proof or instant PayMongo checkout — your choice." },
                 new { icon = "bi-clock-history", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Real-Time Availability", desc = "Customers see exactly which time slots are open. No double-bookings, no conflicts — ever." },
                 new { icon = "bi-speedometer2", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Admin Dashboard", desc = "Monitor bookings, revenue, court utilization, and pending payments from one clean, real-time dashboard." },
                 new { icon = "bi-buildings", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Multi-Court Management", desc = "Manage unlimited courts, each with its own schedule, pricing, sport type, and availability settings." },
@@ -305,7 +308,7 @@
                         @foreach (var f in new[] {
                             "Unlimited courts & bookings",
                             "Online booking system",
-                            "GCash & Maya payments",
+                            "GCash, Maya, Card & more (via PayMongo)",
                             "Full admin dashboard",
                             "Time slot management",
                             "Court photo uploads",
@@ -420,15 +423,15 @@
                     </div>
                     <div class="p-3 rounded-3 mb-2" style="background:rgba(255,165,0,0.08);border-left:3px solid #ffa500;">
                         <div class="small" style="color:#fbbf24;font-weight:600;">NEXT UP &middot; Court 2</div>
-                        <div style="font-weight:600;">Alex M. / Jamie P. vs. Riya S. / Noah T.</div>
+                        <div style="font-weight:600;">Jay &amp; GEL vs. Chris &amp; Keanne</div>
                     </div>
                     <div class="p-3 rounded-3 mb-2" style="background:rgba(255,255,255,0.04);">
                         <div class="small" style="color:#94a3b8;">QUEUE &middot; Court 1</div>
-                        <div style="color:#e2e8f0;">5 players waiting &middot; ~8 min</div>
+                        <div style="color:#e2e8f0;">Isabelle, Jessy, Jenny waiting &middot; ~8 min</div>
                     </div>
                     <div class="p-3 rounded-3" style="background:rgba(255,255,255,0.04);">
                         <div class="small" style="color:#94a3b8;">PLAYING &middot; Court 3</div>
-                        <div style="color:#e2e8f0;">Mark R. / Lia C. vs. Dan O. / Kai B.</div>
+                        <div style="color:#e2e8f0;">Jay &amp; Isabelle vs. Jenny &amp; Keanne</div>
                     </div>
                 </div>
             </div>
@@ -456,11 +459,11 @@
                         },
                         new {
                             q = "How do I accept payments from customers?",
-                            a = "Customers pay via GCash or Maya. They upload a screenshot of their payment proof when booking, you verify it and confirm — no third-party payment gateway or extra fees involved."
+                            a = "You can accept GCash, Maya, credit/debit card, GrabPay, QRPh, and online banking. Two flows are supported: (1) manual — customers send the money to your GCash/Maya number and upload a screenshot, you auto-confirm; or (2) instant — connect your PayMongo account for one-click card / e-wallet checkout that confirms the booking automatically."
                         },
                         new {
                             q = "How long does setup take?",
-                            a = "Most facility owners are live in under 30 minutes. You create your account, add your courts with photos and pricing, and share your booking link. That's it."
+                            a = "Most facility owners are live in under 10 minutes. You create your account, add your courts with photos and pricing, and share your booking link. That's it."
                         },
                         new {
                             q = "Can I manage multiple courts and sports?",
