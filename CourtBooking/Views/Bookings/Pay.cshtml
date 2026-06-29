@@ -221,15 +221,15 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Transaction / Reference Number <span class="text-danger">*</span></label>
+                                <label class="form-label fw-semibold">Transaction / Reference Number <span class="text-muted small">(optional)</span></label>
                                 <input type="text" name="reference" class="form-control" placeholder="e.g. 1234567890"
-                                       required maxlength="100" />
-                                <div class="form-text">Enter the reference number from your GCash/Maya transaction.</div>
+                                       maxlength="100" />
+                                <div class="form-text">If your GCash/Maya app showed a reference number, you can enter it here.</div>
                             </div>
 
                             <div class="mb-4">
-                                <label class="form-label fw-semibold">Screenshot (optional)</label>
-                                <input type="file" name="screenshot" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
+                                <label class="form-label fw-semibold">Screenshot <span class="text-danger">*</span></label>
+                                <input type="file" name="screenshot" class="form-control" accept=".jpg,.jpeg,.png,.webp" required />
                                 <div class="form-text">Upload a screenshot of your payment confirmation (JPG, PNG, or WebP).</div>
                             </div>
 

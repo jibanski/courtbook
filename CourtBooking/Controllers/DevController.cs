@@ -554,6 +554,68 @@ public class DevController : Controller
         return RedirectToAction(nameof(DonationQr), new { password });
     }
 
+    // ── Platform Logo ─────────────────────────────────────────────────────────
+
+    // GET /Dev/Logo
+    public async Task<IActionResult> Logo(string? password, string? error)
+    {
+        if (!string.IsNullOrEmpty(error)) ViewBag.Error = error;
+        ViewBag.Password   = password ?? "";
+        ViewBag.IsUnlocked = IsValidPassword(password);
+        ViewBag.Config     = await _db.PlatformConfig.FindAsync(1);
+        return View();
+    }
+
+    // POST /Dev/Logo
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Logo(string password, IFormFile? logo, string? action)
+    {
+        if (!IsValidPassword(password))
+            return RedirectToAction(nameof(Logo), new { error = "Invalid password." });
+
+        // Password-only submit (the unlock form) — just bounce back to the
+        // GET so the upload form renders. Mirrors the DonationQr unlock flow.
+        if (logo is null && string.IsNullOrEmpty(action))
+            return RedirectToAction(nameof(Logo), new { password });
+
+        var cfg = await _db.PlatformConfig.FindAsync(1);
+        if (cfg == null)
+        {
+            cfg = new CourtBooking.Models.PlatformConfig { Id = 1 };
+            _db.PlatformConfig.Add(cfg);
+        }
+
+        if (string.Equals(action, "remove", StringComparison.OrdinalIgnoreCase))
+        {
+            cfg.LogoData        = null;
+            cfg.LogoContentType = null;
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Logo removed — landing page reverted to the default icon.";
+            return RedirectToAction(nameof(Logo), new { password });
+        }
+
+        if (logo is not { Length: > 0 })
+            return RedirectToAction(nameof(Logo), new { password, error = "Choose an image file to upload." });
+
+        // Reject anything that isn't a common web image type.
+        var allowed = new[] { "image/png", "image/jpeg", "image/webp", "image/svg+xml" };
+        if (!allowed.Contains(logo.ContentType))
+            return RedirectToAction(nameof(Logo), new { password, error = "Unsupported image type. Use PNG, JPG, WEBP, or SVG." });
+
+        // Cap upload to 1 MB to keep the data URL embedded in the layout tiny.
+        if (logo.Length > 1_048_576)
+            return RedirectToAction(nameof(Logo), new { password, error = "Logo file is too large (max 1 MB)." });
+
+        using var ms = new MemoryStream();
+        await logo.CopyToAsync(ms);
+        cfg.LogoData        = ms.ToArray();
+        cfg.LogoContentType = logo.ContentType;
+
+        await _db.SaveChangesAsync();
+        TempData["Success"] = "Platform logo updated. Refresh the landing page to see it.";
+        return RedirectToAction(nameof(Logo), new { password });
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     // Returns false when _devPassword is empty (not configured) so all /Dev

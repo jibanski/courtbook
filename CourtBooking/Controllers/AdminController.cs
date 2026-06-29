@@ -45,7 +45,32 @@ public class AdminController : Controller
         ViewBag.TotalRevenue    = totalRevenue;
         ViewBag.ActiveCourts    = activeCourts;
         ViewBag.AwaitingPayment = awaitingPayment;
-        ViewBag.FacilitySettings = await GetMySettingsAsync();
+        var settings = await GetMySettingsAsync();
+        ViewBag.FacilitySettings = settings;
+
+        // ── Setup Checklist (shown on dashboard until all required items are done) ──
+        var hasCourt   = activeCourts > 0;
+        var hasPayment = !string.IsNullOrWhiteSpace(settings?.GCashNumber)
+                         || !string.IsNullOrWhiteSpace(settings?.MayaNumber)
+                         || !string.IsNullOrWhiteSpace(settings?.PayMongoSecretKey);
+        var hasAddress = !string.IsNullOrWhiteSpace(settings?.Address);
+        var hasLogo    = !string.IsNullOrWhiteSpace(settings?.BrandLogoUrl);
+        var hasTagline = !string.IsNullOrWhiteSpace(settings?.BrandTagline);
+        var hasSlug    = !string.IsNullOrWhiteSpace(settings?.Slug);
+
+        var steps = new[]
+        {
+            new { Title = "Add your first court",        Done = hasCourt,   Required = true,  Url = Url.Action("CreateCourt", "Admin")!,        Cta = "Add court",       Icon = "bi-buildings",     Hint = "Customers need a court they can book." },
+            new { Title = "Add a payment option",        Done = hasPayment, Required = true,  Url = Url.Action("Settings",    "Admin") + "#payments", Cta = "Add payment",   Icon = "bi-credit-card",   Hint = "GCash, Maya, or PayMongo \u2014 at least one." },
+            new { Title = "Set your facility address",   Done = hasAddress, Required = true,  Url = Url.Action("Settings",    "Admin") + "#facility", Cta = "Add address",   Icon = "bi-geo-alt",       Hint = "Shown on your public booking page." },
+            new { Title = "Upload your brand logo",      Done = hasLogo,    Required = false, Url = Url.Action("Settings",    "Admin") + "#branding", Cta = "Upload logo",   Icon = "bi-image",         Hint = "Recommended \u2014 replaces the CourtBook logo for your customers." },
+            new { Title = "Add a tagline",               Done = hasTagline, Required = false, Url = Url.Action("Settings",    "Admin") + "#branding", Cta = "Add tagline",   Icon = "bi-chat-quote",    Hint = "A short line shown on your public page." },
+            new { Title = "Share your public booking link", Done = hasSlug && hasCourt && hasPayment && hasAddress, Required = false, Url = Url.Action("Settings", "Admin") + "#share", Cta = "Copy link", Icon = "bi-link-45deg", Hint = "Send this to your customers so they can start booking." },
+        };
+        ViewBag.SetupSteps        = steps;
+        ViewBag.SetupRequiredDone = steps.Where(s => s.Required).All(s => s.Done);
+        ViewBag.SetupDoneCount    = steps.Count(s => s.Done);
+        ViewBag.SetupTotalCount   = steps.Length;
 
         var recentBookings = await _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId))
@@ -112,9 +137,12 @@ public class AdminController : Controller
             });
         }
 
+        // Payment mix — include legacy paid bookings that have no PaidAt by
+        // falling back to BookingDate, matching the 'paid30' counter below.
         var methodRows = await liveBookings
             .Where(b => b.PaymentStatus == PaymentStatus.Paid
-                        && b.PaidAt != null && b.PaidAt >= since30Dt)
+                        && ((b.PaidAt != null && b.PaidAt >= since30Dt)
+                            || (b.PaidAt == null && b.BookingDate >= since30)))
             .GroupBy(b => b.PaymentMethod ?? "Unknown")
             .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(b => b.TotalPrice) })
             .ToListAsync();

@@ -10,6 +10,15 @@ using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load developer-only / machine-local overrides (Dev:Password, etc.) that
+// shouldn't be checked in. ASP.NET Core does not pick up *.local.json files
+// by default, so we register them explicitly. File is optional so production
+// (Railway) keeps working without it.
+builder.Configuration
+    .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.local.json",
+                 optional: true, reloadOnChange: true);
+
 // Railway injects a PORT env var — bind to it so the app is reachable
 var railwayPort = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrEmpty(railwayPort))
@@ -165,6 +174,10 @@ using (var scope = app.Services.CreateScope())
                 "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"GCashQrCodePath\" character varying(300) NULL");
             await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"MayaQrCodePath\" character varying(300) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"PlatformConfig\" ADD COLUMN IF NOT EXISTS \"LogoData\" bytea NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"PlatformConfig\" ADD COLUMN IF NOT EXISTS \"LogoContentType\" character varying(50) NULL");
 
             // Bump any rows that still have the old multi-method default to QRPh-only.
             await db.Database.ExecuteSqlRawAsync(
@@ -179,6 +192,8 @@ using (var scope = app.Services.CreateScope())
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"PayMongoMethods\" TEXT NULL DEFAULT 'qrph'"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"GCashQrCodePath\" TEXT NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"MayaQrCodePath\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"PlatformConfig\" ADD COLUMN \"LogoData\" BLOB NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"PlatformConfig\" ADD COLUMN \"LogoContentType\" TEXT NULL"); } catch { }
 
             // Bump any rows that still have the old multi-method default to QRPh-only.
             try {

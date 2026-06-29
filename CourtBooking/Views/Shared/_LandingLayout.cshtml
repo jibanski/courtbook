@@ -1,4 +1,12 @@
 <!DOCTYPE html>
+@using CourtBooking.Data
+@inject ApplicationDbContext PlatformDb
+@{
+    var platformCfg = await PlatformDb.PlatformConfig.FindAsync(1);
+    string? platformLogoSrc = platformCfg?.LogoData is { Length: > 0 }
+        ? $"data:{platformCfg.LogoContentType};base64,{Convert.ToBase64String(platformCfg.LogoData)}"
+        : null;
+}
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -23,11 +31,18 @@
         <div class="container">
             <a class="navbar-brand fw-bold fs-5 d-flex align-items-center gap-2" asp-controller="Home" asp-action="Index"
                style="color:var(--cb-text);text-decoration:none;">
-                <span class="d-inline-flex align-items-center justify-content-center rounded-2"
-                      style="width:28px;height:28px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
-                    <i class="bi bi-lightning-charge-fill" style="color:var(--cb-lime);font-size:.8rem;"></i>
-                </span>
-                CourtBook
+                @if (platformLogoSrc != null)
+                {
+                    <img src="@platformLogoSrc" alt="CourtBook" style="height:32px;width:auto;max-width:160px;object-fit:contain;" />
+                }
+                else
+                {
+                    <span class="d-inline-flex align-items-center justify-content-center rounded-2"
+                          style="width:28px;height:28px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
+                        <i class="bi bi-lightning-charge-fill" style="color:var(--cb-lime);font-size:.8rem;"></i>
+                    </span>
+                    <span>CourtBook</span>
+                }
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#landingNav"
                     style="color:var(--cb-text-2);">
@@ -62,8 +77,16 @@
         <div class="container">
             <div class="row g-4">
                 <div class="col-lg-4">
-                    <div class="fw-bold fs-5 mb-2 text-white">
-                        <i class="bi bi-trophy-fill me-2 text-warning"></i>CourtBook
+                    <div class="fw-bold fs-5 mb-2 text-white d-flex align-items-center gap-2">
+                        @if (platformLogoSrc != null)
+                        {
+                            <img src="@platformLogoSrc" alt="CourtBook" style="height:32px;width:auto;max-width:180px;object-fit:contain;" />
+                        }
+                        else
+                        {
+                            <i class="bi bi-trophy-fill text-warning"></i>
+                            <span>CourtBook</span>
+                        }
                     </div>
                     <p class="text-white-50 small">
                         The smart booking platform built for sports facility owners.
