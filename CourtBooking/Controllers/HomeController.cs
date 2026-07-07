@@ -40,6 +40,15 @@ public class HomeController : Controller
                 .Take(6)
                 .ToListAsync();
 
+            // Onboarded clients: publicly-listed facilities (have a slug, not
+            // suspended, and have set their own name) shown as a logo wall.
+            ViewBag.Clients = await _db.FacilitySettings
+                .Where(f => f.Slug != null
+                            && !f.IsSuspended
+                            && f.FacilityName != "CourtBook")
+                .OrderBy(f => f.FacilityName)
+                .ToListAsync();
+
             return View("Landing", featured);
         }
 
