@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.FileProviders;
+using Npgsql;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,15 +20,17 @@ builder.Configuration
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.local.json",
                  optional: true, reloadOnChange: true);
 
-// Railway injects a PORT env var — bind to it so the app is reachable
-var railwayPort = Environment.GetEnvironmentVariable("PORT");
-if (!string.IsNullOrEmpty(railwayPort))
-    builder.WebHost.UseUrls($"http://0.0.0.0:{railwayPort}");
+// Render & Railway both inject a PORT env var — bind to it so the app is reachable
+var hostPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(hostPort))
+    builder.WebHost.UseUrls($"http://0.0.0.0:{hostPort}");
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
-var isPostgres = connectionString.StartsWith("postgresql://")
-              || connectionString.StartsWith("postgres://")
-              || connectionString.Contains("Host=");
+// Render (and some other hosts) hand Postgres credentials to us as a URI
+// (postgresql://user:pass@host/db). Npgsql expects key/value form, so we
+// normalize it below. SQLite / key-value strings pass through untouched.
+var connectionString = NormalizeConnectionString(
+    builder.Configuration.GetConnectionString("DefaultConnection")!);
+var isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase);
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
@@ -94,10 +97,10 @@ builder.Services.AddControllersWithViews();
 
 // ── Data Protection key persistence ───────────────────────────────────────
 // Anti-forgery tokens, auth cookies, and password-reset tokens are signed
-// with keys managed by the Data Protection stack. On Railway the default
+// with keys managed by the Data Protection stack. In a container the default
 // in-container directory is ephemeral, so every deploy invalidates every
-// token and logs every user out. Persist the keys to the mounted volume
-// (UPLOADS_ROOT, /data on Railway) so they survive container restarts.
+// token and logs every user out. Persist the keys to the mounted disk/volume
+// (UPLOADS_ROOT, e.g. /data on Render/Railway) so they survive restarts.
 // Falls back to the default location locally / in dev.
 {
     var keysRoot = Environment.GetEnvironmentVariable("UPLOADS_ROOT");
@@ -119,7 +122,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-// Only redirect HTTPS locally — Railway terminates SSL at its own proxy
+// Only redirect HTTPS locally — Render/Railway terminate SSL at their own proxy
 if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 
@@ -129,8 +132,8 @@ app.UseAuthorization();
 
 app.UseStaticFiles();   // serves wwwroot (CSS, JS, bundled assets)
 
-// On Railway, uploaded files (court photos, logos, payment proofs) live on a
-// persistent volume mounted at UPLOADS_ROOT (e.g. /data).
+// In production, uploaded files (court photos, logos, payment proofs) live on a
+// persistent disk/volume mounted at UPLOADS_ROOT (e.g. /data on Render).
 // Locally they stay inside wwwroot/uploads as before.
 var uploadsEnvRoot = Environment.GetEnvironmentVariable("UPLOADS_ROOT");
 if (!string.IsNullOrEmpty(uploadsEnvRoot))
@@ -274,3 +277,24 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+// Convert a Postgres connection URI (postgresql://user:pass@host:port/db) into
+// the key/value form Npgsql understands. Non-URI strings are returned as-is.
+static string NormalizeConnectionString(string raw)
+{
+    if (!raw.StartsWith("postgres://") && !raw.StartsWith("postgresql://"))
+        return raw;
+
+    var uri   = new Uri(raw);
+    var creds = uri.UserInfo.Split(':', 2);
+    return new NpgsqlConnectionStringBuilder
+    {
+        Host                   = uri.Host,
+        Port                   = uri.Port > 0 ? uri.Port : 5432,
+        Username               = Uri.UnescapeDataString(creds[0]),
+        Password               = creds.Length > 1 ? Uri.UnescapeDataString(creds[1]) : string.Empty,
+        Database               = uri.AbsolutePath.TrimStart('/'),
+        SslMode                = SslMode.Prefer,
+    }.ConnectionString;
+}
