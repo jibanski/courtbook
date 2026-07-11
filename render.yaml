@@ -1,0 +1,68 @@
+# Render Blueprint — CourtBook (ASP.NET Core .NET 9, Docker)
+# Spec: https://render.com/docs/blueprint-spec
+#
+# To deploy: Render Dashboard → New → Blueprint → connect this repo → Apply.
+# Render reads this file, provisions the Postgres DB + web service + disk, and
+# wires the DB connection string into the app automatically.
+#
+# Values marked `sync: false` are secrets: Render will prompt for them on first
+# apply (or you set them later under the service's Environment tab). They are
+# intentionally NOT stored in this file.
+
+databases:
+  - name: courtbook-db
+    databaseName: courtbook
+    region: singapore          # closest region to the Philippines; change if needed
+    plan: basic-256mb          # `free` expires after 30 days — use a paid plan for prod
+
+services:
+  - type: web
+    name: courtbook
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: singapore                  # must match the database region for internal networking
+    plan: starter                      # `starter`+ required: free instances have no persistent disk
+    healthCheckPath: /
+    autoDeploy: true
+    disk:
+      name: courtbook-data
+      mountPath: /data                 # matches UPLOADS_ROOT below
+      sizeGB: 1
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: UPLOADS_ROOT
+        value: /data
+      # DB connection string is injected from the managed Postgres instance.
+      # Render provides it in URI form; Program.cs normalizes it for Npgsql.
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: courtbook-db
+          property: connectionString
+      - key: App__BaseUrl
+        value: https://courtbooksolutions.org
+      # ── Email (Brevo) ──────────────────────────────────────────────────────
+      - key: Email__Provider
+        value: BrevoHttp
+      - key: Email__FromName
+        value: CourtBook
+      - key: Email__FromAddress
+        sync: false
+      - key: Email__ApiKey
+        sync: false
+      # ── Secrets (fill in the dashboard) ───────────────────────────────────
+      - key: Subscription__Secret
+        sync: false
+      - key: Auth__Google__ClientId
+        sync: false
+      - key: Auth__Google__ClientSecret
+        sync: false
+      - key: Auth__Facebook__AppId
+        sync: false
+      - key: Auth__Facebook__AppSecret
+        sync: false
+      - key: PayMongo__WebhookSecret
+        sync: false
+      - key: Dev__Password
+        sync: false
