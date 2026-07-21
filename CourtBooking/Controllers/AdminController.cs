@@ -258,6 +258,7 @@ public class AdminController : Controller
     {
         if (!ModelState.IsValid) { await PopulateSportsAsync(); return View(court); }
         court.OwnerId = CurrentUserId;
+        court.FacilityName = (await GetMySettingsAsync())?.FacilityName;
         _db.Courts.Add(court);
         await _db.SaveChangesAsync();
         court.ImageUrl = await SaveCourtPhotoAsync(photo, court.Id, null);

@@ -30,6 +30,14 @@ public class Court
     public string? OwnerId { get; set; }
     public ApplicationUser? Owner { get; set; }
 
+    /// <summary>
+    /// Snapshot of the facility (owner) name. Denormalized onto the court so it
+    /// can be attributed to a facility directly in the database, without joining
+    /// through Owner → FacilitySettings.
+    /// </summary>
+    [MaxLength(100)]
+    public string? FacilityName { get; set; }
+
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public ICollection<CourtTimeSlot> TimeSlots { get; set; } = new List<CourtTimeSlot>();
 }
