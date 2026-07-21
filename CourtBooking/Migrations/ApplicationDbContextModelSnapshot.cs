@@ -199,6 +199,10 @@ namespace CourtBooking.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("FacilityName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("ImageUrl")
                         .HasColumnType("text");
 

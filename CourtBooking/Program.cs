@@ -180,6 +180,8 @@ using (var scope = app.Services.CreateScope())
                 "ALTER TABLE \"PlatformConfig\" ADD COLUMN IF NOT EXISTS \"LogoContentType\" character varying(50) NULL");
             await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"FacilityName\" character varying(100) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"Courts\" ADD COLUMN IF NOT EXISTS \"FacilityName\" character varying(100) NULL");
 
             // Bump any rows that still have the old multi-method default to QRPh-only.
             await db.Database.ExecuteSqlRawAsync(
@@ -191,6 +193,12 @@ using (var scope = app.Services.CreateScope())
                 "UPDATE \"Bookings\" SET \"FacilityName\" = fs.\"FacilityName\" " +
                 "FROM \"Courts\" c JOIN \"FacilitySettings\" fs ON fs.\"OwnerId\" = c.\"OwnerId\" " +
                 "WHERE c.\"Id\" = \"Bookings\".\"CourtId\" AND \"Bookings\".\"FacilityName\" IS NULL");
+
+            // Backfill facility name onto existing courts from the owner's facility.
+            await db.Database.ExecuteSqlRawAsync(
+                "UPDATE \"Courts\" SET \"FacilityName\" = fs.\"FacilityName\" " +
+                "FROM \"FacilitySettings\" fs WHERE fs.\"OwnerId\" = \"Courts\".\"OwnerId\" " +
+                "AND \"Courts\".\"FacilityName\" IS NULL");
         }
         else
         {
@@ -203,6 +211,7 @@ using (var scope = app.Services.CreateScope())
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"PlatformConfig\" ADD COLUMN \"LogoData\" BLOB NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"PlatformConfig\" ADD COLUMN \"LogoContentType\" TEXT NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"FacilityName\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Courts\" ADD COLUMN \"FacilityName\" TEXT NULL"); } catch { }
 
             // Bump any rows that still have the old multi-method default to QRPh-only.
             try {
@@ -218,6 +227,15 @@ using (var scope = app.Services.CreateScope())
                     "SELECT fs.\"FacilityName\" FROM \"Courts\" c " +
                     "JOIN \"FacilitySettings\" fs ON fs.\"OwnerId\" = c.\"OwnerId\" " +
                     "WHERE c.\"Id\" = \"Bookings\".\"CourtId\") " +
+                    "WHERE \"FacilityName\" IS NULL");
+            } catch { }
+
+            // Backfill facility name onto existing courts from the owner's facility.
+            try {
+                await db.Database.ExecuteSqlRawAsync(
+                    "UPDATE \"Courts\" SET \"FacilityName\" = (" +
+                    "SELECT fs.\"FacilityName\" FROM \"FacilitySettings\" fs " +
+                    "WHERE fs.\"OwnerId\" = \"Courts\".\"OwnerId\") " +
                     "WHERE \"FacilityName\" IS NULL");
             } catch { }
         }
