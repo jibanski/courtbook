@@ -171,6 +171,10 @@ namespace CourtBooking.Migrations
                     b.Property<bool>("CommissionPaid")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("FacilityName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CourtId");
