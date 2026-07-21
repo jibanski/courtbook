@@ -119,10 +119,21 @@ public class BookingsController : Controller
         }
 
         var userId = _userManager.GetUserId(User)!;
+
+        // Snapshot the facility name (court owner's facility) onto the booking so
+        // it can be attributed to a facility directly in the database.
+        var facilityName = court.OwnerId is { } courtOwnerId
+            ? await _db.FacilitySettings
+                .Where(s => s.OwnerId == courtOwnerId)
+                .Select(s => s.FacilityName)
+                .FirstOrDefaultAsync()
+            : null;
+
         var booking = new Booking
         {
             CourtId = vm.CourtId,
             UserId = userId,
+            FacilityName = facilityName,
             BookingDate = vm.BookingDate,
             StartTime = vm.StartTime,
             EndTime = vm.EndTime,

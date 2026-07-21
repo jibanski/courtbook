@@ -25,6 +25,14 @@ public class Booking
     public int CourtId { get; set; }
     public Court Court { get; set; } = null!;
 
+    /// <summary>
+    /// Snapshot of the facility (court owner) name at booking time. Denormalized
+    /// onto the booking so each row can be attributed to a facility directly in
+    /// the database, without joining through Court → Owner → FacilitySettings.
+    /// </summary>
+    [MaxLength(100)]
+    public string? FacilityName { get; set; }
+
     [Required]
     public string UserId { get; set; } = string.Empty;
     public ApplicationUser User { get; set; } = null!;
