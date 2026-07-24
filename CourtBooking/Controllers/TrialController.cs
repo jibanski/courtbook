@@ -143,7 +143,7 @@ public class TrialController : Controller
 
     private async Task SendRegistrationNotificationAsync(ApplicationUser user, string role, string? facilityName = null)
     {
-        var notifyEmails = new[] { "jayben_labrada@yahoo.com", "jibanski@gmail.com" };
+        var notifyEmails = new[] { "courtbooksolutions@gmail.com" };
         var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
         var facilityLine = !string.IsNullOrWhiteSpace(facilityName)
             ? $"<tr><td style='color:#6c757d;padding:4px 0;'>Facility</td><td style='font-weight:600;padding:4px 0;'>{facilityName}</td></tr>"
