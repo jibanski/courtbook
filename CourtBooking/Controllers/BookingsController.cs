@@ -212,53 +212,26 @@ public class BookingsController : Controller
         booking.PaymentProofPath = screenshotPath;
         booking.PaymentProofSubmittedAt = DateTime.UtcNow;
 
-        // Auto-confirm the booking once the customer submits proof so they
-        // don't have to wait for the owner to click a button. The owner is
-        // still notified with the proof and can cancel later if fraudulent.
-        booking.Status        = BookingStatus.Confirmed;
-        booking.PaymentStatus = PaymentStatus.Paid;
-        booking.PaidAt        = DateTime.UtcNow;
-
-        // Accrue platform commission if the facility is on the commission model.
-        if (booking.Court is null)
-            booking.Court = await _db.Courts.FindAsync(booking.CourtId);
-        var ownerSettings = booking.Court?.OwnerId != null
-            ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == booking.Court.OwnerId)
-            : null;
-        if (ownerSettings?.IsCommissionModel == true && booking.TotalPrice > 0)
-        {
-            var commission = Math.Round(booking.TotalPrice * ownerSettings.CommissionRate / 100m, 2);
-            booking.CommissionAmount        = commission;
-            ownerSettings.CommissionBalanceOwed += commission;
-        }
+        // Keep the booking Pending until the facility owner reviews the proof and
+        // confirms the payment. The slot is still reserved (availability excludes
+        // any non-cancelled booking), so the customer won't lose it while waiting.
+        // Confirmation — status flip, commission accrual, and the customer's
+        // "Booking Confirmed" email — all happen in AdminController.ConfirmPayment.
+        booking.Status        = BookingStatus.Pending;
+        booking.PaymentStatus = PaymentStatus.Unpaid;
 
         await _db.SaveChangesAsync();
 
-        // Notify the facility owner that proof was submitted
+        // Notify the facility owner that proof was submitted and needs confirming.
+        if (booking.Court is null)
+            booking.Court = await _db.Courts.FindAsync(booking.CourtId);
         var customer = await _userManager.FindByIdAsync(userId);
         var owner = booking.Court?.OwnerId is { } proofOwnerId
             ? await _userManager.FindByIdAsync(proofOwnerId) : null;
         await SendProofSubmittedNotificationAsync(booking, customer, owner);
 
-        // Send the customer their "✅ Payment Received" confirmation email
-        if (booking.Court is not null && !string.IsNullOrWhiteSpace(customer?.Email))
-        {
-            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
-            await _email.SendBookingConfirmedToCustomerAsync(
-                customer.Email!,
-                customer.FirstName,
-                booking.Id,
-                booking.Court.Name,
-                booking.BookingDate,
-                booking.StartTime,
-                booking.EndTime,
-                booking.TotalPrice,
-                booking.PaymentMethod,
-                booking.PaymentReference,
-                baseUrl);
-        }
-
-        TempData["Success"] = "Payment submitted — your booking is confirmed! A receipt has been emailed to you.";
+        TempData["Success"] = "Payment submitted! Your slot is reserved while the facility reviews your payment. "
+                            + "You'll get a confirmation email once it's approved.";
         return RedirectToAction(nameof(My));
     }
 
@@ -484,8 +457,9 @@ public class BookingsController : Controller
     }
 
     /// <summary>
-    /// Notifies the facility owner when a customer submits payment proof.
-    /// Awaited so DI-scoped services don't get disposed mid-send.
+    /// Notifies the facility owner when a customer submits payment proof and asks
+    /// them to review and confirm it. Awaited so DI-scoped services don't get
+    /// disposed mid-send.
     /// </summary>
     private async Task SendProofSubmittedNotificationAsync(Booking booking, ApplicationUser? customer, ApplicationUser? owner)
     {
@@ -516,12 +490,12 @@ public class BookingsController : Controller
             var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
   <div style='max-width:540px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
-    <div style='background:#198754;color:#fff;padding:18px 24px;'>
+    <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
       <div style='font-size:13px;opacity:.85;letter-spacing:.5px;text-transform:uppercase;'>CourtBook</div>
-      <div style='font-size:20px;font-weight:700;margin-top:4px;'>✅ Booking Auto-Confirmed</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>🔔 Payment Proof Submitted</div>
     </div>
     <div style='padding:24px;font-size:15px;line-height:1.6;'>
-      <p style='margin:0 0 16px;'>A customer submitted payment proof and the booking has been <strong style='color:#198754;'>automatically confirmed</strong>:</p>
+      <p style='margin:0 0 16px;'>A customer submitted payment proof for a booking. Please <strong style='color:#0d6efd;'>review and confirm</strong> it so the customer receives their confirmation:</p>
       <table style='width:100%;border-collapse:collapse;font-size:14px;'>
         <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Booking #</td>  <td style='font-weight:600;padding:5px 0;'>#{booking.Id}</td></tr>
         <tr><td style='color:#6c757d;padding:5px 0;'>Court</td>      <td style='padding:5px 0;'>{courtName}</td></tr>
@@ -533,11 +507,11 @@ public class BookingsController : Controller
         <tr><td style='color:#6c757d;padding:5px 0;'>Reference #</td><td style='font-family:monospace;padding:5px 0;'>{reference}</td></tr>
         <tr><td style='color:#6c757d;padding:5px 0;'>Submitted</td>  <td style='padding:5px 0;'>{submittedAt}</td></tr>
       </table>
-      <div style='background:#d1e7dd;border:1px solid #198754;border-radius:6px;padding:12px 16px;margin:20px 0 0;font-size:13px;'>
-        ✅ <strong>No action needed</strong> — the customer's slot is reserved. Please review the proof in your dashboard and cancel the booking if the payment was not received.
+      <div style='background:#cfe2ff;border:1px solid #0d6efd;border-radius:6px;padding:12px 16px;margin:20px 0 0;font-size:13px;'>
+        🔔 <strong>Action needed</strong> — the customer's slot is reserved and awaiting your confirmation. Review the proof in your dashboard, then <strong>Confirm</strong> the payment (the customer is emailed automatically) or <strong>Reject</strong> it if the payment was not received.
       </div>
       <p style='margin:16px 0 0;text-align:center;'>
-        <a href='{bookingsUrl}' style='display:inline-block;background:#198754;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>Review Booking</a>
+        <a href='{bookingsUrl}' style='display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>Review &amp; Confirm</a>
       </p>
     </div>
     <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
@@ -548,7 +522,7 @@ public class BookingsController : Controller
 
             var plain = $"Payment Proof Submitted — Booking #{booking.Id}\n\nCourt: {courtName}\nDate: {dateLabel}\nTime: {timeLabel}\nAmount: ₱{amount}\nCustomer: {customerName}\nMethod: {method}\nReference: {reference}\nSubmitted: {submittedAt}\n\nReview and confirm: {bookingsUrl}";
 
-            await _email.SendAsync(owner.Email, $"✅ Booking #{booking.Id} Auto-Confirmed — review proof", html, plain);
+            await _email.SendAsync(owner.Email, $"🔔 Booking #{booking.Id} — Payment proof submitted, please confirm", html, plain);
             _logger?.LogInformation("[BookingsController] Sent proof-submitted notification for booking #{Id} to {Email}", booking.Id, owner.Email);
         }
         catch (Exception ex)

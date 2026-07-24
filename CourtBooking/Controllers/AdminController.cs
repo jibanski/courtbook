@@ -15,11 +15,19 @@ public class AdminController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly BookingService _bookingService;
+    private readonly EmailService _email;
+    private readonly IConfiguration _config;
 
-    public AdminController(ApplicationDbContext db, BookingService bookingService)
+    public AdminController(
+        ApplicationDbContext db,
+        BookingService bookingService,
+        EmailService email,
+        IConfiguration config)
     {
         _db             = db;
         _bookingService = bookingService;
+        _email          = email;
+        _config         = config;
     }
 
     // ── Current-owner helpers ─────────────────────────────────────────────────
@@ -38,7 +46,7 @@ public class AdminController : Controller
         var todayBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == DateOnly.FromDateTime(DateTime.Today) && b.Status != BookingStatus.Cancelled);
         var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
         var activeCourts    = await MyCourts.CountAsync(c => c.IsActive);
-        var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentReference != null);
+        var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
 
         ViewBag.TotalBookings   = totalBookings;
         ViewBag.TodayBookings   = todayBookings;
@@ -115,7 +123,7 @@ public class AdminController : Controller
         var totalRevenue    = await liveBookings
             .Where(b => b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)
             .SumAsync(b => (decimal?)b.TotalPrice) ?? 0m;
-        var awaitingPayment = await liveBookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentReference != null);
+        var awaitingPayment = await liveBookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
         var pendingNoProof  = await liveBookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentReference == null);
 
         var revenueRows = await liveBookings
@@ -186,7 +194,7 @@ public class AdminController : Controller
             .Include(b => b.Court).Include(b => b.User).AsQueryable();
 
         if (awaitingConfirmation == true)
-            query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentReference != null);
+            query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
         else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
             query = query.Where(b => b.Status == s);
 
@@ -197,7 +205,7 @@ public class AdminController : Controller
         ViewBag.SelectedStatus       = status;
         ViewBag.SelectedDate         = date;
         ViewBag.AwaitingConfirmation = awaitingConfirmation;
-        ViewBag.PendingPaymentCount  = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentReference != null);
+        ViewBag.PendingPaymentCount  = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
         return View(bookings);
     }
 
@@ -205,7 +213,10 @@ public class AdminController : Controller
     public async Task<IActionResult> ConfirmPayment(int id)
     {
         var courtIds = await GetMyCourtIdsAsync();
-        var booking  = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
+        var booking  = await _db.Bookings
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
         if (booking is null) return NotFound();
 
         booking.Status        = BookingStatus.Confirmed;
@@ -222,7 +233,27 @@ public class AdminController : Controller
         }
 
         await _db.SaveChangesAsync();
-        TempData["Success"] = $"Booking #{id} confirmed.";
+
+        // Now that the owner has confirmed the payment, email the customer their
+        // "Booking Confirmed" receipt. Fire-and-forget; never throws.
+        if (booking.Court is not null && !string.IsNullOrWhiteSpace(booking.User?.Email))
+        {
+            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            await _email.SendBookingConfirmedToCustomerAsync(
+                booking.User.Email!,
+                booking.User.FirstName,
+                booking.Id,
+                booking.Court.Name,
+                booking.BookingDate,
+                booking.StartTime,
+                booking.EndTime,
+                booking.TotalPrice,
+                booking.PaymentMethod,
+                booking.PaymentReference,
+                baseUrl);
+        }
+
+        TempData["Success"] = $"Booking #{id} confirmed — the customer has been emailed a confirmation.";
         return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
     }
 
@@ -230,15 +261,84 @@ public class AdminController : Controller
     public async Task<IActionResult> RejectPayment(int id)
     {
         var courtIds = await GetMyCourtIdsAsync();
-        var booking  = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
+        var booking  = await _db.Bookings
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
         if (booking is null) return NotFound();
+
+        // Capture details for the customer email before we clear the proof fields.
+        var customerEmail = booking.User?.Email;
+        var customerName  = booking.User?.FirstName;
+        var courtName     = booking.Court?.Name ?? "your court";
+        var bookingDate   = booking.BookingDate;
+        var startTime     = booking.StartTime;
+        var endTime       = booking.EndTime;
 
         booking.Status           = BookingStatus.Cancelled;
         booking.PaymentReference = null;
         booking.PaymentProofPath = null;
         await _db.SaveChangesAsync();
-        TempData["Error"] = $"Booking #{id} rejected and cancelled.";
+
+        if (!string.IsNullOrWhiteSpace(customerEmail))
+            await SendPaymentRejectedEmailAsync(customerEmail!, customerName, booking.Id,
+                courtName, bookingDate, startTime, endTime);
+
+        TempData["Error"] = $"Booking #{id} rejected and cancelled — the customer has been notified.";
         return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
+    }
+
+    /// <summary>
+    /// Emails the customer when the owner rejects their submitted payment and cancels
+    /// the booking. Safe to fire-and-forget; never throws.
+    /// </summary>
+    private async Task SendPaymentRejectedEmailAsync(
+        string toEmail, string? firstName, int bookingId, string courtName,
+        DateOnly bookingDate, TimeOnly startTime, TimeOnly endTime)
+    {
+        try
+        {
+            var greeting  = string.IsNullOrWhiteSpace(firstName) ? "Hi there" : $"Hi {firstName}";
+            var dateLabel = bookingDate.ToString("dddd, MMMM d, yyyy");
+            var timeLabel = $"{startTime:hh\\:mm tt} – {endTime:hh\\:mm tt}";
+            var baseUrl   = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            var contact   = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+            var browseUrl = $"{baseUrl}/Courts";
+
+            var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:540px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#dc3545;color:#fff;padding:18px 24px;'>
+      <div style='font-size:13px;opacity:.9;letter-spacing:.5px;text-transform:uppercase;'>Booking Update</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>Payment Not Confirmed</div>
+    </div>
+    <div style='padding:24px;font-size:15px;line-height:1.6;'>
+      <p style='margin:0 0 16px;'>{greeting}, unfortunately the facility could not confirm your payment for the booking below, so it has been <strong>cancelled</strong>.</p>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;'>
+        <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Court</td>     <td style='font-weight:600;padding:5px 0;'>{courtName}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Date</td>      <td style='font-weight:600;padding:5px 0;'>{dateLabel}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Time</td>      <td style='padding:5px 0;'>{timeLabel}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Booking #</td> <td style='padding:5px 0;'>#{bookingId}</td></tr>
+      </table>
+      <p style='margin:16px 0 0;font-size:14px;'>If you believe this is a mistake, please contact the facility or email us at <a href='mailto:{contact}' style='color:#0d6efd;'>{contact}</a>. You're welcome to book another slot below.</p>
+      <p style='margin:20px 0 0;text-align:center;'>
+        <a href='{browseUrl}' style='display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>Browse Courts</a>
+      </p>
+    </div>
+    <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
+      Automated notification · Booking #{bookingId}
+    </div>
+  </div>
+</body></html>";
+
+            var plain = $"Payment Not Confirmed — Booking #{bookingId}\n\n{greeting}, the facility could not confirm your payment for {courtName} on {dateLabel} ({timeLabel}), so the booking has been cancelled.\n\nIf you think this is a mistake, contact the facility or email {contact}.\n\nBrowse courts: {browseUrl}";
+
+            await _email.SendAsync(toEmail, $"Booking #{bookingId} — Payment Not Confirmed", html, plain);
+        }
+        catch
+        {
+            // Never let a failed notification block the rejection itself.
+        }
     }
 
     public async Task<IActionResult> Courts()
