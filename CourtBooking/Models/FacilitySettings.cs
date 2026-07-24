@@ -95,6 +95,24 @@ public class FacilitySettings
     [MaxLength(500)]
     public string? SuspendedReason { get; set; }
 
+    // ── Owner Deactivation (facility owner self-service) ──────────────────────
+    /// <summary>
+    /// When true, the owner has voluntarily taken their facility offline (e.g. they
+    /// are no longer operating). Same public effect as <see cref="IsSuspended"/> —
+    /// courts are hidden and no new bookings are accepted — but it is owner-controlled
+    /// and reversible from the Settings page at any time. Existing bookings are preserved.
+    /// </summary>
+    public bool IsDeactivated { get; set; }
+
+    public DateTime? DeactivatedAt { get; set; }
+
+    /// <summary>
+    /// True when the facility should be hidden from customers, whether because an
+    /// admin suspended it or the owner deactivated it themselves.
+    /// </summary>
+    [NotMapped]
+    public bool IsPubliclyHidden => IsSuspended || IsDeactivated;
+
     // ── Billing Model ─────────────────────────────────────────────────────────
     /// <summary>"Subscription" (default) or "Commission" (2% per confirmed booking).</summary>
     [MaxLength(20)]

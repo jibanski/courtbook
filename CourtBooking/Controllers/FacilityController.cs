@@ -35,10 +35,11 @@ public class FacilityController : Controller
 
         if (settings is null) return NotFound();
 
-        // Suspended by platform admin — show an "unavailable" page instead of the
-        // courts list. Owners (logged in as this facility's admin) are still let
-        // through so they can read the suspension banner and contact support.
-        if (settings.IsSuspended && !IsCurrentUserOwnerOf(settings))
+        // Hidden — either suspended by platform admin or deactivated by the owner.
+        // Show an "unavailable" page instead of the courts list. Owners (logged in
+        // as this facility's admin) are still let through so they can read the
+        // banner and reactivate / contact support.
+        if (settings.IsPubliclyHidden && !IsCurrentUserOwnerOf(settings))
         {
             ViewBag.Slug = slug;
             return View("Suspended", settings);
@@ -83,8 +84,8 @@ public class FacilityController : Controller
         var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.Slug == slug);
         if (settings is null) return NotFound();
 
-        // Don't accept new bookings on a suspended facility.
-        if (settings.IsSuspended && !IsCurrentUserOwnerOf(settings))
+        // Don't accept new bookings on a suspended or deactivated facility.
+        if (settings.IsPubliclyHidden && !IsCurrentUserOwnerOf(settings))
         {
             ViewBag.Slug = slug;
             return View("Suspended", settings);

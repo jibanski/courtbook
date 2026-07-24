@@ -335,6 +335,48 @@
                 </div>
             </div>
 
+            <!-- ── Deactivate Facility (Danger Zone) ──────────────────── -->
+            <div class="card shadow-sm mt-4 border-danger">
+                <div class="card-header bg-white fw-bold text-danger">
+                    <i class="bi bi-power me-2"></i>Deactivate Facility
+                </div>
+                <div class="card-body">
+                    @if (Model.IsDeactivated)
+                    {
+                        <div class="alert alert-warning d-flex align-items-start gap-2 mb-3">
+                            <i class="bi bi-cone-striped fs-5"></i>
+                            <div>
+                                <strong>Your facility is currently deactivated.</strong>
+                                It is hidden from customers and not accepting new bookings@(Model.DeactivatedAt.HasValue ? $" (since {Model.DeactivatedAt.Value.AddHours(8):MMM d, yyyy})" : "").
+                                Your courts, bookings, and settings are all preserved.
+                            </div>
+                        </div>
+                        <form asp-action="ReactivateFacility" method="post">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-success fw-semibold">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Reactivate Facility
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-3">
+                            If you're no longer operating, you can take your facility offline. Your public
+                            booking page will show as unavailable and customers won't be able to make new
+                            bookings. <strong>Nothing is deleted</strong> — your courts, bookings, and settings
+                            are kept, and you can reactivate anytime.
+                        </p>
+                        <form asp-action="DeactivateFacility" method="post"
+                              onsubmit="return confirm('Deactivate your facility? Customers will no longer see your courts or be able to book. You can reactivate anytime from this page.');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-danger fw-semibold">
+                                <i class="bi bi-power me-1"></i>Deactivate Facility
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+
         </div>
     </div>
 </div>

@@ -45,6 +45,7 @@ public class HomeController : Controller
             ViewBag.Clients = await _db.FacilitySettings
                 .Where(f => f.Slug != null
                             && !f.IsSuspended
+                            && !f.IsDeactivated
                             && f.FacilityName != "CourtBook")
                 .OrderBy(f => f.FacilityName)
                 .ToListAsync();

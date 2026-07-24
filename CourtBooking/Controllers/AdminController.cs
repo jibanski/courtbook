@@ -592,6 +592,51 @@ public class AdminController : Controller
         return RedirectToAction(nameof(Settings));
     }
 
+    // ── Owner-initiated facility deactivation ─────────────────────────────────
+
+    /// <summary>
+    /// Takes the owner's facility offline: courts are hidden from customers and no
+    /// new bookings are accepted. Reversible via <see cref="ReactivateFacility"/>.
+    /// Existing bookings are preserved. Does not touch admin suspension.
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeactivateFacility()
+    {
+        var settings = await GetMySettingsAsync();
+        if (settings is null)
+        {
+            TempData["Error"] = "No facility found to deactivate.";
+            return RedirectToAction(nameof(Settings));
+        }
+
+        settings.IsDeactivated = true;
+        settings.DeactivatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = "Your facility has been deactivated and is now hidden from customers. "
+                            + "You can reactivate it anytime.";
+        return RedirectToAction(nameof(Settings));
+    }
+
+    /// <summary>Brings a previously deactivated facility back online.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReactivateFacility()
+    {
+        var settings = await GetMySettingsAsync();
+        if (settings is null)
+        {
+            TempData["Error"] = "No facility found to reactivate.";
+            return RedirectToAction(nameof(Settings));
+        }
+
+        settings.IsDeactivated = false;
+        settings.DeactivatedAt = null;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = "Your facility is back online and visible to customers again.";
+        return RedirectToAction(nameof(Settings));
+    }
+
     private async Task<string?> SaveQrCodeAsync(IFormFile file, string prefix, string? existing)
     {
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();

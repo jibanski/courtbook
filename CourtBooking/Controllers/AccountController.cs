@@ -583,7 +583,7 @@ Need help? {contactEmail}
 
     private async Task SendRegistrationNotificationAsync(ApplicationUser user)
     {
-        var notifyEmails = new[] { "jayben_labrada@yahoo.com", "jibanski@gmail.com" };
+        var notifyEmails = new[] { "courtbooksolutions@gmail.com" };
         var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
 
         var html = $@"<!doctype html>
