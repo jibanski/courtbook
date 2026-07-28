@@ -88,6 +88,7 @@ builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<PayMongoService>();
 builder.Services.AddScoped<KeyGeneratorService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<GuestCheckoutService>();
 builder.Services.AddHttpClient();                                 // for EmailService (Brevo HTTP API)
 builder.Services.AddHostedService<SubscriptionReminderHostedService>();
 builder.Services.AddControllersWithViews();
@@ -288,6 +289,277 @@ using (var scope = app.Services.CreateScope())
         }
     }
     catch { /* table already exists or db not ready — non-fatal */ }
+
+    // ── Ensure CourtRateTiers / CourtScheduleBlocks / FacilityHolidays tables exist ──
+    // Facility owner default booking schedule & tiered rates — created via raw SQL
+    // so no migration file is required (project has no committed migrations).
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtRateTiers"" (
+                    ""Id""              serial                  PRIMARY KEY,
+                    ""CourtId""         integer                 NOT NULL,
+                    ""DaysOfWeek""      character varying(40)   NOT NULL DEFAULT '',
+                    ""IncludeHolidays"" boolean                 NOT NULL DEFAULT FALSE,
+                    ""StartHour""       integer                 NOT NULL,
+                    ""EndHour""         integer                 NOT NULL,
+                    ""PricePerHour""    numeric(10,2)           NOT NULL DEFAULT 0,
+                    CONSTRAINT ""FK_CourtRateTiers_Courts_CourtId""
+                        FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtScheduleBlocks"" (
+                    ""Id""              serial                  PRIMARY KEY,
+                    ""CourtId""         integer                 NOT NULL,
+                    ""DaysOfWeek""      character varying(40)   NOT NULL DEFAULT '',
+                    ""IncludeHolidays"" boolean                 NOT NULL DEFAULT FALSE,
+                    ""StartHour""       integer                 NOT NULL,
+                    ""EndHour""         integer                 NOT NULL,
+                    ""Type""            integer                 NOT NULL DEFAULT 0,
+                    ""IsActive""        boolean                 NOT NULL DEFAULT TRUE,
+                    CONSTRAINT ""FK_CourtScheduleBlocks_Courts_CourtId""
+                        FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN IF NOT EXISTS \"IsActive\" boolean NOT NULL DEFAULT TRUE");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""FacilityHolidays"" (
+                    ""Id""      serial                  PRIMARY KEY,
+                    ""OwnerId"" character varying(450)  NOT NULL,
+                    ""Date""    date                    NOT NULL,
+                    ""Label""   character varying(100)  NULL
+                )
+            ");
+        }
+        else
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtRateTiers"" (
+                    ""Id""              INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""CourtId""         INTEGER  NOT NULL,
+                    ""DaysOfWeek""      TEXT     NOT NULL DEFAULT '',
+                    ""IncludeHolidays"" INTEGER  NOT NULL DEFAULT 0,
+                    ""StartHour""       INTEGER  NOT NULL,
+                    ""EndHour""         INTEGER  NOT NULL,
+                    ""PricePerHour""    TEXT     NOT NULL DEFAULT '0',
+                    FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtScheduleBlocks"" (
+                    ""Id""              INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""CourtId""         INTEGER  NOT NULL,
+                    ""DaysOfWeek""      TEXT     NOT NULL DEFAULT '',
+                    ""IncludeHolidays"" INTEGER  NOT NULL DEFAULT 0,
+                    ""StartHour""       INTEGER  NOT NULL,
+                    ""EndHour""         INTEGER  NOT NULL,
+                    ""Type""            INTEGER  NOT NULL DEFAULT 0,
+                    ""IsActive""        INTEGER  NOT NULL DEFAULT 1,
+                    FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN \"IsActive\" INTEGER NOT NULL DEFAULT 1"); } catch { }
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""FacilityHolidays"" (
+                    ""Id""      INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""OwnerId"" TEXT     NOT NULL,
+                    ""Date""    TEXT     NOT NULL,
+                    ""Label""   TEXT     NULL
+                )
+            ");
+        }
+    }
+    catch { /* table already exists or db not ready — non-fatal */ }
+
+    // ── Ensure CourtBundles / CourtBundleCourts / CourtBundleRateBlocks tables exist,
+    //    and Bookings gets CourtBundleId/BundleGroupId ─────────────────────────────
+    // Bundled multi-court "peak hours" booking — created via raw SQL so no migration
+    // file is required (project has no committed migrations).
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtBundles"" (
+                    ""Id""       serial                  PRIMARY KEY,
+                    ""OwnerId""  character varying(450)  NOT NULL,
+                    ""Name""     character varying(100)  NOT NULL DEFAULT '',
+                    ""IsActive"" boolean                 NOT NULL DEFAULT TRUE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtBundleCourts"" (
+                    ""Id""            serial   PRIMARY KEY,
+                    ""CourtBundleId"" integer  NOT NULL,
+                    ""CourtId""       integer  NOT NULL,
+                    CONSTRAINT ""FK_CourtBundleCourts_CourtBundles_CourtBundleId""
+                        FOREIGN KEY (""CourtBundleId"") REFERENCES ""CourtBundles"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_CourtBundleCourts_Courts_CourtId""
+                        FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtBundleRateBlocks"" (
+                    ""Id""              serial                  PRIMARY KEY,
+                    ""CourtBundleId""   integer                 NOT NULL,
+                    ""DaysOfWeek""      character varying(40)   NOT NULL DEFAULT '',
+                    ""IncludeHolidays"" boolean                 NOT NULL DEFAULT FALSE,
+                    ""StartHour""       integer                 NOT NULL,
+                    ""EndHour""         integer                 NOT NULL,
+                    ""FlatPrice""       numeric(10,2)           NOT NULL DEFAULT 0,
+                    ""IsActive""        boolean                 NOT NULL DEFAULT TRUE,
+                    CONSTRAINT ""FK_CourtBundleRateBlocks_CourtBundles_CourtBundleId""
+                        FOREIGN KEY (""CourtBundleId"") REFERENCES ""CourtBundles"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"CourtBundleId\" integer NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"BundleGroupId\" uuid NULL");
+        }
+        else
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtBundles"" (
+                    ""Id""       INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""OwnerId""  TEXT     NOT NULL,
+                    ""Name""     TEXT     NOT NULL DEFAULT '',
+                    ""IsActive"" INTEGER  NOT NULL DEFAULT 1
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtBundleCourts"" (
+                    ""Id""            INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""CourtBundleId"" INTEGER  NOT NULL,
+                    ""CourtId""       INTEGER  NOT NULL,
+                    FOREIGN KEY (""CourtBundleId"") REFERENCES ""CourtBundles"" (""Id"") ON DELETE CASCADE,
+                    FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""CourtBundleRateBlocks"" (
+                    ""Id""              INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""CourtBundleId""   INTEGER  NOT NULL,
+                    ""DaysOfWeek""      TEXT     NOT NULL DEFAULT '',
+                    ""IncludeHolidays"" INTEGER  NOT NULL DEFAULT 0,
+                    ""StartHour""       INTEGER  NOT NULL,
+                    ""EndHour""         INTEGER  NOT NULL,
+                    ""FlatPrice""       TEXT     NOT NULL DEFAULT '0',
+                    ""IsActive""        INTEGER  NOT NULL DEFAULT 1,
+                    FOREIGN KEY (""CourtBundleId"") REFERENCES ""CourtBundles"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"CourtBundleId\" INTEGER NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"BundleGroupId\" TEXT NULL"); } catch { }
+        }
+    }
+    catch { /* table already exists or db not ready — non-fatal */ }
+
+    // ── Public sign-up for Admin-Hosted Open Play ────────────────────────────────
+    // Adds AllowPublicSignup/MaxPlayers/PricePerHead to CourtScheduleBlocks and a
+    // new OpenPlaySignups table — created via raw SQL so no migration file is
+    // required (project has no committed migrations).
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN IF NOT EXISTS \"AllowPublicSignup\" boolean NOT NULL DEFAULT FALSE");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN IF NOT EXISTS \"MaxPlayers\" integer NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN IF NOT EXISTS \"PricePerHead\" numeric(10,2) NULL");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""OpenPlaySignups"" (
+                    ""Id""                      serial                   PRIMARY KEY,
+                    ""CourtId""                 integer                  NOT NULL,
+                    ""FacilityName""            character varying(100)   NULL,
+                    ""UserId""                  character varying(450)   NOT NULL,
+                    ""BookingDate""             date                     NOT NULL,
+                    ""StartHour""               integer                  NOT NULL,
+                    ""EndHour""                 integer                  NOT NULL,
+                    ""SpotCount""               integer                  NOT NULL DEFAULT 1,
+                    ""PricePerHeadSnapshot""    numeric(10,2)            NOT NULL DEFAULT 0,
+                    ""TotalPrice""              numeric(10,2)            NOT NULL DEFAULT 0,
+                    ""Status""                  integer                  NOT NULL DEFAULT 0,
+                    ""PaymentStatus""           integer                  NOT NULL DEFAULT 0,
+                    ""Notes""                   character varying(500)   NULL,
+                    ""PaymentMethod""           text                     NULL,
+                    ""PaymentReference""        text                     NULL,
+                    ""PaymentProofPath""        text                     NULL,
+                    ""PaymentProofSubmittedAt"" timestamp with time zone NULL,
+                    ""PaidAt""                  timestamp with time zone NULL,
+                    ""CreatedAt""               timestamp with time zone NOT NULL DEFAULT NOW(),
+                    ""CommissionAmount""        numeric(18,2)            NULL,
+                    CONSTRAINT ""FK_OpenPlaySignups_Courts_CourtId""
+                        FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_OpenPlaySignups_AspNetUsers_UserId""
+                        FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+        }
+        else
+        {
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN \"AllowPublicSignup\" INTEGER NOT NULL DEFAULT 0"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN \"MaxPlayers\" INTEGER NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN \"PricePerHead\" TEXT NULL"); } catch { }
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""OpenPlaySignups"" (
+                    ""Id""                      INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""CourtId""                 INTEGER  NOT NULL,
+                    ""FacilityName""            TEXT     NULL,
+                    ""UserId""                  TEXT     NOT NULL,
+                    ""BookingDate""             TEXT     NOT NULL,
+                    ""StartHour""               INTEGER  NOT NULL,
+                    ""EndHour""                 INTEGER  NOT NULL,
+                    ""SpotCount""               INTEGER  NOT NULL DEFAULT 1,
+                    ""PricePerHeadSnapshot""    TEXT     NOT NULL DEFAULT '0',
+                    ""TotalPrice""              TEXT     NOT NULL DEFAULT '0',
+                    ""Status""                  INTEGER  NOT NULL DEFAULT 0,
+                    ""PaymentStatus""           INTEGER  NOT NULL DEFAULT 0,
+                    ""Notes""                   TEXT     NULL,
+                    ""PaymentMethod""           TEXT     NULL,
+                    ""PaymentReference""        TEXT     NULL,
+                    ""PaymentProofPath""        TEXT     NULL,
+                    ""PaymentProofSubmittedAt"" TEXT     NULL,
+                    ""PaidAt""                  TEXT     NULL,
+                    ""CreatedAt""               TEXT     NOT NULL DEFAULT (datetime('now')),
+                    ""CommissionAmount""        TEXT     NULL,
+                    FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE,
+                    FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+        }
+    }
+    catch { /* table already exists or db not ready — non-fatal */ }
+
+    // ── Guest booking (no account required) ──────────────────────────────────────
+    // Adds IsGuest to AspNetUsers and GuestAccessToken to Bookings/OpenPlaySignups —
+    // simple nullable/defaulted column additions via the same idempotent raw-SQL
+    // pattern used all session (no table rebuild needed).
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"AspNetUsers\" ADD COLUMN IF NOT EXISTS \"IsGuest\" boolean NOT NULL DEFAULT FALSE");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"GuestAccessToken\" uuid NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"OpenPlaySignups\" ADD COLUMN IF NOT EXISTS \"GuestAccessToken\" uuid NULL");
+        }
+        else
+        {
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"AspNetUsers\" ADD COLUMN \"IsGuest\" INTEGER NOT NULL DEFAULT 0"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"GuestAccessToken\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"OpenPlaySignups\" ADD COLUMN \"GuestAccessToken\" TEXT NULL"); } catch { }
+        }
+    }
+    catch { /* column already exists or db not ready — non-fatal */ }
 
     foreach (var role in new[] { "Admin", "Customer" })
         if (!await roleManager.RoleExistsAsync(role))

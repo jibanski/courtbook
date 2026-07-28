@@ -2,6 +2,7 @@ using CourtBooking.Data;
 using CourtBooking.Filters;
 using CourtBooking.Models;
 using CourtBooking.Services;
+using CourtBooking.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -47,12 +48,14 @@ public class AdminController : Controller
         var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
         var activeCourts    = await MyCourts.CountAsync(c => c.IsActive);
         var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
+        var awaitingSignups = await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
 
         ViewBag.TotalBookings   = totalBookings;
         ViewBag.TodayBookings   = todayBookings;
         ViewBag.TotalRevenue    = totalRevenue;
         ViewBag.ActiveCourts    = activeCourts;
         ViewBag.AwaitingPayment = awaitingPayment;
+        ViewBag.AwaitingSignups = awaitingSignups;
         var settings = await GetMySettingsAsync();
         ViewBag.FacilitySettings = settings;
 
@@ -191,7 +194,7 @@ public class AdminController : Controller
         var courtIds = await GetMyCourtIdsAsync();
         var query = _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId))
-            .Include(b => b.Court).Include(b => b.User).AsQueryable();
+            .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle).AsQueryable();
 
         if (awaitingConfirmation == true)
             query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
@@ -202,6 +205,64 @@ public class AdminController : Controller
             query = query.Where(b => b.BookingDate == date.Value);
 
         var bookings = await query.OrderByDescending(b => b.PaymentProofSubmittedAt ?? b.CreatedAt).ToListAsync();
+
+        // The "All Bookings" table (not the awaiting-confirmation card list, which has its
+        // own dedicated flow on the Open Play Sign-ups page) also lists Open Play sign-ups
+        // so the owner has one consolidated view of everything booked on their courts.
+        if (awaitingConfirmation != true)
+        {
+            var rows = bookings.Select(b => new AdminBookingRow
+            {
+                Id = b.Id,
+                IsOpenPlay = false,
+                CustomerName = b.User.FullName,
+                CustomerPhone = b.User.PhoneNumber,
+                IsGuest = b.User.IsGuest,
+                CourtName = b.Court.Name,
+                BundleName = b.CourtBundle?.Name,
+                BookingDate = b.BookingDate,
+                StartTime = b.StartTime,
+                EndTime = b.EndTime,
+                TotalPrice = b.TotalPrice,
+                Status = b.Status,
+                PaymentStatus = b.PaymentStatus,
+                HasPaymentProof = b.HasPaymentProof
+            }).ToList();
+
+            var signupQuery = _db.OpenPlaySignups
+                .Where(sg => courtIds.Contains(sg.CourtId))
+                .Include(sg => sg.Court).Include(sg => sg.User).AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var signupStatus))
+                signupQuery = signupQuery.Where(sg => sg.Status == signupStatus);
+            if (date.HasValue)
+                signupQuery = signupQuery.Where(sg => sg.BookingDate == date.Value);
+
+            var signups = await signupQuery.ToListAsync();
+            rows.AddRange(signups.Select(sg => new AdminBookingRow
+            {
+                Id = sg.Id,
+                IsOpenPlay = true,
+                CustomerName = sg.User.FullName,
+                CustomerPhone = sg.User.PhoneNumber,
+                IsGuest = sg.User.IsGuest,
+                CourtName = sg.Court.Name,
+                SpotCount = sg.SpotCount,
+                BookingDate = sg.BookingDate,
+                StartTime = new TimeOnly(sg.StartHour, 0),
+                EndTime = new TimeOnly(sg.EndHour, 0),
+                TotalPrice = sg.TotalPrice,
+                Status = sg.Status,
+                PaymentStatus = sg.PaymentStatus,
+                HasPaymentProof = sg.HasPaymentProof
+            }));
+
+            ViewBag.Rows = rows
+                .OrderByDescending(r => r.BookingDate)
+                .ThenByDescending(r => r.StartTime)
+                .ToList();
+        }
+
         ViewBag.SelectedStatus       = status;
         ViewBag.SelectedDate         = date;
         ViewBag.AwaitingConfirmation = awaitingConfirmation;
@@ -344,6 +405,9 @@ public class AdminController : Controller
     public async Task<IActionResult> Courts()
     {
         var courts = await MyCourts.ToListAsync();
+        var courtIds = courts.Select(c => c.Id).ToList();
+        ViewBag.AwaitingSignups = await _db.OpenPlaySignups
+            .CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
         return View(courts);
     }
 
@@ -397,11 +461,39 @@ public class AdminController : Controller
             .Where(b => b.CourtId == id && b.StartDate <= selectedDate && b.EndDate >= selectedDate)
             .ToListAsync();
 
+        // Recurring weekly default: which hours this date defaults to Admin-Hosted Open Play,
+        // and which are sellable only as part of a flat-price multi-court bundle.
+        var schedule = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
+        var bundleOnlyHours = new Dictionary<int, string>();
+        var openPlaySignupInfo = new Dictionary<int, (int MaxPlayers, int Taken)>();
+        for (int h = court.OpeningHour; h < court.ClosingHour; h++)
+        {
+            var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
+            if (match is not null) { bundleOnlyHours[h] = match.Value.Bundle.Name; continue; }
+
+            if (schedule.TryGetValue(h, out var s) && s.Type == BookingType.AdminHostedOpenPlay)
+            {
+                var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
+                if (block is { AllowPublicSignup: true, MaxPlayers: { } max })
+                {
+                    var remaining = await _bookingService.GetOpenPlaySpotsRemainingAsync(block, id, selectedDate);
+                    openPlaySignupInfo[h] = (max, max - remaining);
+                }
+            }
+        }
+        var openPlayHours = schedule
+            .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
+            .Select(kv => kv.Key)
+            .ToHashSet();
+
         ViewBag.Court             = court;
         ViewBag.Date              = selectedDate;
+        ViewBag.BundleOnlyHours   = bundleOnlyHours;
+        ViewBag.OpenPlaySignupInfo = openPlaySignupInfo;
         ViewBag.BookedHours       = bookedHours.ToHashSet();
         ViewBag.BlockedHours      = blockedHours;
         ViewBag.ActiveRangeBlocks = activeRangeBlocks;
+        ViewBag.OpenPlayHours     = openPlayHours;
         return View(slots);
     }
 
@@ -604,11 +696,565 @@ public class AdminController : Controller
         return RedirectToAction(nameof(ManageSlots), new { id = courtId, date = slotDate });
     }
 
+    // ── Recurring Weekly Schedule & Rate Tiers ───────────────────────────────────
+
+    public async Task<IActionResult> Schedule(int id)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == id);
+        if (court is null) return NotFound();
+
+        ViewBag.Court          = court;
+        ViewBag.RateTiers      = (await _bookingService.GetRateTiersAsync(id)).OrderBy(t => t.StartHour).ToList();
+        ViewBag.ScheduleBlocks = (await _bookingService.GetScheduleBlocksAsync(id)).OrderBy(b => b.StartHour).ToList();
+        return View();
+    }
+
+    private static string NormalizeDays(string[]? days) =>
+        string.Join(",", (days ?? Array.Empty<string>())
+            .Select(d => d.Trim())
+            .Where(d => d.Length > 0)
+            .Distinct());
+
+    private static bool DaysOverlap(string daysA, bool includeHolidaysA, string daysB, bool includeHolidaysB)
+    {
+        if (includeHolidaysA && includeHolidaysB) return true;
+        var setA = daysA.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        var setB = daysB.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        return setA.Intersect(setB, StringComparer.OrdinalIgnoreCase).Any();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddRateTier(int courtId, string[] days, bool includeHolidays, int startHour, int endHour, decimal pricePerHour)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        var daysCsv = NormalizeDays(days);
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
+        {
+            TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        var existing = await _bookingService.GetRateTiersAsync(courtId);
+        bool overlaps = existing.Any(t =>
+            startHour < t.EndHour && endHour > t.StartHour &&
+            DaysOverlap(t.DaysOfWeek, t.IncludeHolidays, daysCsv, includeHolidays));
+        if (overlaps)
+        {
+            TempData["Error"] = "This rate tier overlaps an existing tier on one of the selected days.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        _db.CourtRateTiers.Add(new CourtRateTier
+        {
+            CourtId         = courtId,
+            DaysOfWeek      = daysCsv,
+            IncludeHolidays = includeHolidays,
+            StartHour       = startHour,
+            EndHour         = endHour,
+            PricePerHour    = pricePerHour
+        });
+        await _db.SaveChangesAsync();
+        TempData["Success"] = OutOfHoursWarning(court, startHour, endHour) is { } warn
+            ? $"Rate tier added. {warn}"
+            : "Rate tier added.";
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    /// <summary>
+    /// The availability grid only ever renders hours in [Court.OpeningHour, Court.ClosingHour), so a
+    /// tier/block outside that range silently has no visible effect. Warn the owner instead of letting
+    /// them wonder why nothing changed.
+    /// </summary>
+    private static string? OutOfHoursWarning(Court court, int startHour, int endHour) =>
+        (startHour < court.OpeningHour || endHour > court.ClosingHour)
+            ? $"Note: this court's operating hours are {court.OpeningHour:D2}:00–{court.ClosingHour:D2}:00, " +
+              $"so the portion outside that range ({startHour:D2}:00–{endHour:D2}:00) won't appear on the availability grid " +
+              "until you extend the court's hours."
+            : null;
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteRateTier(int id, int courtId)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var tier = await _db.CourtRateTiers.FirstOrDefaultAsync(t => t.Id == id && myCourtIds.Contains(t.CourtId));
+        if (tier is not null)
+        {
+            _db.CourtRateTiers.Remove(tier);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Rate tier removed.";
+        }
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddScheduleBlock(
+        int courtId, string[] days, bool includeHolidays, int startHour, int endHour, BookingType type,
+        bool allowPublicSignup = false, int? maxPlayers = null, decimal? pricePerHead = null)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        var daysCsv = NormalizeDays(days);
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
+        {
+            TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        // Public sign-up only makes sense for Admin-Hosted Open Play, and needs both a capacity and a price.
+        if (type != BookingType.AdminHostedOpenPlay) allowPublicSignup = false;
+        if (allowPublicSignup && (!maxPlayers.HasValue || maxPlayers.Value < 1 || !pricePerHead.HasValue || pricePerHead.Value < 0))
+        {
+            TempData["Error"] = "To enable public sign-up, set a Max Players (at least 1) and a Price/Head.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        var existing = await _bookingService.GetScheduleBlocksAsync(courtId);
+        bool overlaps = existing.Any(b =>
+            startHour < b.EndHour && endHour > b.StartHour &&
+            DaysOverlap(b.DaysOfWeek, b.IncludeHolidays, daysCsv, includeHolidays));
+        if (overlaps)
+        {
+            TempData["Error"] = "This schedule block overlaps an existing block on one of the selected days.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        _db.CourtScheduleBlocks.Add(new CourtScheduleBlock
+        {
+            CourtId           = courtId,
+            DaysOfWeek        = daysCsv,
+            IncludeHolidays   = includeHolidays,
+            StartHour         = startHour,
+            EndHour           = endHour,
+            Type              = type,
+            AllowPublicSignup = allowPublicSignup,
+            MaxPlayers        = allowPublicSignup ? maxPlayers : null,
+            PricePerHead      = allowPublicSignup ? pricePerHead : null
+        });
+        await _db.SaveChangesAsync();
+        TempData["Success"] = OutOfHoursWarning(court, startHour, endHour) is { } warn
+            ? $"Schedule block added. {warn}"
+            : "Schedule block added.";
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteScheduleBlock(int id, int courtId)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
+        if (block is not null)
+        {
+            _db.CourtScheduleBlocks.Remove(block);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Schedule block removed.";
+        }
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleScheduleBlock(int id, int courtId)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
+        if (block is not null)
+        {
+            block.IsActive = !block.IsActive;
+            await _db.SaveChangesAsync();
+            TempData["Success"] = block.IsActive ? "Schedule block enabled." : "Schedule block paused.";
+        }
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    // ── Facility Holidays ─────────────────────────────────────────────────────
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddHoliday(DateOnly date, string? label)
+    {
+        bool duplicate = await _db.FacilityHolidays.AnyAsync(h => h.OwnerId == CurrentUserId && h.Date == date);
+        if (duplicate)
+        {
+            TempData["Error"] = "That date is already marked as a holiday.";
+        }
+        else
+        {
+            _db.FacilityHolidays.Add(new FacilityHoliday
+            {
+                OwnerId = CurrentUserId,
+                Date    = date,
+                Label   = string.IsNullOrWhiteSpace(label) ? null : label.Trim()
+            });
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Holiday added.";
+        }
+        return RedirectToAction(nameof(Settings));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteHoliday(int id)
+    {
+        var holiday = await _db.FacilityHolidays.FirstOrDefaultAsync(h => h.Id == id && h.OwnerId == CurrentUserId);
+        if (holiday is not null)
+        {
+            _db.FacilityHolidays.Remove(holiday);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Holiday removed.";
+        }
+        return RedirectToAction(nameof(Settings));
+    }
+
+    // ── Bundled Multi-Court "Peak Hours" Booking ─────────────────────────────────
+
+    public async Task<IActionResult> Bundles()
+    {
+        var bundles = await _db.CourtBundles
+            .Where(b => b.OwnerId == CurrentUserId)
+            .Include(b => b.Courts).ThenInclude(c => c.Court)
+            .ToListAsync();
+        ViewBag.MyCourts = await MyCourts.ToListAsync();
+        return View(bundles);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateBundle(string name, int[] courtIds)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var validCourtIds = (courtIds ?? Array.Empty<int>()).Where(myCourtIds.Contains).Distinct().ToList();
+
+        if (string.IsNullOrWhiteSpace(name) || validCourtIds.Count < 2)
+        {
+            TempData["Error"] = "Give the bundle a name and pick at least 2 of your courts.";
+            return RedirectToAction(nameof(Bundles));
+        }
+
+        var bundle = new CourtBundle { OwnerId = CurrentUserId, Name = name.Trim() };
+        bundle.Courts = validCourtIds.Select(cid => new CourtBundleCourt { CourtId = cid }).ToList();
+        _db.CourtBundles.Add(bundle);
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Bundle '{bundle.Name}' created.";
+        return RedirectToAction(nameof(Bundles));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleBundle(int id)
+    {
+        var bundle = await _db.CourtBundles.FirstOrDefaultAsync(b => b.Id == id && b.OwnerId == CurrentUserId);
+        if (bundle is not null)
+        {
+            bundle.IsActive = !bundle.IsActive;
+            await _db.SaveChangesAsync();
+        }
+        return RedirectToAction(nameof(Bundles));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteBundle(int id)
+    {
+        var bundle = await _db.CourtBundles.FirstOrDefaultAsync(b => b.Id == id && b.OwnerId == CurrentUserId);
+        if (bundle is not null)
+        {
+            _db.CourtBundles.Remove(bundle);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Bundle removed.";
+        }
+        return RedirectToAction(nameof(Bundles));
+    }
+
+    public async Task<IActionResult> BundleSchedule(int id)
+    {
+        var bundle = await _db.CourtBundles
+            .Include(b => b.Courts).ThenInclude(c => c.Court)
+            .FirstOrDefaultAsync(b => b.Id == id && b.OwnerId == CurrentUserId);
+        if (bundle is null) return NotFound();
+
+        ViewBag.Bundle    = bundle;
+        ViewBag.RateBlocks = (await _bookingService.GetBundleRateBlocksAsync(id)).OrderBy(b => b.StartHour).ToList();
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddBundleRateBlock(int bundleId, string[] days, bool includeHolidays, int startHour, int endHour, decimal flatPrice)
+    {
+        var bundle = await _db.CourtBundles
+            .Include(b => b.Courts).ThenInclude(c => c.Court)
+            .FirstOrDefaultAsync(b => b.Id == bundleId && b.OwnerId == CurrentUserId);
+        if (bundle is null) return NotFound();
+
+        var daysCsv = NormalizeDays(days);
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
+        {
+            TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
+            return RedirectToAction(nameof(BundleSchedule), new { id = bundleId });
+        }
+
+        var existing = await _bookingService.GetBundleRateBlocksAsync(bundleId);
+        bool overlaps = existing.Any(b =>
+            startHour < b.EndHour && endHour > b.StartHour &&
+            DaysOverlap(b.DaysOfWeek, b.IncludeHolidays, daysCsv, includeHolidays));
+        if (overlaps)
+        {
+            TempData["Error"] = "This window overlaps an existing bundle window on one of the selected days.";
+            return RedirectToAction(nameof(BundleSchedule), new { id = bundleId });
+        }
+
+        _db.CourtBundleRateBlocks.Add(new CourtBundleRateBlock
+        {
+            CourtBundleId   = bundleId,
+            DaysOfWeek      = daysCsv,
+            IncludeHolidays = includeHolidays,
+            StartHour       = startHour,
+            EndHour         = endHour,
+            FlatPrice       = flatPrice
+        });
+        await _db.SaveChangesAsync();
+
+        var outOfHoursCourts = bundle.Courts
+            .Select(c => c.Court)
+            .Where(c => startHour < c.OpeningHour || endHour > c.ClosingHour)
+            .Select(c => c.Name)
+            .ToList();
+        TempData["Success"] = outOfHoursCourts.Count > 0
+            ? $"Bundle window added. Note: {string.Join(", ", outOfHoursCourts)} don't operate the full {startHour:D2}:00–{endHour:D2}:00 window, so this bundle won't be sellable until their hours are extended."
+            : "Bundle window added.";
+        return RedirectToAction(nameof(BundleSchedule), new { id = bundleId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteBundleRateBlock(int id, int bundleId)
+    {
+        var block = await _db.CourtBundleRateBlocks
+            .FirstOrDefaultAsync(b => b.Id == id && b.CourtBundleId == bundleId &&
+                                       b.CourtBundle.OwnerId == CurrentUserId);
+        if (block is not null)
+        {
+            _db.CourtBundleRateBlocks.Remove(block);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Bundle window removed.";
+        }
+        return RedirectToAction(nameof(BundleSchedule), new { id = bundleId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleBundleRateBlock(int id, int bundleId)
+    {
+        var block = await _db.CourtBundleRateBlocks
+            .FirstOrDefaultAsync(b => b.Id == id && b.CourtBundleId == bundleId &&
+                                       b.CourtBundle.OwnerId == CurrentUserId);
+        if (block is not null)
+        {
+            block.IsActive = !block.IsActive;
+            await _db.SaveChangesAsync();
+        }
+        return RedirectToAction(nameof(BundleSchedule), new { id = bundleId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConfirmBundlePayment(Guid groupId)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var rows = await _db.Bookings
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .Where(b => b.BundleGroupId == groupId && courtIds.Contains(b.CourtId))
+            .ToListAsync();
+        if (rows.Count == 0) return NotFound();
+
+        var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
+        foreach (var booking in rows)
+        {
+            booking.Status        = BookingStatus.Confirmed;
+            booking.PaymentStatus  = PaymentStatus.Paid;
+            booking.PaidAt         = DateTime.UtcNow;
+
+            if (settings?.IsCommissionModel == true && booking.TotalPrice > 0)
+            {
+                var commission = Math.Round(booking.TotalPrice * settings.CommissionRate / 100m, 2);
+                booking.CommissionAmount        = commission;
+                settings.CommissionBalanceOwed += commission;
+            }
+        }
+        await _db.SaveChangesAsync();
+
+        var first = rows[0];
+        if (!string.IsNullOrWhiteSpace(first.User?.Email))
+        {
+            var baseUrl    = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            var bundleName = first.CourtBundleId.HasValue
+                ? (await _db.CourtBundles.FindAsync(first.CourtBundleId.Value))?.Name ?? "Bundle"
+                : "Bundle";
+            var courtNames = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
+            var combinedTotal = rows.Sum(r => r.TotalPrice);
+            await _email.SendBookingConfirmedToCustomerAsync(
+                first.User.Email!,
+                first.User.FirstName,
+                first.Id,
+                $"{bundleName} ({courtNames})",
+                first.BookingDate,
+                first.StartTime,
+                first.EndTime,
+                combinedTotal,
+                first.PaymentMethod,
+                first.PaymentReference,
+                baseUrl);
+        }
+
+        TempData["Success"] = "Bundle booking confirmed — the customer has been emailed a confirmation.";
+        return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RejectBundlePayment(Guid groupId)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var rows = await _db.Bookings
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .Where(b => b.BundleGroupId == groupId && courtIds.Contains(b.CourtId))
+            .ToListAsync();
+        if (rows.Count == 0) return NotFound();
+
+        var first         = rows[0];
+        var customerEmail = first.User?.Email;
+        var customerName  = first.User?.FirstName;
+        var courtName     = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
+        var bookingDate   = first.BookingDate;
+        var startTime     = first.StartTime;
+        var endTime       = first.EndTime;
+
+        foreach (var booking in rows)
+        {
+            booking.Status           = BookingStatus.Cancelled;
+            booking.PaymentReference = null;
+            booking.PaymentProofPath = null;
+        }
+        await _db.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(customerEmail))
+            await SendPaymentRejectedEmailAsync(customerEmail!, customerName, first.Id,
+                courtName, bookingDate, startTime, endTime);
+
+        TempData["Error"] = "Bundle booking rejected and cancelled — the customer has been notified.";
+        return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
+    }
+
+    // ── Open Play Sign-ups ───────────────────────────────────────────────────────
+
+    public async Task<IActionResult> OpenPlaySignups()
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var signups = await _db.OpenPlaySignups
+            .Include(s => s.Court)
+            .Include(s => s.User)
+            .Where(s => courtIds.Contains(s.CourtId) && s.Status != BookingStatus.Cancelled)
+            .OrderBy(s => s.BookingDate).ThenBy(s => s.StartHour)
+            .ToListAsync();
+
+        // Group into sessions so the roster + headcount-vs-max reads naturally.
+        var sessions = signups
+            .GroupBy(s => (s.CourtId, s.BookingDate, s.StartHour, s.EndHour))
+            .Select(g => new
+            {
+                g.Key.CourtId,
+                Court     = g.First().Court,
+                g.Key.BookingDate,
+                g.Key.StartHour,
+                g.Key.EndHour,
+                Signups   = g.OrderBy(s => s.CreatedAt).ToList(),
+                Taken     = g.Sum(s => s.SpotCount)
+            })
+            .ToList();
+
+        ViewBag.Sessions = sessions;
+        ViewBag.PendingSignupCount = signups.Count(s => s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConfirmSignupPayment(int id)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var signup = await _db.OpenPlaySignups
+            .Include(s => s.Court)
+            .Include(s => s.User)
+            .FirstOrDefaultAsync(s => s.Id == id && courtIds.Contains(s.CourtId));
+        if (signup is null) return NotFound();
+
+        signup.Status        = BookingStatus.Confirmed;
+        signup.PaymentStatus = PaymentStatus.Paid;
+        signup.PaidAt         = DateTime.UtcNow;
+
+        var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
+        if (settings?.IsCommissionModel == true && signup.TotalPrice > 0)
+        {
+            var commission = Math.Round(signup.TotalPrice * settings.CommissionRate / 100m, 2);
+            signup.CommissionAmount        = commission;
+            settings.CommissionBalanceOwed += commission;
+        }
+
+        await _db.SaveChangesAsync();
+
+        if (signup.Court is not null && !string.IsNullOrWhiteSpace(signup.User?.Email))
+        {
+            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            await _email.SendBookingConfirmedToCustomerAsync(
+                signup.User.Email!,
+                signup.User.FirstName,
+                signup.Id,
+                $"Open Play — {signup.Court.Name} ({signup.SpotCount} spot{(signup.SpotCount != 1 ? "s" : "")})",
+                signup.BookingDate,
+                new TimeOnly(signup.StartHour, 0),
+                new TimeOnly(signup.EndHour, 0),
+                signup.TotalPrice,
+                signup.PaymentMethod,
+                signup.PaymentReference,
+                baseUrl);
+        }
+
+        TempData["Success"] = "Sign-up confirmed — the customer has been emailed a confirmation.";
+        return RedirectToAction(nameof(OpenPlaySignups));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RejectSignupPayment(int id)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var signup = await _db.OpenPlaySignups
+            .Include(s => s.Court)
+            .Include(s => s.User)
+            .FirstOrDefaultAsync(s => s.Id == id && courtIds.Contains(s.CourtId));
+        if (signup is null) return NotFound();
+
+        var customerEmail = signup.User?.Email;
+        var customerName  = signup.User?.FirstName;
+        var courtName     = signup.Court?.Name ?? "the session";
+        var bookingDate   = signup.BookingDate;
+        var startTime     = new TimeOnly(signup.StartHour, 0);
+        var endTime       = new TimeOnly(signup.EndHour, 0);
+
+        signup.Status           = BookingStatus.Cancelled;
+        signup.PaymentReference = null;
+        signup.PaymentProofPath = null;
+        await _db.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(customerEmail))
+            await SendPaymentRejectedEmailAsync(customerEmail!, customerName, signup.Id,
+                courtName, bookingDate, startTime, endTime);
+
+        TempData["Error"] = "Sign-up rejected and cancelled — the customer has been notified.";
+        return RedirectToAction(nameof(OpenPlaySignups));
+    }
+
     // ── Settings ──────────────────────────────────────────────────────────────
 
     public async Task<IActionResult> Settings()
     {
         var settings = await GetMySettingsAsync() ?? new FacilitySettings();
+        ViewBag.Holidays = await _db.FacilityHolidays
+            .Where(h => h.OwnerId == CurrentUserId)
+            .OrderBy(h => h.Date)
+            .ToListAsync();
         return View(settings);
     }
 
@@ -887,6 +1533,18 @@ public class AdminController : Controller
         booking.Status = status;
         await _db.SaveChangesAsync();
         TempData["Success"] = "Booking status updated.";
+        return RedirectToAction(nameof(Bookings));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateSignupStatus(int id, BookingStatus status)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var signup   = await _db.OpenPlaySignups.FirstOrDefaultAsync(sg => sg.Id == id && courtIds.Contains(sg.CourtId));
+        if (signup is null) return NotFound();
+        signup.Status = status;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = "Sign-up status updated.";
         return RedirectToAction(nameof(Bookings));
     }
 }

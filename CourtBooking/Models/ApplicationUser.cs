@@ -18,5 +18,8 @@ public class ApplicationUser : IdentityUser
 
     public DateTime? PrivacyPolicyAcceptedAt { get; set; }
 
+    /// <summary>True for a shadow account auto-created for a guest checkout — no password, never signed in.</summary>
+    public bool IsGuest { get; set; }
+
     public string FullName => $"{FirstName} {LastName}".Trim();
 }

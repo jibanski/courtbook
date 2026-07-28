@@ -25,6 +25,11 @@ public class BookingViewModel
 
     public string? Notes { get; set; }
 
+    // Guest checkout only (no account) — required when the visitor isn't logged in.
+    public string? GuestName { get; set; }
+    public string? GuestEmail { get; set; }
+    public string? GuestPhone { get; set; }
+
     public TimeOnly StartTime => new TimeOnly(StartHour, 0);
     public TimeOnly EndTime   => FixedEndHour.HasValue
         ? new TimeOnly(FixedEndHour.Value, 0)
@@ -47,4 +52,20 @@ public class CourtAvailabilityViewModel
     public List<CourtBooking.Models.CourtTimeSlot> TimeSlots { get; set; } = new();
     public List<int> UnavailableSlotIds { get; set; } = new();
     public bool HasSlots => TimeSlots.Any();
+
+    // Hours the recurring weekly schedule reserves for Admin-Hosted Open Play
+    // (fallback hourly-grid mode only — not directly bookable by a customer).
+    public List<int> OpenPlayHours { get; set; } = new();
+
+    // Resolved per-hour rate (tiered if a CourtRateTier matches, else Court.PricePerHour) —
+    // fallback hourly-grid mode only.
+    public Dictionary<int, decimal> HourlyRates { get; set; } = new();
+
+    // Hours sellable only as part of a flat-price multi-court bundle — not directly bookable.
+    // Keyed by hour; value is the covering bundle + rate block (for the "Book This Bundle" link).
+    public Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)> BundleOnlyHours { get; set; } = new();
+
+    // Open Play hours where the owner has enabled public sign-up. Keyed by hour; value is
+    // the covering schedule block + live spots-remaining count (for the "Join Open Play" link).
+    public Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)> OpenPlaySignupInfo { get; set; } = new();
 }

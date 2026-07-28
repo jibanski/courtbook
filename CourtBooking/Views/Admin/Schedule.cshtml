@@ -1,0 +1,361 @@
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Default Schedule & Rates";
+    var court  = ViewBag.Court as Court;
+    var tiers  = ViewBag.RateTiers as List<CourtRateTier> ?? new();
+    var blocks = ViewBag.ScheduleBlocks as List<CourtScheduleBlock> ?? new();
+    var days   = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0" style="font-size:.8rem;">
+                <li class="breadcrumb-item">
+                    <a asp-action="Courts" style="color:var(--cb-text-3);text-decoration:none;">Courts</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a asp-action="EditCourt" asp-route-id="@court!.Id" style="color:var(--cb-text-3);text-decoration:none;">@court.Name</a>
+                </li>
+                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">Default Schedule &amp; Rates</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-3">
+            <span class="d-inline-flex align-items-center justify-content-center rounded-3"
+                  style="width:48px;height:48px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);flex-shrink:0;">
+                <i class="bi bi-calendar-week fs-4" style="color:var(--cb-lime);"></i>
+            </span>
+            <div>
+                <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">@court.Name — Default Schedule &amp; Rates</h1>
+                <p class="mb-0" style="color:var(--cb-text-3);font-size:.875rem;">
+                    Set your recurring weekly default — day-of-week rate tiers and hours reserved for Admin-Hosted Open Play.
+                    Date-specific blocks and custom windows (in Availability) always override these defaults.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-9 col-lg-11">
+
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success">@TempData["Success"]</div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["Error"]</div>
+            }
+
+            @* ── Rate Tiers ── *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
+                        <i class="bi bi-tag me-2" style="color:var(--cb-lime);"></i>Rate Tiers
+                    </h6>
+                    <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                        Base rate is ₱@court.PricePerHour.ToString("N0")/hr. Add a tier to charge a different rate on specific
+                        days and hours (e.g. weekday off-peak vs. weekend/holiday rate).
+                    </p>
+                </div>
+                <div class="card-body p-4">
+                    @if (tiers.Any())
+                    {
+                        <div class="table-responsive mb-4">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr><th>Days</th><th>Hours</th><th>Rate</th><th></th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var t in tiers)
+                                    {
+                                        <tr>
+                                            <td>
+                                                @t.DaysOfWeek
+                                                @if (t.IncludeHolidays)
+                                                {
+                                                    <span class="badge bg-secondary ms-1">+ Holidays</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @t.StartHour.ToString("D2"):00 – @t.EndHour.ToString("D2"):00
+                                                @if (t.StartHour < court.OpeningHour || t.EndHour > court.ClosingHour)
+                                                {
+                                                    <br /><span class="badge bg-warning text-dark mt-1" title="Outside this court's operating hours (@court.OpeningHour.ToString("D2"):00–@court.ClosingHour.ToString("D2"):00) — won't appear on the availability grid.">
+                                                        <i class="bi bi-exclamation-triangle me-1"></i>Outside operating hours
+                                                    </span>
+                                                }
+                                            </td>
+                                            <td>₱@t.PricePerHour.ToString("N0")/hr</td>
+                                            <td class="text-end">
+                                                <form asp-action="DeleteRateTier" method="post" onsubmit="return confirm('Remove this rate tier?')">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@t.Id" />
+                                                    <input type="hidden" name="courtId" value="@court.Id" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="mb-4" style="color:var(--cb-text-3);font-size:.825rem;">
+                            <i class="bi bi-info-circle me-1" style="color:var(--cb-lime);"></i>
+                            No rate tiers yet — every hour uses the base rate of ₱@court.PricePerHour.ToString("N0")/hr.
+                        </p>
+                    }
+
+                    <form asp-action="AddRateTier" method="post" class="row g-2 align-items-end">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="courtId" value="@court.Id" />
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Days</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var d in days)
+                                {
+                                    <label class="form-check form-check-inline">
+                                        <input type="checkbox" class="form-check-input" name="days" value="@d" />
+                                        <span class="form-check-label small">@d</span>
+                                    </label>
+                                }
+                                <label class="form-check form-check-inline ms-2">
+                                    <input type="checkbox" class="form-check-input" name="includeHolidays" value="true" />
+                                    <span class="form-check-label small">+ Holidays</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Start</label>
+                            <select name="startHour" class="form-select form-select-sm">
+                                @for (int h = 0; h < 24; h++)
+                                {
+                                    <option value="@h">@h.ToString("D2"):00</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">End</label>
+                            <select name="endHour" class="form-select form-select-sm">
+                                @for (int h = 1; h <= 24; h++)
+                                {
+                                    <option value="@h">@h.ToString("D2"):00</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">₱/hr</label>
+                            <input type="number" name="pricePerHour" step="0.01" min="0" class="form-control form-control-sm" required />
+                        </div>
+                        <div class="col-1">
+                            <button type="submit" class="btn btn-primary btn-sm w-100" title="Add rate tier">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            @* ── Schedule Blocks ── *@
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
+                        <i class="bi bi-people me-2" style="color:var(--cb-lime);"></i>Recurring Booking Type
+                    </h6>
+                    <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                        By default every hour is Hourly Rental. Add a block to reserve recurring days/hours for
+                        Admin-Hosted Open Play instead — customers won't see those hours as directly bookable.
+                        Optionally enable public sign-up so customers can reserve a spot directly.
+                    </p>
+                </div>
+                <div class="card-body p-4">
+                    @if (blocks.Any())
+                    {
+                        <div class="table-responsive mb-4">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr><th>Days</th><th>Hours</th><th>Type</th><th>Sign-up</th><th>Status</th><th></th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var b in blocks)
+                                    {
+                                        <tr class="@(b.IsActive ? "" : "opacity-50")">
+                                            <td>
+                                                @b.DaysOfWeek
+                                                @if (b.IncludeHolidays)
+                                                {
+                                                    <span class="badge bg-secondary ms-1">+ Holidays</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @b.StartHour.ToString("D2"):00 – @b.EndHour.ToString("D2"):00
+                                                @if (b.StartHour < court.OpeningHour || b.EndHour > court.ClosingHour)
+                                                {
+                                                    <br /><span class="badge bg-warning text-dark mt-1" title="Outside this court's operating hours (@court.OpeningHour.ToString("D2"):00–@court.ClosingHour.ToString("D2"):00) — won't appear on the availability grid.">
+                                                        <i class="bi bi-exclamation-triangle me-1"></i>Outside operating hours
+                                                    </span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (b.Type == BookingType.AdminHostedOpenPlay)
+                                                {
+                                                    <span class="badge bg-secondary">Admin-Hosted Open Play</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success">Hourly Rental</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (b.AllowPublicSignup)
+                                                {
+                                                    <span class="badge" style="background:var(--cb-lime);color:#000;">
+                                                        Max @b.MaxPlayers &bull; ₱@b.PricePerHead?.ToString("N0")/head
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small">Offline only</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (b.IsActive)
+                                                {
+                                                    <span class="badge bg-primary-subtle text-primary-emphasis">Active</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary-subtle text-secondary-emphasis">Paused</span>
+                                                }
+                                            </td>
+                                            <td class="text-end">
+                                                <form asp-action="ToggleScheduleBlock" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@b.Id" />
+                                                    <input type="hidden" name="courtId" value="@court.Id" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="@(b.IsActive ? "Pause this block" : "Enable this block")">
+                                                        <i class="bi bi-@(b.IsActive ? "pause-fill" : "play-fill")"></i>
+                                                    </button>
+                                                </form>
+                                                <form asp-action="DeleteScheduleBlock" method="post" onsubmit="return confirm('Remove this schedule block?')" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@b.Id" />
+                                                    <input type="hidden" name="courtId" value="@court.Id" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="mb-4" style="color:var(--cb-text-3);font-size:.825rem;">
+                            <i class="bi bi-info-circle me-1" style="color:var(--cb-lime);"></i>
+                            No schedule blocks yet — every hour defaults to Hourly Rental.
+                        </p>
+                    }
+
+                    <form asp-action="AddScheduleBlock" method="post" class="row g-2 align-items-end" id="addScheduleBlockForm">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="courtId" value="@court.Id" />
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Days</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var d in days)
+                                {
+                                    <label class="form-check form-check-inline">
+                                        <input type="checkbox" class="form-check-input" name="days" value="@d" />
+                                        <span class="form-check-label small">@d</span>
+                                    </label>
+                                }
+                                <label class="form-check form-check-inline ms-2">
+                                    <input type="checkbox" class="form-check-input" name="includeHolidays" value="true" />
+                                    <span class="form-check-label small">+ Holidays</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Start</label>
+                            <select name="startHour" class="form-select form-select-sm">
+                                @for (int h = 0; h < 24; h++)
+                                {
+                                    <option value="@h">@h.ToString("D2"):00</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">End</label>
+                            <select name="endHour" class="form-select form-select-sm">
+                                @for (int h = 1; h <= 24; h++)
+                                {
+                                    <option value="@h">@h.ToString("D2"):00</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Type</label>
+                            <select name="type" id="scheduleBlockType" class="form-select form-select-sm">
+                                <option value="@BookingType.AdminHostedOpenPlay">Admin-Hosted Open Play</option>
+                                <option value="@BookingType.HourlyRental">Hourly Rental</option>
+                            </select>
+                        </div>
+                        <div class="col-1">
+                            <button type="submit" class="btn btn-primary btn-sm w-100" title="Add schedule block">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
+                        <div class="col-12" id="publicSignupFields">
+                            <div class="border rounded-3 p-3 mt-2" style="background:var(--cb-surface-2);">
+                                <label class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" name="allowPublicSignup" value="true" id="allowPublicSignupCheck" />
+                                    <span class="form-check-label small fw-semibold">Enable public sign-up — customers can reserve a spot directly</span>
+                                </label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Max Players</label>
+                                        <input type="number" name="maxPlayers" min="1" class="form-control form-control-sm" />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">₱/Head</label>
+                                        <input type="number" name="pricePerHead" step="0.01" min="0" class="form-control form-control-sm" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <p class="mb-4">
+                <a asp-action="OpenPlaySignups" style="color:var(--cb-text-2);font-size:.85rem;">
+                    <i class="bi bi-people me-1" style="color:var(--cb-lime);"></i>View Open Play sign-ups &rarr;
+                </a>
+            </p>
+
+            <script>
+                (function () {
+                    var typeSelect = document.getElementById('scheduleBlockType');
+                    var fields = document.getElementById('publicSignupFields');
+                    function sync() {
+                        fields.style.display = typeSelect.value === '@BookingType.AdminHostedOpenPlay' ? '' : 'none';
+                    }
+                    typeSelect.addEventListener('change', sync);
+                    sync();
+                })();
+            </script>
+
+            <a asp-action="Courts" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Courts
+            </a>
+
+        </div>
+    </div>
+</div>

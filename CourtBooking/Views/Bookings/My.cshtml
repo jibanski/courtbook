@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "My Bookings";
     var facilityMap = ViewBag.FacilityMap as Dictionary<string, string> ?? new();
+    var signups = ViewBag.OpenPlaySignups as List<CourtBooking.Models.OpenPlaySignup> ?? new();
 }
 
 <div class="cb-page-header">
@@ -22,7 +23,7 @@
         </a>
     </div>
 
-    @if (!Model.Any())
+    @if (!Model.Any() && !signups.Any())
     {
         <div class="text-center py-5">
             <i class="bi bi-calendar-x display-1 text-muted opacity-50"></i>
@@ -33,9 +34,83 @@
     }
     else
     {
+        var renderedGroups = new HashSet<Guid>();
         <div class="row g-3">
             @foreach (var booking in Model)
             {
+                if (booking.BundleGroupId is { } gid)
+                {
+                    if (renderedGroups.Contains(gid)) { continue; }
+                    renderedGroups.Add(gid);
+                    var groupRows = Model.Where(b => b.BundleGroupId == gid).ToList();
+                    var groupIsPast = groupRows[0].BookingDate < DateOnly.FromDateTime(DateTime.Today);
+                    var groupCombinedTotal = groupRows.Sum(b => b.TotalPrice);
+                    var groupCourtNames = string.Join(", ", groupRows.Select(b => b.Court.Name));
+                    var groupPendingPayment = groupRows[0].PaymentStatus == CourtBooking.Models.PaymentStatus.Unpaid
+                                           && groupRows[0].Status == CourtBooking.Models.BookingStatus.Pending
+                                           && !groupRows[0].HasPaymentProof;
+                    var groupAwaitingConfirm = groupRows[0].HasPaymentProof
+                                           && groupRows[0].Status == CourtBooking.Models.BookingStatus.Pending;
+                    var groupBadgeClass = groupRows[0].Status switch
+                    {
+                        CourtBooking.Models.BookingStatus.Confirmed => "bg-success",
+                        CourtBooking.Models.BookingStatus.Cancelled  => "bg-danger",
+                        CourtBooking.Models.BookingStatus.Completed  => "bg-secondary",
+                        _                                            => "bg-warning text-dark"
+                    };
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 shadow-sm" style="border:1px solid rgba(163,255,18,0.35);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h6 class="fw-bold mb-0"><i class="bi bi-box-seam me-1"></i>Bundle: @groupCourtNames</h6>
+                                        <div class="text-muted" style="font-size:.75rem;">All @groupRows.Count courts, one reservation</div>
+                                    </div>
+                                    <span class="badge @groupBadgeClass">@groupRows[0].Status</span>
+                                </div>
+                                <p class="mb-1">
+                                    <i class="bi bi-calendar me-2 text-primary"></i>
+                                    <strong>@groupRows[0].BookingDate.ToString("MMMM d, yyyy")</strong>
+                                </p>
+                                <p class="mb-1">
+                                    <i class="bi bi-clock me-2 text-primary"></i>
+                                    @groupRows[0].StartTime.ToString("hh:mm tt") – @groupRows[0].EndTime.ToString("hh:mm tt")
+                                </p>
+                                <p class="mb-1">
+                                    <i class="bi bi-cash-coin me-2 text-primary"></i>
+                                    <strong>₱@groupCombinedTotal.ToString("N0")</strong> total
+                                </p>
+                            </div>
+                            @if (groupPendingPayment && !groupIsPast)
+                            {
+                                <div class="card-footer bg-white">
+                                    <a asp-controller="BundleBookings" asp-action="Pay" asp-route-groupId="@gid" class="btn btn-warning btn-sm w-100 fw-bold">
+                                        <i class="bi bi-credit-card me-1"></i>Pay Now — ₱@groupCombinedTotal.ToString("N0")
+                                    </a>
+                                </div>
+                            }
+                            else if (groupAwaitingConfirm)
+                            {
+                                <div class="card-footer bg-light text-center small text-muted">
+                                    <i class="bi bi-hourglass-split me-1"></i>Payment submitted — waiting for admin approval
+                                </div>
+                            }
+                            else if (groupRows[0].Status == CourtBooking.Models.BookingStatus.Confirmed && !groupIsPast)
+                            {
+                                <div class="card-footer bg-white border-top-0">
+                                    <form asp-controller="BundleBookings" asp-action="Cancel" asp-route-groupId="@gid" method="post"
+                                          onsubmit="return confirm('Cancel this bundle booking?')">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                                            <i class="bi bi-x-circle me-1"></i>Cancel Booking
+                                        </button>
+                                    </form>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    continue;
+                }
                 var isPast = booking.BookingDate < DateOnly.FromDateTime(DateTime.Today);
                 var isPendingPayment   = booking.PaymentStatus == CourtBooking.Models.PaymentStatus.Unpaid
                                        && booking.Status == CourtBooking.Models.BookingStatus.Pending
@@ -149,5 +224,75 @@
                 </div>
             }
         </div>
+
+        @if (signups.Any())
+        {
+            <h5 class="mt-4 mb-3"><i class="bi bi-people me-2" style="color:var(--cb-lime);"></i>Open Play Sign-ups</h5>
+            <div class="row g-3">
+                @foreach (var s in signups)
+                {
+                    var sIsPast = s.BookingDate < DateOnly.FromDateTime(DateTime.Today);
+                    var sPendingPayment = s.PaymentStatus == CourtBooking.Models.PaymentStatus.Unpaid
+                                       && s.Status == CourtBooking.Models.BookingStatus.Pending
+                                       && !s.HasPaymentProof;
+                    var sAwaitingConfirm = s.HasPaymentProof && s.Status == CourtBooking.Models.BookingStatus.Pending;
+                    var sBadgeClass = s.Status switch
+                    {
+                        CourtBooking.Models.BookingStatus.Confirmed => "bg-success",
+                        CourtBooking.Models.BookingStatus.Cancelled => "bg-danger",
+                        CourtBooking.Models.BookingStatus.Completed => "bg-secondary",
+                        _ => "bg-warning text-dark"
+                    };
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 shadow-sm @(sIsPast || s.Status == CourtBooking.Models.BookingStatus.Cancelled ? "opacity-75" : "")">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="fw-bold mb-0">@s.Court.Name</h6>
+                                    <span class="badge @sBadgeClass">@s.Status</span>
+                                </div>
+                                <p class="mb-1">
+                                    <i class="bi bi-calendar me-2 text-primary"></i>
+                                    <strong>@s.BookingDate.ToString("MMMM d, yyyy")</strong>
+                                </p>
+                                <p class="mb-1">
+                                    <i class="bi bi-clock me-2 text-primary"></i>
+                                    @s.StartHour.ToString("D2"):00 – @s.EndHour.ToString("D2"):00
+                                </p>
+                                <p class="mb-1">
+                                    <i class="bi bi-people me-2 text-primary"></i>
+                                    @s.SpotCount spot@(s.SpotCount != 1 ? "s" : "") &bull; <strong>₱@s.TotalPrice.ToString("N0")</strong>
+                                </p>
+                            </div>
+                            @if (sPendingPayment && !sIsPast)
+                            {
+                                <div class="card-footer bg-white">
+                                    <a asp-controller="OpenPlaySignups" asp-action="Pay" asp-route-id="@s.Id" class="btn btn-warning btn-sm w-100 fw-bold">
+                                        <i class="bi bi-credit-card me-1"></i>Pay Now — ₱@s.TotalPrice.ToString("N0")
+                                    </a>
+                                </div>
+                            }
+                            else if (sAwaitingConfirm)
+                            {
+                                <div class="card-footer bg-light text-center small text-muted">
+                                    <i class="bi bi-hourglass-split me-1"></i>Payment submitted — waiting for admin approval
+                                </div>
+                            }
+                            else if (s.Status == CourtBooking.Models.BookingStatus.Confirmed && !sIsPast)
+                            {
+                                <div class="card-footer bg-white border-top-0">
+                                    <form asp-controller="OpenPlaySignups" asp-action="Cancel" asp-route-id="@s.Id" method="post"
+                                          onsubmit="return confirm('Cancel this sign-up?')">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                                            <i class="bi bi-x-circle me-1"></i>Cancel Sign-up
+                                        </button>
+                                    </form>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     }
 </div>

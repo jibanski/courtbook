@@ -14,6 +14,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<FacilitySettings> FacilitySettings { get; set; }
     public DbSet<CourtTimeSlot> CourtTimeSlots { get; set; }
     public DbSet<CourtBlock> CourtBlocks { get; set; }
+    public DbSet<CourtRateTier> CourtRateTiers { get; set; }
+    public DbSet<CourtScheduleBlock> CourtScheduleBlocks { get; set; }
+    public DbSet<FacilityHoliday> FacilityHolidays { get; set; }
+    public DbSet<CourtBundle> CourtBundles { get; set; }
+    public DbSet<CourtBundleCourt> CourtBundleCourts { get; set; }
+    public DbSet<CourtBundleRateBlock> CourtBundleRateBlocks { get; set; }
+    public DbSet<OpenPlaySignup> OpenPlaySignups { get; set; }
     public DbSet<Review> Reviews { get; set; }
     public DbSet<PlatformConfig> PlatformConfig { get; set; }
 
@@ -43,6 +50,54 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(b => b.Court)
             .WithMany()
             .HasForeignKey(b => b.CourtId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CourtRateTier>()
+            .HasOne(t => t.Court)
+            .WithMany()
+            .HasForeignKey(t => t.CourtId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CourtScheduleBlock>()
+            .HasOne(b => b.Court)
+            .WithMany()
+            .HasForeignKey(b => b.CourtId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CourtBundleCourt>()
+            .HasOne(bc => bc.CourtBundle)
+            .WithMany(b => b.Courts)
+            .HasForeignKey(bc => bc.CourtBundleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CourtBundleCourt>()
+            .HasOne(bc => bc.Court)
+            .WithMany()
+            .HasForeignKey(bc => bc.CourtId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CourtBundleRateBlock>()
+            .HasOne(rb => rb.CourtBundle)
+            .WithMany()
+            .HasForeignKey(rb => rb.CourtBundleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Booking>()
+            .HasOne(b => b.CourtBundle)
+            .WithMany()
+            .HasForeignKey(b => b.CourtBundleId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<OpenPlaySignup>()
+            .HasOne(s => s.Court)
+            .WithMany()
+            .HasForeignKey(s => s.CourtId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<OpenPlaySignup>()
+            .HasOne(s => s.User)
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Sport>().HasData(
