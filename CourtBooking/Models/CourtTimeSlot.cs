@@ -1,3 +1,5 @@
+using CourtBooking.Helpers;
+
 namespace CourtBooking.Models;
 
 public class CourtTimeSlot
@@ -11,6 +13,6 @@ public class CourtTimeSlot
     public int EndHour { get; set; }
     public bool IsActive { get; set; } = true;
 
-    public string TimeLabel => $"{StartHour:D2}:00 – {EndHour:D2}:00";
+    public string TimeLabel => TimeDisplay.HourRange(StartHour, EndHour);
     public int DurationHours => EndHour - StartHour;
 }

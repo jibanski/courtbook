@@ -145,9 +145,35 @@ public class CourtsController : Controller
         else
         {
             var bookedHours = await _bookingService.GetBookedHoursAsync(id, selectedDate);
-            vm.BookedHours = bookedHours;
+            var schedule = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
+
+            var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
+            var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)>();
+            for (int h = court.OpeningHour; h < court.ClosingHour; h++)
+            {
+                var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
+                if (match is not null) { bundleOnlyHours[h] = match.Value; continue; }
+
+                if (schedule.TryGetValue(h, out var s) && s.Type == BookingType.AdminHostedOpenPlay)
+                {
+                    var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
+                    if (block is { AllowPublicSignup: true })
+                    {
+                        var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingAsync(block, id, selectedDate);
+                        openPlaySignupInfo[h] = (block, spotsRemaining);
+                    }
+                }
+            }
+
+            vm.BookedHours     = bookedHours;
+            vm.BundleOnlyHours = bundleOnlyHours;
+            vm.OpenPlaySignupInfo = openPlaySignupInfo;
+            vm.OpenPlayHours   = schedule
+                .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
+                .Select(kv => kv.Key).ToList();
+            vm.HourlyRates   = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
             vm.AvailableHours = Enumerable.Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
-                .Where(h => !bookedHours.Contains(h))
+                .Where(h => !bookedHours.Contains(h) && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
                 .ToList();
         }
 

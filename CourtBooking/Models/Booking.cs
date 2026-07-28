@@ -71,6 +71,29 @@ public class Booking
     /// <summary>True once the owner has paid off this booking's commission.</summary>
     public bool CommissionPaid { get; set; } = false;
 
-    public bool HasPaymentProof => !string.IsNullOrEmpty(PaymentReference);
+    /// <summary>
+    /// Set when this row is one court's share of a bundled multi-court booking. <see cref="TotalPrice"/>
+    /// is this row's even split of the bundle's flat price, not this court's normal rate.
+    /// </summary>
+    public int? CourtBundleId { get; set; }
+    public CourtBundle? CourtBundle { get; set; }
+
+    /// <summary>Shared by every row created together as one bundle purchase (one per member court).</summary>
+    public Guid? BundleGroupId { get; set; }
+
+    /// <summary>
+    /// Set only for a guest checkout (no login) — the unguessable capability token emailed to the
+    /// guest so they can reach this booking (or, for a bundle, every row sharing the same
+    /// <see cref="BundleGroupId"/>) without an account.
+    /// </summary>
+    public Guid? GuestAccessToken { get; set; }
+
+    /// <summary>
+    /// True once the customer has uploaded a payment screenshot. Checks
+    /// <see cref="PaymentProofPath"/>, not <see cref="PaymentReference"/> — the reference
+    /// number is optional on the submit-proof form, so a customer who leaves it blank must
+    /// still be treated as "submitted, awaiting confirmation".
+    /// </summary>
+    public bool HasPaymentProof => !string.IsNullOrEmpty(PaymentProofPath);
     public double DurationHours => (EndTime - StartTime).TotalHours;
 }

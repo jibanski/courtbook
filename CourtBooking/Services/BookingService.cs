@@ -111,4 +111,128 @@ public class BookingService
         await _db.SaveChangesAsync();
         return booking;
     }
+
+    // ── Recurring weekly schedule & tiered rates ────────────────────────────────
+
+    public Task<bool> IsHolidayAsync(string ownerId, DateOnly date) =>
+        _db.FacilityHolidays.AnyAsync(h => h.OwnerId == ownerId && h.Date == date);
+
+    public Task<List<CourtRateTier>> GetRateTiersAsync(int courtId) =>
+        _db.CourtRateTiers.Where(t => t.CourtId == courtId).ToListAsync();
+
+    public Task<List<CourtScheduleBlock>> GetScheduleBlocksAsync(int courtId) =>
+        _db.CourtScheduleBlocks.Where(b => b.CourtId == courtId).ToListAsync();
+
+    /// <summary>Resolved (BookingType, hourly rate) for every hour in the court's opening window on <paramref name="date"/>.</summary>
+    public async Task<Dictionary<int, (BookingType Type, decimal Rate)>> GetHourlyScheduleAsync(Court court, DateOnly date)
+    {
+        var isHoliday = court.OwnerId != null && await IsHolidayAsync(court.OwnerId, date);
+        var tiers  = await GetRateTiersAsync(court.Id);
+        var blocks = (await GetScheduleBlocksAsync(court.Id)).Where(b => b.IsActive).ToList();
+
+        var result = new Dictionary<int, (BookingType, decimal)>();
+        for (int h = court.OpeningHour; h < court.ClosingHour; h++)
+        {
+            var type = ScheduleRules.ResolveBookingType(blocks, date, isHoliday, h);
+            var rate = ScheduleRules.ResolveHourlyRate(tiers, court.PricePerHour, date, isHoliday, h);
+            result[h] = (type, rate);
+        }
+        return result;
+    }
+
+    /// <summary>Total price for a grid-based booking, summing the resolved tiered rate across the range.</summary>
+    public async Task<decimal> GetTotalPriceAsync(Court court, DateOnly date, TimeOnly start, TimeOnly end)
+    {
+        var isHoliday = court.OwnerId != null && await IsHolidayAsync(court.OwnerId, date);
+        var tiers = await GetRateTiersAsync(court.Id);
+        return ScheduleRules.ResolveTotalPrice(tiers, court.PricePerHour, date, isHoliday, start, end);
+    }
+
+    /// <summary>True when any hour in [start, end) is scheduled as Admin-Hosted Open Play by default.</summary>
+    public async Task<bool> HasOpenPlayHoursAsync(Court court, DateOnly date, TimeOnly start, TimeOnly end)
+    {
+        var isHoliday = court.OwnerId != null && await IsHolidayAsync(court.OwnerId, date);
+        var blocks = (await GetScheduleBlocksAsync(court.Id)).Where(b => b.IsActive).ToList();
+        for (int h = start.Hour; h < end.Hour; h++)
+            if (ScheduleRules.ResolveBookingType(blocks, date, isHoliday, h) == BookingType.AdminHostedOpenPlay)
+                return true;
+        return false;
+    }
+
+    // ── Bundled multi-court "peak hours" booking ────────────────────────────────
+
+    /// <summary>Active bundles this court is a member of (a court may belong to more than one).</summary>
+    public Task<List<CourtBundle>> GetBundlesForCourtAsync(int courtId) =>
+        _db.CourtBundles
+            .Where(b => b.IsActive && b.Courts.Any(c => c.CourtId == courtId))
+            .Include(b => b.Courts).ThenInclude(c => c.Court)
+            .ToListAsync();
+
+    /// <summary>All rate blocks for a bundle, including paused ones (for the admin management page).</summary>
+    public Task<List<CourtBundleRateBlock>> GetBundleRateBlocksAsync(int bundleId) =>
+        _db.CourtBundleRateBlocks.Where(b => b.CourtBundleId == bundleId).ToListAsync();
+
+    /// <summary>
+    /// If this court/date/hour falls inside an active bundle's active rate block, returns that
+    /// (bundle, block) pair — the hour is sellable only as part of the bundle, not individually.
+    /// </summary>
+    public async Task<(CourtBundle Bundle, CourtBundleRateBlock Block)?> ResolveBundleForHourAsync(Court court, DateOnly date, int hour)
+    {
+        var isHoliday = court.OwnerId != null && await IsHolidayAsync(court.OwnerId, date);
+        var bundles = await GetBundlesForCourtAsync(court.Id);
+        foreach (var bundle in bundles)
+        {
+            var blocks = (await GetBundleRateBlocksAsync(bundle.Id)).Where(b => b.IsActive).ToList();
+            var match = ScheduleRules.ResolveBundleRateBlock(blocks, date, isHoliday, hour);
+            if (match is not null) return (bundle, match);
+        }
+        return null;
+    }
+
+    /// <summary>True when any hour in [start, end) is covered by an active bundle rate block for this court.</summary>
+    public async Task<bool> HasBundleOnlyHoursAsync(Court court, DateOnly date, TimeOnly start, TimeOnly end)
+    {
+        for (int h = start.Hour; h < end.Hour; h++)
+            if (await ResolveBundleForHourAsync(court, date, h) is not null)
+                return true;
+        return false;
+    }
+
+    /// <summary>"Bundled Booking Only" — sellable only if every member court is free for the whole window.</summary>
+    public async Task<bool> IsBundleWindowFullyAvailableAsync(CourtBundle bundle, DateOnly date, TimeOnly start, TimeOnly end)
+    {
+        var memberCourtIds = bundle.Courts.Select(c => c.CourtId).ToList();
+        foreach (var courtId in memberCourtIds)
+            if (!await IsSlotAvailableAsync(courtId, date, start, end))
+                return false;
+        return memberCourtIds.Count > 0;
+    }
+
+    // ── Public sign-up for Admin-Hosted Open Play ────────────────────────────────
+
+    /// <summary>The recurring schedule block (if any) covering this court/date/hour — lets callers read
+    /// Open Play sign-up settings (AllowPublicSignup/MaxPlayers/PricePerHead), not just the BookingType.</summary>
+    public async Task<CourtScheduleBlock?> ResolveScheduleBlockForHourAsync(Court court, DateOnly date, int hour)
+    {
+        var isHoliday = court.OwnerId != null && await IsHolidayAsync(court.OwnerId, date);
+        var blocks = (await GetScheduleBlocksAsync(court.Id)).Where(b => b.IsActive).ToList();
+        return ScheduleRules.ResolveScheduleBlock(blocks, date, isHoliday, hour);
+    }
+
+    /// <summary>Non-cancelled sign-ups for this Open Play session occurrence.</summary>
+    public Task<List<OpenPlaySignup>> GetOpenPlaySignupsAsync(int courtId, DateOnly date, int startHour, int endHour) =>
+        _db.OpenPlaySignups
+            .Where(s => s.CourtId == courtId && s.BookingDate == date &&
+                        s.StartHour == startHour && s.EndHour == endHour &&
+                        s.Status != BookingStatus.Cancelled)
+            .Include(s => s.User)
+            .ToListAsync();
+
+    /// <summary>Spots left in this Open Play session — only meaningful when the block allows public sign-up.</summary>
+    public async Task<int> GetOpenPlaySpotsRemainingAsync(CourtScheduleBlock block, int courtId, DateOnly date)
+    {
+        if (!block.AllowPublicSignup || !block.MaxPlayers.HasValue) return 0;
+        var taken = (await GetOpenPlaySignupsAsync(courtId, date, block.StartHour, block.EndHour)).Sum(s => s.SpotCount);
+        return Math.Max(0, block.MaxPlayers.Value - taken);
+    }
 }

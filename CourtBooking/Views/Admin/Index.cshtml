@@ -30,6 +30,13 @@
                         <span class="badge ms-1" style="background:var(--cb-lime);color:#071827;">@ViewBag.AwaitingPayment</span>
                     }
                 </a>
+                @if ((int)ViewBag.AwaitingSignups > 0)
+                {
+                    <a asp-action="OpenPlaySignups" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-people me-1"></i>Review Sign-ups
+                        <span class="badge ms-1" style="background:var(--cb-lime);color:#071827;">@ViewBag.AwaitingSignups</span>
+                    </a>
+                }
             </div>
         </div>
     </div>
@@ -191,6 +198,30 @@
                 </a>
             </div>
         }
+
+        @if ((int)ViewBag.AwaitingSignups > 0)
+        {
+            <div class="col-12 cb-fade-up">
+                <a asp-action="OpenPlaySignups" class="text-decoration-none d-block">
+                    <div class="cb-stat-card cb-card-glow-red" style="border-color:rgba(239,68,68,0.35)!important;background:rgba(239,68,68,0.06)!important;">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="cb-stat-icon" style="background:rgba(239,68,68,0.15);">
+                                    <i class="bi bi-hourglass-split text-danger"></i>
+                                </div>
+                                <div>
+                                    <div class="cb-stat-value" style="font-size:1.5rem;color:#f87171;">@ViewBag.AwaitingSignups</div>
+                                    <div class="cb-stat-label">Open Play Sign-ups Awaiting Confirmation — action required</div>
+                                </div>
+                            </div>
+                            <span class="btn btn-danger btn-sm">
+                                <i class="bi bi-arrow-right me-1"></i>Review
+                            </span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        }
     </div>
 
     <!-- ── Quick Actions ───────────────────────────────────────────────── -->
@@ -199,6 +230,7 @@
         <div class="d-flex flex-wrap gap-2">
             <a asp-action="Courts" class="cb-quick-action"><i class="bi bi-buildings"></i>Manage Courts</a>
             <a asp-action="Bookings" class="cb-quick-action"><i class="bi bi-calendar3"></i>All Bookings</a>
+            <a asp-action="OpenPlaySignups" class="cb-quick-action"><i class="bi bi-people"></i>Open Play Sign-ups</a>
             <a asp-action="Sports" class="cb-quick-action"><i class="bi bi-trophy"></i>Sports</a>
             <a asp-action="Settings" class="cb-quick-action"><i class="bi bi-sliders"></i>Settings</a>
             @if ((int)ViewBag.AwaitingPayment > 0)
@@ -206,6 +238,13 @@
                 <a asp-action="Bookings" asp-route-awaitingConfirmation="true" class="cb-quick-action danger">
                     <i class="bi bi-hourglass-split"></i>Confirm Payments
                     <span class="badge" style="background:#ef4444;color:#fff;border-radius:4px;">@ViewBag.AwaitingPayment</span>
+                </a>
+            }
+            @if ((int)ViewBag.AwaitingSignups > 0)
+            {
+                <a asp-action="OpenPlaySignups" class="cb-quick-action danger">
+                    <i class="bi bi-hourglass-split"></i>Confirm Sign-ups
+                    <span class="badge" style="background:#ef4444;color:#fff;border-radius:4px;">@ViewBag.AwaitingSignups</span>
                 </a>
             }
         </div>

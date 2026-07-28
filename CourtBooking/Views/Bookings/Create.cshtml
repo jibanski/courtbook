@@ -44,6 +44,31 @@
 
                         <div asp-validation-summary="All" class="alert alert-danger" style="display:@(ViewData.ModelState.IsValid ? "none" : "block")"></div>
 
+                        @if (User.Identity?.IsAuthenticated != true)
+                        {
+                            <div class="border rounded-3 p-3 mb-3" style="background:var(--cb-surface-2, #f8f9fa);">
+                                <h6 class="fw-bold mb-2"><i class="bi bi-person me-1"></i>Your Info</h6>
+                                <p class="small text-muted mb-2">Booking as a guest — no account needed.</p>
+                                <div class="mb-2">
+                                    <label class="form-label small fw-semibold">Name</label>
+                                    <input name="GuestName" class="form-control" required />
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-semibold">Email</label>
+                                        <input type="email" name="GuestEmail" class="form-control" required />
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-semibold">Phone</label>
+                                        <input type="tel" name="GuestPhone" class="form-control" required />
+                                    </div>
+                                </div>
+                                <p class="small text-muted mt-2 mb-0">
+                                    Have an account? <a asp-controller="Account" asp-action="Login" asp-route-returnUrl="@Context.Request.Path + Context.Request.QueryString">Log in</a> to manage all your bookings in one place.
+                                </p>
+                            </div>
+                        }
+
                         <div class="mb-3">
                             <label asp-for="BookingDate" class="form-label fw-semibold">Date</label>
                             <input asp-for="BookingDate" type="date" class="form-control"
@@ -61,7 +86,7 @@
                                 <label class="form-label fw-semibold">Time Slot</label>
                                 <div class="form-control bg-light fw-semibold">
                                     <i class="bi bi-clock me-2 text-primary"></i>
-                                    @Model.StartHour.ToString("D2"):00 – @Model.FixedEndHour!.Value.ToString("D2"):00
+                                    @TimeDisplay.HourRange(Model.StartHour, Model.FixedEndHour!.Value)
                                     <span class="text-muted fw-normal ms-2">(@Model.TotalPrice.ToString("N0") total)</span>
                                 </div>
                             </div>
@@ -73,7 +98,7 @@
                                 <select asp-for="StartHour" class="form-select" id="startHourSelect">
                                     @for (int h = (Model.Court?.OpeningHour ?? 6); h < (Model.Court?.ClosingHour ?? 22); h++)
                                     {
-                                        <option value="@h" selected="@(Model.StartHour == h)">@h.ToString("D2"):00</option>
+                                        <option value="@h" selected="@(Model.StartHour == h)">@TimeDisplay.Hour(h)</option>
                                     }
                                 </select>
                                 <span asp-validation-for="StartHour" class="text-danger small"></span>

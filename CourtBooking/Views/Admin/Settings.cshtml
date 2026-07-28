@@ -313,6 +313,64 @@
                 </div>
             </form>
 
+            <!-- ── Holidays ────────────────────────────────────────────── -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-calendar-heart me-2"></i>Holidays
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Mark local or Philippine holiday dates so a "weekend + holidays" rate tier or schedule block
+                        (set per-court under <em>Default Schedule &amp; Rates</em>) also applies on that date.
+                    </p>
+                    @{
+                        var holidays = ViewBag.Holidays as List<CourtBooking.Models.FacilityHoliday> ?? new();
+                    }
+                    @if (holidays.Any())
+                    {
+                        <ul class="list-group list-group-flush mb-3">
+                            @foreach (var h in holidays)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span>
+                                        <strong>@h.Date.ToString("MMM d, yyyy")</strong>
+                                        @if (!string.IsNullOrWhiteSpace(h.Label))
+                                        {
+                                            <span class="text-muted"> — @h.Label</span>
+                                        }
+                                    </span>
+                                    <form asp-action="DeleteHoliday" method="post" onsubmit="return confirm('Remove this holiday?')">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@h.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>No holidays added yet.</p>
+                    }
+                    <form asp-action="AddHoliday" method="post" class="row g-2 align-items-end">
+                        @Html.AntiForgeryToken()
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold mb-1">Date</label>
+                            <input type="date" name="date" class="form-control form-control-sm" required />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold mb-1">Label (optional)</label>
+                            <input type="text" name="label" maxlength="100" class="form-control form-control-sm" placeholder="e.g. Rizal Day" />
+                        </div>
+                        <div class="col-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- ── Support CourtBook ──────────────────────────────────── -->
             <div class="card shadow-sm mt-4 border-danger-subtle">
                 <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">

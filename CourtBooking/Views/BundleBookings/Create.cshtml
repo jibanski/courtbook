@@ -1,0 +1,100 @@
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Book Bundle";
+    var bundle    = ViewBag.Bundle as CourtBundle;
+    var block     = ViewBag.Block as CourtBundleRateBlock;
+    var date      = (DateOnly)ViewBag.Date;
+    var available = (bool)ViewBag.Available;
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">
+            <i class="bi bi-box-seam me-2" style="color:var(--cb-lime);"></i>@bundle!.Name
+        </h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Bundled booking — all courts together, one flat price</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+
+            @if (TempData["Error"] is string err)
+            {
+                <div class="alert alert-danger">@err</div>
+            }
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-receipt me-2 text-primary"></i>Bundle Summary
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6 text-muted small">Courts</div>
+                        <div class="col-6 fw-semibold">@string.Join(", ", bundle.Courts.Select(c => c.Court.Name))</div>
+                        <div class="col-6 text-muted small">Date</div>
+                        <div class="col-6 fw-semibold">@date.ToString("MMMM d, yyyy")</div>
+                        <div class="col-6 text-muted small">Time</div>
+                        <div class="col-6 fw-semibold">@TimeDisplay.HourRange(block!.StartHour, block.EndHour)</div>
+                        <div class="col-12"><hr class="my-2"></div>
+                        <div class="col-6 fw-bold">Total Amount</div>
+                        <div class="col-6 fw-bold text-success fs-5">₱@block.FlatPrice.ToString("N0")</div>
+                    </div>
+                </div>
+            </div>
+
+            @if (!available)
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    One or more courts in this bundle are already booked for this window. Please pick another date.
+                </div>
+            }
+            else
+            {
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="bundleId" value="@bundle.Id" />
+                    <input type="hidden" name="date" value="@date.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="startHour" value="@block.StartHour" />
+                    <input type="hidden" name="endHour" value="@block.EndHour" />
+
+                    @if (User.Identity?.IsAuthenticated != true)
+                    {
+                        <div class="border rounded-3 p-3 mb-3" style="background:var(--cb-surface-2, #f8f9fa);">
+                            <h6 class="fw-bold mb-2"><i class="bi bi-person me-1"></i>Your Info</h6>
+                            <p class="small text-muted mb-2">Booking as a guest — no account needed.</p>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Name</label>
+                                <input name="guestName" class="form-control" required />
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold">Email</label>
+                                    <input type="email" name="guestEmail" class="form-control" required />
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold">Phone</label>
+                                    <input type="tel" name="guestPhone" class="form-control" required />
+                                </div>
+                            </div>
+                            <p class="small text-muted mt-2 mb-0">
+                                Have an account? <a asp-controller="Account" asp-action="Login">Log in</a> to manage all your bookings in one place.
+                            </p>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Notes <span class="text-muted small">(optional)</span></label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Any special requests..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-lg w-100 fw-bold" style="background:var(--cb-lime);color:#000;">
+                        <i class="bi bi-calendar-plus me-2"></i>Book This Bundle — ₱@block.FlatPrice.ToString("N0")
+                    </button>
+                </form>
+            }
+
+        </div>
+    </div>
+</div>

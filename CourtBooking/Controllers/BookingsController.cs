@@ -1,4 +1,5 @@
 using CourtBooking.Data;
+using CourtBooking.Helpers;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using CourtBooking.ViewModels;
@@ -18,6 +19,7 @@ public class BookingsController : Controller
     private readonly PayMongoService              _payMongo;
     private readonly IConfiguration              _config;
     private readonly EmailService                _email;
+    private readonly GuestCheckoutService         _guestCheckout;
     private readonly ILogger<BookingsController> _logger;
 
     public BookingsController(
@@ -27,6 +29,7 @@ public class BookingsController : Controller
         PayMongoService payMongo,
         IConfiguration config,
         EmailService email,
+        GuestCheckoutService guestCheckout,
         ILogger<BookingsController> logger)
     {
         _db             = db;
@@ -35,6 +38,7 @@ public class BookingsController : Controller
         _payMongo       = payMongo;
         _config         = config;
         _email          = email;
+        _guestCheckout  = guestCheckout;
         _logger         = logger;
     }
 
@@ -59,9 +63,16 @@ public class BookingsController : Controller
             .ToDictionaryAsync(s => s.OwnerId!, s => s.FacilityName);
         ViewBag.FacilityMap = facilityMap;
 
+        ViewBag.OpenPlaySignups = await _db.OpenPlaySignups
+            .Include(s => s.Court)
+            .Where(s => s.UserId == userId && s.Status != BookingStatus.Cancelled)
+            .OrderByDescending(s => s.BookingDate).ThenByDescending(s => s.StartHour)
+            .ToListAsync();
+
         return View(bookings);
     }
 
+    [AllowAnonymous]
     public async Task<IActionResult> Create(int courtId, DateOnly? date, int? startHour, int? endHour)
     {
         var court = await _db.Courts.FirstOrDefaultAsync(c => c.Id == courtId && c.IsActive);
@@ -88,12 +99,20 @@ public class BookingsController : Controller
         return View(vm);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]
     public async Task<IActionResult> Create(BookingViewModel vm)
     {
         var court = await _db.Courts.FirstOrDefaultAsync(c => c.Id == vm.CourtId && c.IsActive);
         if (court is null) return NotFound();
         vm.Court = court;
+
+        bool isGuest = User.Identity?.IsAuthenticated != true;
+        if (isGuest)
+        {
+            if (string.IsNullOrWhiteSpace(vm.GuestName)) ModelState.AddModelError("GuestName", "Name is required.");
+            if (string.IsNullOrWhiteSpace(vm.GuestEmail)) ModelState.AddModelError("GuestEmail", "Email is required.");
+            if (string.IsNullOrWhiteSpace(vm.GuestPhone)) ModelState.AddModelError("GuestPhone", "Phone number is required.");
+        }
 
         // Past-date/time guard using Philippine Standard Time (UTC+8)
         var localNow  = DateTime.UtcNow.AddHours(8);
@@ -104,7 +123,7 @@ public class BookingsController : Controller
             ModelState.AddModelError("StartHour", "This time slot has already passed. Please choose a future slot.");
 
         if (vm.StartHour < court.OpeningHour || vm.StartHour >= court.ClosingHour)
-            ModelState.AddModelError("StartHour", $"Start hour must be between {court.OpeningHour}:00 and {court.ClosingHour - 1}:00.");
+            ModelState.AddModelError("StartHour", $"Start hour must be between {TimeDisplay.Hour(court.OpeningHour)} and {TimeDisplay.Hour(court.ClosingHour - 1)}.");
 
         if (vm.StartHour + vm.DurationHours > court.ClosingHour)
             ModelState.AddModelError("DurationHours", "Booking extends beyond closing time.");
@@ -118,7 +137,39 @@ public class BookingsController : Controller
             return View(vm);
         }
 
-        var userId = _userManager.GetUserId(User)!;
+        // Grid-based bookings (not a pre-defined CourtTimeSlot window) must respect the
+        // recurring weekly schedule: hours reserved for Admin-Hosted Open Play aren't
+        // directly bookable, and price is the resolved tiered rate rather than the flat one.
+        decimal totalPrice;
+        if (!vm.IsSlotBooking)
+        {
+            if (await _bookingService.HasOpenPlayHoursAsync(court, vm.BookingDate, vm.StartTime, vm.EndTime))
+            {
+                ModelState.AddModelError("", "This time is reserved for Admin-Hosted Open Play and isn't available for direct booking.");
+                return View(vm);
+            }
+            if (await _bookingService.HasBundleOnlyHoursAsync(court, vm.BookingDate, vm.StartTime, vm.EndTime))
+            {
+                ModelState.AddModelError("", "This time is only available as part of a bundled booking. Please use the bundle booking option instead.");
+                return View(vm);
+            }
+            totalPrice = await _bookingService.GetTotalPriceAsync(court, vm.BookingDate, vm.StartTime, vm.EndTime);
+        }
+        else
+        {
+            totalPrice = vm.TotalPrice;
+        }
+
+        string userId;
+        if (isGuest)
+        {
+            var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(vm.GuestName!, vm.GuestEmail!, vm.GuestPhone!);
+            userId = guestUser.Id;
+        }
+        else
+        {
+            userId = _userManager.GetUserId(User)!;
+        }
 
         // Snapshot the facility name (court owner's facility) onto the booking so
         // it can be attributed to a facility directly in the database.
@@ -137,10 +188,11 @@ public class BookingsController : Controller
             BookingDate = vm.BookingDate,
             StartTime = vm.StartTime,
             EndTime = vm.EndTime,
-            TotalPrice = vm.TotalPrice,
+            TotalPrice = totalPrice,
             Notes = vm.Notes,
             Status = BookingStatus.Pending,
-            PaymentStatus = PaymentStatus.Unpaid
+            PaymentStatus = PaymentStatus.Unpaid,
+            GuestAccessToken = isGuest ? Guid.NewGuid() : null
         };
 
         await _bookingService.CreateBookingAsync(booking);
@@ -150,6 +202,12 @@ public class BookingsController : Controller
         var fullCourt = await _db.Courts.FindAsync(booking.CourtId);
         var owner     = fullCourt?.OwnerId is { } ownerId ? await _userManager.FindByIdAsync(ownerId) : null;
         await SendNewBookingNotificationAsync(booking, fullCourt, customer, owner);
+
+        if (isGuest)
+        {
+            await SendGuestAccessLinkEmailAsync(booking, fullCourt, customer);
+            return RedirectToAction(nameof(GuestPay), new { token = booking.GuestAccessToken });
+        }
 
         return RedirectToAction(nameof(Pay), new { id = booking.Id });
     }
@@ -358,6 +416,95 @@ public class BookingsController : Controller
         return RedirectToAction(nameof(My));
     }
 
+    // ── Guest checkout (no account) ───────────────────────────────────────────
+    // Mirrors Pay/SubmitProof/Cancel above exactly, but scoped by the unguessable
+    // GuestAccessToken emailed to the guest instead of a logged-in session.
+
+    [AllowAnonymous]
+    public async Task<IActionResult> GuestPay(Guid token)
+    {
+        var booking = await _db.Bookings
+            .Include(b => b.Court)
+            .FirstOrDefaultAsync(b => b.GuestAccessToken == token);
+        if (booking is null) return NotFound();
+
+        var settings = (booking.Court?.OwnerId != null
+            ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == booking.Court.OwnerId)
+            : await _db.FacilitySettings.FirstOrDefaultAsync())
+            ?? new FacilitySettings();
+
+        ViewBag.Settings   = settings;
+        ViewBag.HasCardPay = false; // PayMongo instant checkout isn't offered on the guest flow yet
+        ViewBag.GuestToken = token;
+        return View("Pay", booking);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]
+    public async Task<IActionResult> GuestSubmitProof(Guid token, string method, string? reference, IFormFile? screenshot)
+    {
+        var booking = await _db.Bookings
+            .Include(b => b.Court)
+            .FirstOrDefaultAsync(b => b.GuestAccessToken == token && b.PaymentStatus == PaymentStatus.Unpaid);
+        if (booking is null) return NotFound();
+
+        if (screenshot is null || screenshot.Length == 0)
+        {
+            TempData["Error"] = "Please upload a screenshot of your payment confirmation.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+
+        var ext = Path.GetExtension(screenshot.FileName).ToLower();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
+        {
+            TempData["Error"] = "Screenshot must be JPG, PNG, or WebP.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+
+        var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "proofs");
+        Directory.CreateDirectory(uploadsDir);
+        var fileName = $"{booking.Id}_{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(uploadsDir, fileName);
+        using (var stream = System.IO.File.Create(fullPath))
+            await screenshot.CopyToAsync(stream);
+
+        booking.PaymentMethod           = method;
+        booking.PaymentReference        = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim();
+        booking.PaymentProofPath        = $"/uploads/proofs/{fileName}";
+        booking.PaymentProofSubmittedAt = DateTime.UtcNow;
+        booking.Status                  = BookingStatus.Pending;
+        booking.PaymentStatus           = PaymentStatus.Unpaid;
+        await _db.SaveChangesAsync();
+
+        if (booking.Court is null)
+            booking.Court = await _db.Courts.FindAsync(booking.CourtId);
+        var customer = await _userManager.FindByIdAsync(booking.UserId);
+        var owner = booking.Court?.OwnerId is { } proofOwnerId
+            ? await _userManager.FindByIdAsync(proofOwnerId) : null;
+        await SendProofSubmittedNotificationAsync(booking, customer, owner);
+
+        TempData["Success"] = "Payment submitted! Your slot is reserved while the facility reviews your payment. "
+                            + "You'll get a confirmation email once it's approved.";
+        return RedirectToAction(nameof(GuestPay), new { token });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]
+    public async Task<IActionResult> GuestCancel(Guid token)
+    {
+        var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.GuestAccessToken == token);
+        if (booking is null) return NotFound();
+
+        if (booking.BookingDate <= DateOnly.FromDateTime(DateTime.Today))
+        {
+            TempData["Error"] = "Cannot cancel a past or same-day booking.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+
+        booking.Status = BookingStatus.Cancelled;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = "Booking cancelled successfully.";
+        return RedirectToAction(nameof(GuestPay), new { token });
+    }
+
     // ── Email notifications ───────────────────────────────────────────────────
 
     /// <summary>Human-readable label for a PayMongo payment_method_used value.</summary>
@@ -528,6 +675,56 @@ public class BookingsController : Controller
         catch (Exception ex)
         {
             _logger?.LogError(ex, "[BookingsController] Failed to send proof notification for booking #{Id}", booking.Id);
+        }
+    }
+
+    /// <summary>
+    /// Sent once, right after a guest (no account) creates a booking — this link is their
+    /// only way back to pay, check status, or cancel, since there's no login to fall back on.
+    /// </summary>
+    private async Task SendGuestAccessLinkEmailAsync(Booking booking, Court? court, ApplicationUser? guest)
+    {
+        try
+        {
+            if (guest is null || string.IsNullOrWhiteSpace(guest.Email) || !booking.GuestAccessToken.HasValue) return;
+
+            var baseUrl   = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            var payUrl    = $"{baseUrl}/Bookings/GuestPay?token={booking.GuestAccessToken}";
+            var dateLabel = booking.BookingDate.ToString("dddd, MMMM d, yyyy");
+            var timeLabel = $"{booking.StartTime:hh\\:mm tt} – {booking.EndTime:hh\\:mm tt}";
+            var courtName = court?.Name ?? "your court";
+            var amount    = booking.TotalPrice.ToString("N0");
+
+            var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:540px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
+      <div style='font-size:13px;opacity:.85;letter-spacing:.5px;text-transform:uppercase;'>CourtBook</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>🎾 Your Booking — Complete Payment</div>
+    </div>
+    <div style='padding:24px;font-size:15px;line-height:1.6;'>
+      <p style='margin:0 0 16px;'>Thanks for booking with CourtBook! No account needed — use the link below any time to pay, check status, or cancel this booking.</p>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;'>
+        <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Court</td> <td style='font-weight:600;padding:5px 0;'>{courtName}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Date</td>  <td style='font-weight:600;padding:5px 0;'>{dateLabel}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Time</td>  <td style='padding:5px 0;'>{timeLabel}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Amount</td><td style='padding:5px 0;font-weight:600;color:#198754;'>₱{amount}</td></tr>
+      </table>
+      <p style='margin:20px 0 0;text-align:center;'>
+        <a href='{payUrl}' style='display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>Manage My Booking</a>
+      </p>
+      <p style='margin:16px 0 0;font-size:12px;color:#6c757d;'>Keep this email — it's the only way to access your booking without creating an account.</p>
+    </div>
+  </div>
+</body></html>";
+
+            var plain = $"Your CourtBook Booking\n\nCourt: {courtName}\nDate: {dateLabel}\nTime: {timeLabel}\nAmount: ₱{amount}\n\nManage your booking: {payUrl}\n\nKeep this email — it's the only way to access your booking without an account.";
+
+            await _email.SendAsync(guest.Email, "🎾 Your CourtBook Booking — Complete Payment", html, plain);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "[BookingsController] Failed to send guest access link email for booking #{Id}", booking.Id);
         }
     }
 

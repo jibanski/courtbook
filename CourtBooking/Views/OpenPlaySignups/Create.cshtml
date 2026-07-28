@@ -1,0 +1,129 @@
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Join Open Play";
+    var court    = ViewBag.Court as Court;
+    var block    = ViewBag.Block as CourtScheduleBlock;
+    var date     = (DateOnly)ViewBag.Date;
+    var remaining = (int)ViewBag.SpotsRemaining;
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">
+            <i class="bi bi-people me-2" style="color:var(--cb-lime);"></i>Join Open Play
+        </h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">@court!.Name</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+
+            @if (TempData["Error"] is string err)
+            {
+                <div class="alert alert-danger">@err</div>
+            }
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-receipt me-2 text-primary"></i>Session Details
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6 text-muted small">Court</div>
+                        <div class="col-6 fw-semibold">@court.Name (@court.SportType)</div>
+                        <div class="col-6 text-muted small">Date</div>
+                        <div class="col-6 fw-semibold">@date.ToString("MMMM d, yyyy")</div>
+                        <div class="col-6 text-muted small">Time</div>
+                        <div class="col-6 fw-semibold">@TimeDisplay.HourRange(block!.StartHour, block.EndHour)</div>
+                        <div class="col-6 text-muted small">Price</div>
+                        <div class="col-6 fw-semibold">₱@block.PricePerHead?.ToString("N0") / head</div>
+                        <div class="col-6 text-muted small">Spots Left</div>
+                        <div class="col-6 fw-bold @(remaining > 0 ? "text-success" : "text-danger")">
+                            @(remaining > 0 ? $"{remaining} of {block.MaxPlayers}" : "Full")
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (remaining <= 0)
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    This session is full. Please check another date.
+                </div>
+            }
+            else
+            {
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="courtId" value="@court.Id" />
+                    <input type="hidden" name="date" value="@date.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="startHour" value="@block.StartHour" />
+                    <input type="hidden" name="endHour" value="@block.EndHour" />
+
+                    @if (User.Identity?.IsAuthenticated != true)
+                    {
+                        <div class="border rounded-3 p-3 mb-3" style="background:var(--cb-surface-2, #f8f9fa);">
+                            <h6 class="fw-bold mb-2"><i class="bi bi-person me-1"></i>Your Info</h6>
+                            <p class="small text-muted mb-2">Joining as a guest — no account needed.</p>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Name</label>
+                                <input name="guestName" class="form-control" required />
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold">Email</label>
+                                    <input type="email" name="guestEmail" class="form-control" required />
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold">Phone</label>
+                                    <input type="tel" name="guestPhone" class="form-control" required />
+                                </div>
+                            </div>
+                            <p class="small text-muted mt-2 mb-0">
+                                Have an account? <a asp-controller="Account" asp-action="Login">Log in</a> to manage all your bookings in one place.
+                            </p>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Number of Spots</label>
+                        <select name="spotCount" class="form-select" id="spotCountSelect">
+                            @for (int i = 1; i <= remaining; i++)
+                            {
+                                <option value="@i">@i</option>
+                            }
+                        </select>
+                        <div class="form-text">Bringing friends? Reserve a spot for each of them too.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Notes <span class="text-muted small">(optional)</span></label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Any special requests..."></textarea>
+                    </div>
+                    <div class="alert alert-info py-2" id="totalPreview">
+                        Total: <strong>₱@block.PricePerHead?.ToString("N0")</strong>
+                    </div>
+                    <button type="submit" class="btn btn-lg w-100 fw-bold" style="background:var(--cb-lime);color:#000;">
+                        <i class="bi bi-calendar-plus me-2"></i>Reserve My Spot
+                    </button>
+                </form>
+
+                <script>
+                    (function () {
+                        var pricePerHead = @block.PricePerHead;
+                        var select = document.getElementById('spotCountSelect');
+                        var preview = document.getElementById('totalPreview');
+                        function sync() {
+                            var total = pricePerHead * parseInt(select.value, 10);
+                            preview.innerHTML = 'Total: <strong>₱' + total.toLocaleString() + '</strong>';
+                        }
+                        select.addEventListener('change', sync);
+                    })();
+                </script>
+            }
+
+        </div>
+    </div>
+</div>

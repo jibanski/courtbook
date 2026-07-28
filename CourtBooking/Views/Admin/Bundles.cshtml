@@ -1,0 +1,125 @@
+@model List<CourtBooking.Models.CourtBundle>
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Court Bundles";
+    var myCourts = ViewBag.MyCourts as List<Court> ?? new();
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;font-weight:800;">Court Bundles</h1>
+        <p class="mb-0" style="color:var(--cb-text-2);font-size:.9rem;">
+            Sell two or more courts together as one flat-price package during peak hours (e.g. "All 3 Courts").
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-10">
+
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success">@TempData["Success"]</div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["Error"]</div>
+            }
+
+            @if (Model.Any())
+            {
+                <div class="row g-3 mb-4">
+                    @foreach (var bundle in Model)
+                    {
+                        <div class="col-md-6">
+                            <div class="card h-100 @(bundle.IsActive ? "" : "opacity-50")">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h6 class="fw-bold mb-1">@bundle.Name</h6>
+                                        @if (bundle.IsActive)
+                                        {
+                                            <span class="badge bg-primary-subtle text-primary-emphasis">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis">Paused</span>
+                                        }
+                                    </div>
+                                    <p class="text-muted small mb-3">
+                                        @string.Join(", ", bundle.Courts.Select(c => c.Court.Name))
+                                    </p>
+                                    <div class="d-flex gap-2">
+                                        <a asp-action="BundleSchedule" asp-route-id="@bundle.Id" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-calendar-week me-1"></i>Peak Windows
+                                        </a>
+                                        <form asp-action="ToggleBundle" asp-route-id="@bundle.Id" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-@(bundle.IsActive ? "pause-fill" : "play-fill")"></i>
+                                            </button>
+                                        </form>
+                                        <form asp-action="DeleteBundle" asp-route-id="@bundle.Id" method="post" class="d-inline"
+                                              onsubmit="return confirm('Delete this bundle? Existing bookings are kept.')">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="mb-4" style="color:var(--cb-text-3);">
+                    <i class="bi bi-info-circle me-1" style="color:var(--cb-lime);"></i>
+                    No bundles yet.
+                </p>
+            }
+
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-plus-circle me-2" style="color:var(--cb-lime);"></i>Create a Bundle</h6>
+                </div>
+                <div class="card-body">
+                    @if (myCourts.Count < 2)
+                    {
+                        <p class="text-muted small mb-0">You need at least 2 courts to create a bundle.</p>
+                    }
+                    else
+                    {
+                        <form asp-action="CreateBundle" method="post" class="row g-3">
+                            @Html.AntiForgeryToken()
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold mb-1">Bundle Name</label>
+                                <input type="text" name="name" class="form-control" placeholder="e.g. All 3 Courts" maxlength="100" required />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold mb-1">Courts in this bundle</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    @foreach (var c in myCourts)
+                                    {
+                                        <label class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="courtIds" value="@c.Id" />
+                                            <span class="form-check-label">@c.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Create Bundle</button>
+                            </div>
+                        </form>
+                    }
+                </div>
+            </div>
+
+            <a asp-action="Courts" class="btn btn-outline-secondary mt-4">
+                <i class="bi bi-arrow-left me-1"></i>Back to Courts
+            </a>
+
+        </div>
+    </div>
+</div>

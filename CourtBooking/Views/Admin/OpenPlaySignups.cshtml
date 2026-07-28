@@ -1,0 +1,148 @@
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Open Play Sign-ups";
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;font-weight:800;">
+            <i class="bi bi-people me-2" style="color:var(--cb-lime);"></i>Open Play Sign-ups
+        </h1>
+        <p class="mb-0" style="color:var(--cb-text-2);font-size:.9rem;">
+            Rosters for every upcoming Open Play session with public sign-up enabled.
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-9 col-lg-11">
+
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success">@TempData["Success"]</div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["Error"]</div>
+            }
+
+            @{ int pendingCount = (int)(ViewBag.PendingSignupCount ?? 0); }
+            @if (pendingCount > 0)
+            {
+                <div class="alert d-flex align-items-center gap-2 mb-4" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);color:#f87171;">
+                    <i class="bi bi-hourglass-split fs-4"></i>
+                    <div><strong>@pendingCount sign-up@(pendingCount != 1 ? "s" : "")</strong> awaiting confirmation below — look for the "Awaiting Confirmation" badge in each roster.</div>
+                </div>
+            }
+
+            @if (ViewBag.Sessions.Count == 0)
+            {
+                <p style="color:var(--cb-text-3);">
+                    <i class="bi bi-info-circle me-1" style="color:var(--cb-lime);"></i>
+                    No Open Play sign-ups yet.
+                </p>
+            }
+            else
+            {
+                @foreach (var session in ViewBag.Sessions)
+                {
+                    Court court = session.Court;
+                    DateOnly bookingDate = session.BookingDate;
+                    int startHour = session.StartHour;
+                    int endHour = session.EndHour;
+                    int taken = session.Taken;
+                    List<OpenPlaySignup> rows = session.Signups;
+
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <strong>@court.Name</strong>
+                                <span class="text-muted small ms-2">
+                                    @bookingDate.ToString("MMM d, yyyy") &bull; @TimeDisplay.HourRange(startHour, endHour)
+                                </span>
+                            </div>
+                            <span class="badge bg-primary-subtle text-primary-emphasis">@taken spot(s) reserved</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr><th>Customer</th><th>Spots</th><th>Amount</th><th>Payment</th><th>Status</th><th></th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var s in rows)
+                                    {
+                                        var isAwaitingConfirm = s.HasPaymentProof && s.Status == BookingStatus.Pending;
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">
+                                                    @s.User.FullName
+                                                    @if (s.User.IsGuest) { <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Guest</span> }
+                                                </div>
+                                                <small class="text-muted">@s.User.Email</small>
+                                            </td>
+                                            <td>@s.SpotCount</td>
+                                            <td>₱@s.TotalPrice.ToString("N0")</td>
+                                            <td>
+                                                @if (!string.IsNullOrWhiteSpace(s.PaymentMethod))
+                                                {
+                                                    <div class="small">@s.PaymentMethod</div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(s.PaymentReference))
+                                                {
+                                                    <div class="small text-muted font-monospace">@s.PaymentReference</div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(s.PaymentProofPath))
+                                                {
+                                                    <a href="@s.PaymentProofPath" target="_blank" class="btn btn-sm btn-outline-secondary mt-1">
+                                                        <i class="bi bi-image me-1"></i>View Screenshot
+                                                    </a>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (s.PaymentStatus == PaymentStatus.Paid)
+                                                {
+                                                    <span class="badge bg-success">Paid</span>
+                                                }
+                                                else if (isAwaitingConfirm)
+                                                {
+                                                    <span class="badge bg-warning text-dark">Awaiting Confirmation</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">Unpaid</span>
+                                                }
+                                            </td>
+                                            <td class="text-end">
+                                                @if (isAwaitingConfirm)
+                                                {
+                                                    <form asp-action="ConfirmSignupPayment" asp-route-id="@s.Id" method="post" class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Confirm this sign-up?')">
+                                                            <i class="bi bi-check-circle"></i>
+                                                        </button>
+                                                    </form>
+                                                    <form asp-action="RejectSignupPayment" asp-route-id="@s.Id" method="post" class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Reject and cancel this sign-up?')">
+                                                            <i class="bi bi-x-circle"></i>
+                                                        </button>
+                                                    </form>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            }
+
+            <a asp-action="Courts" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Courts
+            </a>
+
+        </div>
+    </div>
+</div>
