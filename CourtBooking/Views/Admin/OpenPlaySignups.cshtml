@@ -59,7 +59,7 @@
                             <div>
                                 <strong>@court.Name</strong>
                                 <span class="text-muted small ms-2">
-                                    @bookingDate.ToString("MMM d, yyyy") &bull; @startHour.ToString("D2"):00–@endHour.ToString("D2"):00
+                                    @bookingDate.ToString("MMM d, yyyy") &bull; @TimeDisplay.HourRange(startHour, endHour)
                                 </span>
                             </div>
                             <span class="badge bg-primary-subtle text-primary-emphasis">@taken spot(s) reserved</span>

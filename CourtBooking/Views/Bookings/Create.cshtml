@@ -86,7 +86,7 @@
                                 <label class="form-label fw-semibold">Time Slot</label>
                                 <div class="form-control bg-light fw-semibold">
                                     <i class="bi bi-clock me-2 text-primary"></i>
-                                    @Model.StartHour.ToString("D2"):00 – @Model.FixedEndHour!.Value.ToString("D2"):00
+                                    @TimeDisplay.HourRange(Model.StartHour, Model.FixedEndHour!.Value)
                                     <span class="text-muted fw-normal ms-2">(@Model.TotalPrice.ToString("N0") total)</span>
                                 </div>
                             </div>
@@ -98,7 +98,7 @@
                                 <select asp-for="StartHour" class="form-select" id="startHourSelect">
                                     @for (int h = (Model.Court?.OpeningHour ?? 6); h < (Model.Court?.ClosingHour ?? 22); h++)
                                     {
-                                        <option value="@h" selected="@(Model.StartHour == h)">@h.ToString("D2"):00</option>
+                                        <option value="@h" selected="@(Model.StartHour == h)">@TimeDisplay.Hour(h)</option>
                                     }
                                 </select>
                                 <span asp-validation-for="StartHour" class="text-danger small"></span>

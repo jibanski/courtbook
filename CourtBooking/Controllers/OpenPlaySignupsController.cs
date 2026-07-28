@@ -1,4 +1,5 @@
 using CourtBooking.Data;
+using CourtBooking.Helpers;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -339,7 +340,7 @@ public class OpenPlaySignupsController : Controller
             var customerName  = customer?.FullName ?? "A customer";
             var customerEmail = customer?.Email ?? "—";
             var dateLabel     = signup.BookingDate.ToString("dddd, MMMM d, yyyy");
-            var timeLabel     = $"{signup.StartHour:D2}:00 – {signup.EndHour:D2}:00";
+            var timeLabel     = TimeDisplay.HourRange(signup.StartHour, signup.EndHour);
 
             var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
@@ -386,7 +387,7 @@ public class OpenPlaySignupsController : Controller
             var baseUrl   = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
             var payUrl    = $"{baseUrl}/OpenPlaySignups/GuestPay?token={signup.GuestAccessToken}";
             var dateLabel = signup.BookingDate.ToString("dddd, MMMM d, yyyy");
-            var timeLabel = $"{signup.StartHour:D2}:00 – {signup.EndHour:D2}:00";
+            var timeLabel = TimeDisplay.HourRange(signup.StartHour, signup.EndHour);
 
             var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
@@ -430,7 +431,7 @@ public class OpenPlaySignupsController : Controller
             var baseUrl     = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
             var bookingsUrl = $"{baseUrl}/Admin/OpenPlaySignups";
             var dateLabel   = signup.BookingDate.ToString("dddd, MMMM d, yyyy");
-            var timeLabel   = $"{signup.StartHour:D2}:00 – {signup.EndHour:D2}:00";
+            var timeLabel   = TimeDisplay.HourRange(signup.StartHour, signup.EndHour);
             var method      = signup.PaymentMethod ?? "—";
             var reference   = signup.PaymentReference ?? "—";
 

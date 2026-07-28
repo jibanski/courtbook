@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using CourtBooking.Helpers;
 
 namespace CourtBooking.Models;
 
@@ -24,8 +25,8 @@ public class CourtBlock
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // ── Computed helpers ──────────────────────────────────────────────────────
-    public string StartLabel => $"{StartDate:MMM d, yyyy} {StartHour:D2}:00";
-    public string EndLabel   => $"{EndDate:MMM d, yyyy} {EndHour:D2}:00";
+    public string StartLabel => $"{StartDate:MMM d, yyyy} {TimeDisplay.Hour(StartHour)}";
+    public string EndLabel   => $"{EndDate:MMM d, yyyy} {TimeDisplay.Hour(EndHour)}";
 
     /// <summary>True when the block fully covers a single calendar date.</summary>
     public bool IsSingleDay => StartDate == EndDate;

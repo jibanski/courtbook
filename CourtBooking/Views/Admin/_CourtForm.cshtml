@@ -34,7 +34,7 @@
         <select asp-for="OpeningHour" class="form-select">
             @for (int h = 0; h < 24; h++)
             {
-                <option value="@h">@h.ToString("D2"):00</option>
+                <option value="@h">@TimeDisplay.Hour(h)</option>
             }
         </select>
     </div>
@@ -43,7 +43,7 @@
         <select asp-for="ClosingHour" class="form-select">
             @for (int h = 1; h <= 24; h++)
             {
-                <option value="@h">@h.ToString("D2"):00</option>
+                <option value="@h">@TimeDisplay.Hour(h)</option>
             }
         </select>
     </div>

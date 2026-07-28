@@ -65,7 +65,7 @@
                     <ul class="list-unstyled">
                         <li class="mb-2"><i class="bi bi-tag me-2 text-primary"></i><strong>Sport:</strong> @Model.Court.SportType</li>
                         <li class="mb-2"><i class="bi bi-house me-2 text-primary"></i><strong>Type:</strong> @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")</li>
-                        <li class="mb-2"><i class="bi bi-clock me-2 text-primary"></i><strong>Hours:</strong> @Model.Court.OpeningHour:00 – @Model.Court.ClosingHour:00</li>
+                        <li class="mb-2"><i class="bi bi-clock me-2 text-primary"></i><strong>Hours:</strong> @TimeDisplay.HourRange(Model.Court.OpeningHour, Model.Court.ClosingHour)</li>
                         <li class="mb-2"><i class="bi bi-currency-dollar me-2 text-primary"></i><strong>Rate:</strong> ₱@Model.Court.PricePerHour.ToString("N0")/hour</li>
                     </ul>
                 </div>
@@ -161,7 +161,7 @@
                                 bool isBundleOnly = Model.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
                                 bool isOpenPlaySignup = Model.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
                                 var rate = Model.HourlyRates.TryGetValue(h, out var r) ? r : Model.Court.PricePerHour;
-                                var timeLabel = $"{h:D2}:00 – {h + 1:D2}:00";
+                                var timeLabel = TimeDisplay.HourRange(h, h + 1);
                                 <div class="col-6 col-sm-4 col-md-3">
                                     @if (isBooked)
                                     {

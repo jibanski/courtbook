@@ -162,7 +162,7 @@
                             }
                             <div style="color:var(--cb-text-3);font-size:.8rem;">
                                 <i class="bi bi-clock me-1" style="color:var(--cb-lime);"></i>
-                                @court.OpeningHour:00 – @court.ClosingHour:00
+                                @TimeDisplay.HourRange(court.OpeningHour, court.ClosingHour)
                             </div>
                         </div>
 

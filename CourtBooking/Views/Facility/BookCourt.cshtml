@@ -104,7 +104,7 @@
                         <div class="d-flex align-items-center gap-2" style="font-size:.85rem;">
                             <i class="bi bi-clock" style="color:var(--cb-lime);width:16px;"></i>
                             <span style="color:var(--cb-text-3);">Hours</span>
-                            <span class="ms-auto fw-semibold">@Model.Court.OpeningHour:00 – @Model.Court.ClosingHour:00</span>
+                            <span class="ms-auto fw-semibold">@TimeDisplay.HourRange(Model.Court.OpeningHour, Model.Court.ClosingHour)</span>
                         </div>
                         <hr style="margin:.5rem 0;" />
                         <div class="d-flex align-items-center gap-2">
@@ -259,7 +259,7 @@
                                 bool isBundleOnly = Model.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
                                 bool isOpenPlaySignup = Model.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
                                 var rate = Model.HourlyRates.TryGetValue(h, out var r) ? r : Model.Court.PricePerHour;
-                                var timeLabel  = $"{h:D2}:00 – {h + 1:D2}:00";
+                                var timeLabel  = TimeDisplay.HourRange(h, h + 1);
                                 <div class="col-6 col-sm-4 col-md-3">
                                     @if (isPast)
                                     {

@@ -83,7 +83,7 @@
                                 <select name="startHour" class="form-select">
                                     @for (int h = 0; h < 24; h++)
                                     {
-                                        <option value="@h">@h.ToString("D2"):00</option>
+                                        <option value="@h">@TimeDisplay.Hour(h)</option>
                                     }
                                 </select>
                             </div>
@@ -99,7 +99,7 @@
                                 <select name="endHour" class="form-select">
                                     @for (int h = 1; h <= 24; h++)
                                     {
-                                        <option value="@h" selected="@(h == 24)">@h.ToString("D2"):00</option>
+                                        <option value="@h" selected="@(h == 24)">@TimeDisplay.Hour(h)</option>
                                     }
                                 </select>
                             </div>

@@ -36,7 +36,7 @@
                         <div class="col-6 text-muted small">Date</div>
                         <div class="col-6 fw-semibold">@date.ToString("MMMM d, yyyy")</div>
                         <div class="col-6 text-muted small">Time</div>
-                        <div class="col-6 fw-semibold">@block!.StartHour.ToString("D2"):00 – @block.EndHour.ToString("D2"):00</div>
+                        <div class="col-6 fw-semibold">@TimeDisplay.HourRange(block!.StartHour, block.EndHour)</div>
                         <div class="col-12"><hr class="my-2"></div>
                         <div class="col-6 fw-bold">Total Amount</div>
                         <div class="col-6 fw-bold text-success fs-5">₱@block.FlatPrice.ToString("N0")</div>

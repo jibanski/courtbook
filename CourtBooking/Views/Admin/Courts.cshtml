@@ -59,7 +59,7 @@
                             </td>
                             <td><span class="badge bg-secondary">@court.SportType</span></td>
                             <td>@(court.IsIndoor ? "Indoor" : "Outdoor")</td>
-                            <td>@court.OpeningHour:00 – @court.ClosingHour:00</td>
+                            <td>@TimeDisplay.HourRange(court.OpeningHour, court.ClosingHour)</td>
                             <td>₱@court.PricePerHour.ToString("N0")/hr</td>
                             <td>
                                 <span class="badge @(court.IsActive ? "bg-success" : "bg-danger")">

@@ -1,5 +1,6 @@
 using CourtBooking.Data;
 using CourtBooking.Filters;
+using CourtBooking.Helpers;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using CourtBooking.ViewModels;
@@ -657,7 +658,7 @@ public class AdminController : Controller
             s.StartHour == startHour && s.EndHour == endHour);
         if (duplicate)
         {
-            TempData["Error"] = $"Slot {startHour:D2}:00–{endHour:D2}:00 already exists for this date.";
+            TempData["Error"] = $"Slot {TimeDisplay.HourRange(startHour, endHour)} already exists for this date.";
             return RedirectToAction(nameof(ManageSlots), new { id = courtId, date = slotDate });
         }
 
@@ -669,7 +670,7 @@ public class AdminController : Controller
             EndHour = endHour
         });
         await _db.SaveChangesAsync();
-        TempData["Success"] = $"Slot {startHour:D2}:00–{endHour:D2}:00 added for {slotDate:MMM d, yyyy}.";
+        TempData["Success"] = $"Slot {TimeDisplay.HourRange(startHour, endHour)} added for {slotDate:MMM d, yyyy}.";
         return RedirectToAction(nameof(ManageSlots), new { id = courtId, date = slotDate });
     }
 
@@ -769,8 +770,8 @@ public class AdminController : Controller
     /// </summary>
     private static string? OutOfHoursWarning(Court court, int startHour, int endHour) =>
         (startHour < court.OpeningHour || endHour > court.ClosingHour)
-            ? $"Note: this court's operating hours are {court.OpeningHour:D2}:00–{court.ClosingHour:D2}:00, " +
-              $"so the portion outside that range ({startHour:D2}:00–{endHour:D2}:00) won't appear on the availability grid " +
+            ? $"Note: this court's operating hours are {TimeDisplay.HourRange(court.OpeningHour, court.ClosingHour)}, " +
+              $"so the portion outside that range ({TimeDisplay.HourRange(startHour, endHour)}) won't appear on the availability grid " +
               "until you extend the court's hours."
             : null;
 
@@ -1016,7 +1017,7 @@ public class AdminController : Controller
             .Select(c => c.Name)
             .ToList();
         TempData["Success"] = outOfHoursCourts.Count > 0
-            ? $"Bundle window added. Note: {string.Join(", ", outOfHoursCourts)} don't operate the full {startHour:D2}:00–{endHour:D2}:00 window, so this bundle won't be sellable until their hours are extended."
+            ? $"Bundle window added. Note: {string.Join(", ", outOfHoursCourts)} don't operate the full {TimeDisplay.HourRange(startHour, endHour)} window, so this bundle won't be sellable until their hours are extended."
             : "Bundle window added.";
         return RedirectToAction(nameof(BundleSchedule), new { id = bundleId });
     }
@@ -1277,61 +1278,60 @@ public class AdminController : Controller
         if (!ModelState.IsValid) return View(model);
 
         var settings = await GetMySettingsAsync();
-        if (settings is null)
+        bool isNew = settings is null;
+        if (isNew)
         {
-            model.OwnerId = CurrentUserId;
-            _db.FacilitySettings.Add(model);
-        }
-        else
-        {
-            settings.FacilityName        = model.FacilityName;
-            settings.Address             = model.Address;
-            settings.GCashNumber         = model.GCashNumber;
-            settings.GCashName           = model.GCashName;
-            settings.MayaNumber          = model.MayaNumber;
-            settings.MayaName            = model.MayaName;
-
-            if (gcashQr is { Length: > 0 })
-                settings.GCashQrCodePath = await SaveQrCodeAsync(gcashQr, "gcash", settings.GCashQrCodePath);
-            if (mayaQr is { Length: > 0 })
-                settings.MayaQrCodePath  = await SaveQrCodeAsync(mayaQr,  "maya",  settings.MayaQrCodePath);
-            settings.PaymentInstructions = model.PaymentInstructions;
-            settings.PayMongoSecretKey   = string.IsNullOrWhiteSpace(model.PayMongoSecretKey)
-                                           ? null : model.PayMongoSecretKey.Trim();
-
-            // Payment methods: keep only the supported ones. Fall back to QRPh
-            // when the user unticks everything so checkout never breaks.
-            var picked = (paymentMethods ?? Array.Empty<string>())
-                .Where(m => !string.IsNullOrWhiteSpace(m))
-                .Select(m => m.Trim().ToLowerInvariant())
-                .Where(Services.PayMongoService.AllPhilippinesMethods.Contains)
-                .Distinct()
-                .ToArray();
-            settings.PayMongoMethods = picked.Length == 0 ? "qrph" : string.Join(",", picked);
-            settings.FacebookUrl         = string.IsNullOrWhiteSpace(model.FacebookUrl)  ? null : model.FacebookUrl.Trim();
-            settings.InstagramUrl        = string.IsNullOrWhiteSpace(model.InstagramUrl) ? null : model.InstagramUrl.Trim();
-
-            // Slug update — sanitize and ensure uniqueness
-            if (!string.IsNullOrWhiteSpace(model.Slug))
-            {
-                var newSlug = SanitizeSlug(model.Slug);
-                var taken   = await _db.FacilitySettings
-                    .AnyAsync(s => s.Slug == newSlug && s.OwnerId != CurrentUserId);
-                if (taken)
-                    ModelState.AddModelError(nameof(model.Slug), "That URL is already taken. Please choose another.");
-                else
-                    settings.Slug = newSlug;
-            }
-
-            // Custom branding — available to all users (CourtBook is free)
-            settings.BrandName    = string.IsNullOrWhiteSpace(model.BrandName)    ? null : model.BrandName.Trim();
-            settings.BrandTagline = string.IsNullOrWhiteSpace(model.BrandTagline) ? null : model.BrandTagline.Trim();
-
-            if (logo is { Length: > 0 })
-                settings.BrandLogoUrl = await SaveBrandLogoAsync(logo, settings.BrandLogoUrl);
+            settings = new FacilitySettings { OwnerId = CurrentUserId };
+            _db.FacilitySettings.Add(settings);
         }
 
-        if (!ModelState.IsValid) return View(await GetMySettingsAsync() ?? model);
+        settings!.FacilityName       = model.FacilityName;
+        settings.Address             = model.Address;
+        settings.GCashNumber         = model.GCashNumber;
+        settings.GCashName           = model.GCashName;
+        settings.MayaNumber          = model.MayaNumber;
+        settings.MayaName            = model.MayaName;
+
+        if (gcashQr is { Length: > 0 })
+            settings.GCashQrCodePath = await SaveQrCodeAsync(gcashQr, "gcash", settings.GCashQrCodePath);
+        if (mayaQr is { Length: > 0 })
+            settings.MayaQrCodePath  = await SaveQrCodeAsync(mayaQr,  "maya",  settings.MayaQrCodePath);
+        settings.PaymentInstructions = model.PaymentInstructions;
+        settings.PayMongoSecretKey   = string.IsNullOrWhiteSpace(model.PayMongoSecretKey)
+                                       ? null : model.PayMongoSecretKey.Trim();
+
+        // Payment methods: keep only the supported ones. Fall back to QRPh
+        // when the user unticks everything so checkout never breaks.
+        var picked = (paymentMethods ?? Array.Empty<string>())
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .Select(m => m.Trim().ToLowerInvariant())
+            .Where(Services.PayMongoService.AllPhilippinesMethods.Contains)
+            .Distinct()
+            .ToArray();
+        settings.PayMongoMethods = picked.Length == 0 ? "qrph" : string.Join(",", picked);
+        settings.FacebookUrl         = string.IsNullOrWhiteSpace(model.FacebookUrl)  ? null : model.FacebookUrl.Trim();
+        settings.InstagramUrl        = string.IsNullOrWhiteSpace(model.InstagramUrl) ? null : model.InstagramUrl.Trim();
+
+        // Slug update — sanitize and ensure uniqueness
+        if (!string.IsNullOrWhiteSpace(model.Slug))
+        {
+            var newSlug = SanitizeSlug(model.Slug);
+            var taken   = await _db.FacilitySettings
+                .AnyAsync(s => s.Slug == newSlug && s.OwnerId != CurrentUserId);
+            if (taken)
+                ModelState.AddModelError(nameof(model.Slug), "That URL is already taken. Please choose another.");
+            else
+                settings.Slug = newSlug;
+        }
+
+        // Custom branding — available to all users (CourtBook is free)
+        settings.BrandName    = string.IsNullOrWhiteSpace(model.BrandName)    ? null : model.BrandName.Trim();
+        settings.BrandTagline = string.IsNullOrWhiteSpace(model.BrandTagline) ? null : model.BrandTagline.Trim();
+
+        if (logo is { Length: > 0 })
+            settings.BrandLogoUrl = await SaveBrandLogoAsync(logo, settings.BrandLogoUrl);
+
+        if (!ModelState.IsValid) return View(settings);
 
         await _db.SaveChangesAsync();
         TempData["Success"] = "Settings saved.";
@@ -1495,7 +1495,7 @@ public class AdminController : Controller
         });
         await _db.SaveChangesAsync();
 
-        TempData["Success"] = $"Court blocked from {startDate:MMM d} {startHour:D2}:00 to {endDate:MMM d} {endHour:D2}:00.";
+        TempData["Success"] = $"Court blocked from {startDate:MMM d} {TimeDisplay.Hour(startHour)} to {endDate:MMM d} {TimeDisplay.Hour(endHour)}.";
         return RedirectToAction(nameof(BlockCourt), new { id = courtId });
     }
 

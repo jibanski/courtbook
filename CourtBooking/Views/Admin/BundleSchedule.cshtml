@@ -58,7 +58,7 @@
                                                 }
                                             </td>
                                             <td>
-                                                @b.StartHour.ToString("D2"):00 – @b.EndHour.ToString("D2"):00
+                                                @TimeDisplay.HourRange(b.StartHour, b.EndHour)
                                                 @if (bundle.Courts.Any(c => b.StartHour < c.Court.OpeningHour || b.EndHour > c.Court.ClosingHour))
                                                 {
                                                     <br /><span class="badge bg-warning text-dark mt-1">
@@ -131,7 +131,7 @@
                             <select name="startHour" class="form-select form-select-sm">
                                 @for (int h = 0; h < 24; h++)
                                 {
-                                    <option value="@h">@h.ToString("D2"):00</option>
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
                                 }
                             </select>
                         </div>
@@ -140,7 +140,7 @@
                             <select name="endHour" class="form-select form-select-sm">
                                 @for (int h = 1; h <= 24; h++)
                                 {
-                                    <option value="@h">@h.ToString("D2"):00</option>
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
                                 }
                             </select>
                         </div>

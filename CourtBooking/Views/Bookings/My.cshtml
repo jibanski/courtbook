@@ -256,7 +256,7 @@
                                 </p>
                                 <p class="mb-1">
                                     <i class="bi bi-clock me-2 text-primary"></i>
-                                    @s.StartHour.ToString("D2"):00 – @s.EndHour.ToString("D2"):00
+                                    @TimeDisplay.HourRange(s.StartHour, s.EndHour)
                                 </p>
                                 <p class="mb-1">
                                     <i class="bi bi-people me-2 text-primary"></i>

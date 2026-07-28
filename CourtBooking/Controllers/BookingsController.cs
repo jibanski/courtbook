@@ -1,4 +1,5 @@
 using CourtBooking.Data;
+using CourtBooking.Helpers;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using CourtBooking.ViewModels;
@@ -122,7 +123,7 @@ public class BookingsController : Controller
             ModelState.AddModelError("StartHour", "This time slot has already passed. Please choose a future slot.");
 
         if (vm.StartHour < court.OpeningHour || vm.StartHour >= court.ClosingHour)
-            ModelState.AddModelError("StartHour", $"Start hour must be between {court.OpeningHour}:00 and {court.ClosingHour - 1}:00.");
+            ModelState.AddModelError("StartHour", $"Start hour must be between {TimeDisplay.Hour(court.OpeningHour)} and {TimeDisplay.Hour(court.ClosingHour - 1)}.");
 
         if (vm.StartHour + vm.DurationHours > court.ClosingHour)
             ModelState.AddModelError("DurationHours", "Booking extends beyond closing time.");

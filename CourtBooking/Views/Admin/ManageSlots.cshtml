@@ -100,7 +100,7 @@
                         {
                             var (from, to) = blk.HoursOn(selDate);
                             <div style="font-size:.825rem;">
-                                @from.ToString("D2"):00 – @to.ToString("D2"):00
+                                @TimeDisplay.HourRange(from, to)
                                 @if (!string.IsNullOrWhiteSpace(blk.Reason))
                                 {
                                     <span style="color:var(--cb-text-3);"> — @blk.Reason</span>
@@ -142,7 +142,7 @@
                         {
                             bool isBooked  = bookedHours.Contains(h);
                             bool isBlocked = blockedHours.Contains(h);
-                            var label      = $"{h:D2}:00 – {h + 1:D2}:00";
+                            var label      = TimeDisplay.HourRange(h, h + 1);
 
                             <div class="col-6 col-sm-4 col-md-3">
                                 @if (isBooked)
@@ -286,7 +286,7 @@
                             <select name="startHour" class="form-select form-select-sm">
                                 @for (int h = court.OpeningHour; h < court.ClosingHour; h++)
                                 {
-                                    <option value="@h">@h.ToString("D2"):00</option>
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
                                 }
                             </select>
                         </div>
@@ -295,7 +295,7 @@
                             <select name="endHour" class="form-select form-select-sm">
                                 @for (int h = court.OpeningHour + 1; h <= court.ClosingHour; h++)
                                 {
-                                    <option value="@h" selected="@(h == court.OpeningHour + 2)">@h.ToString("D2"):00</option>
+                                    <option value="@h" selected="@(h == court.OpeningHour + 2)">@TimeDisplay.Hour(h)</option>
                                 }
                             </select>
                         </div>
@@ -306,7 +306,7 @@
                         </div>
                         <div class="col-12">
                             <small style="color:var(--cb-text-3);">
-                                ₱@court.PricePerHour.ToString("N0")/hr &bull; Operating hours: @court.OpeningHour:00–@court.ClosingHour:00
+                                ₱@court.PricePerHour.ToString("N0")/hr &bull; Operating hours: @TimeDisplay.HourRange(court.OpeningHour, court.ClosingHour)
                             </small>
                         </div>
                     </form>

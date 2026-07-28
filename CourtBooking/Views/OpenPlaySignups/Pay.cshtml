@@ -46,7 +46,7 @@
                         <div class="col-6 text-muted small">Date</div>
                         <div class="col-6 fw-semibold">@Model.BookingDate.ToString("MMMM d, yyyy")</div>
                         <div class="col-6 text-muted small">Time</div>
-                        <div class="col-6 fw-semibold">@Model.StartHour.ToString("D2"):00 – @Model.EndHour.ToString("D2"):00</div>
+                        <div class="col-6 fw-semibold">@TimeDisplay.HourRange(Model.StartHour, Model.EndHour)</div>
                         <div class="col-6 text-muted small">Spots</div>
                         <div class="col-6 fw-semibold">@Model.SpotCount &times; ₱@Model.PricePerHeadSnapshot.ToString("N0")</div>
                         <div class="col-12"><hr class="my-2"></div>
