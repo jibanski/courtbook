@@ -96,6 +96,15 @@ public class BookingsController : Controller
             DurationHours = (endHour.HasValue && startHour.HasValue) ? endHour.Value - startHour.Value : 1,
             FixedEndHour = endHour
         };
+
+        // For a fixed-window (owner-defined slot) booking, resolve the tier-aware total
+        // up front so the confirmation page shows the same price we'll charge on POST.
+        if (vm.IsSlotBooking)
+        {
+            vm.ResolvedSlotTotal = await _bookingService.GetTotalPriceAsync(
+                court, vm.BookingDate, vm.StartTime, vm.EndTime);
+        }
+
         return View(vm);
     }
 
@@ -157,7 +166,9 @@ public class BookingsController : Controller
         }
         else
         {
-            totalPrice = vm.TotalPrice;
+            // Owner-defined slot windows are exempt from the open-play / bundle-only guards,
+            // but still respect the court's tiered rate rules — don't trust vm.TotalPrice here.
+            totalPrice = await _bookingService.GetTotalPriceAsync(court, vm.BookingDate, vm.StartTime, vm.EndTime);
         }
 
         string userId;

@@ -113,6 +113,11 @@ public class FacilityController : Controller
         {
             vm.TimeSlots          = slots;
             vm.UnavailableSlotIds = await _bookingService.GetUnavailableSlotIdsAsync(courtId, selectedDate, slots);
+            foreach (var s in slots)
+            {
+                vm.SlotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
+                    court, selectedDate, new TimeOnly(s.StartHour, 0), new TimeOnly(s.EndHour, 0));
+            }
         }
         else
         {
