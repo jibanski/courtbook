@@ -137,7 +137,8 @@ public class WebhookController : ControllerBase
                                     booking.TotalPrice,
                                     booking.PaymentMethod,
                                     booking.PaymentReference,
-                                    baseUrl));
+                                    baseUrl,
+                                    booking.User.IsGuest));
                             }
                         }
                     }
