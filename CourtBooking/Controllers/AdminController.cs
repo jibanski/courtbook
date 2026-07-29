@@ -312,7 +312,8 @@ public class AdminController : Controller
                 booking.TotalPrice,
                 booking.PaymentMethod,
                 booking.PaymentReference,
-                baseUrl);
+                baseUrl,
+                booking.User.IsGuest);
         }
 
         TempData["Success"] = $"Booking #{id} confirmed — the customer has been emailed a confirmation.";
@@ -1098,7 +1099,8 @@ public class AdminController : Controller
                 combinedTotal,
                 first.PaymentMethod,
                 first.PaymentReference,
-                baseUrl);
+                baseUrl,
+                first.User.IsGuest);
         }
 
         TempData["Success"] = "Bundle booking confirmed — the customer has been emailed a confirmation.";
@@ -1210,7 +1212,8 @@ public class AdminController : Controller
                 signup.TotalPrice,
                 signup.PaymentMethod,
                 signup.PaymentReference,
-                baseUrl);
+                baseUrl,
+                signup.User.IsGuest);
         }
 
         TempData["Success"] = "Sign-up confirmed — the customer has been emailed a confirmation.";

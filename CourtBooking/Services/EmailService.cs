@@ -198,7 +198,8 @@ public class EmailService
         decimal totalPrice,
         string? paymentMethod,
         string? paymentReference,
-        string baseUrl)
+        string baseUrl,
+        bool isGuest = false)
     {
         try
         {
@@ -212,6 +213,12 @@ public class EmailService
             var refLine     = string.IsNullOrWhiteSpace(paymentReference) ? "" :
                               $"<tr><td style='color:#6c757d;padding:5px 0;'>Reference</td><td style='padding:5px 0;font-family:monospace;font-size:13px;'>{paymentReference}</td></tr>";
             var myBookings  = $"{baseUrl.TrimEnd('/')}/Bookings/My";
+            // Guests never have a login, so a "View My Bookings" button just bounces them
+            // to the login page — omit it entirely for guest checkouts.
+            var myBookingsButton = isGuest ? "" : $@"
+      <p style='margin:20px 0 0;text-align:center;'>
+        <a href='{myBookings}' style='display:inline-block;background:#198754;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>View My Bookings</a>
+      </p>";
 
             var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
@@ -230,10 +237,7 @@ public class EmailService
         <tr><td style='color:#6c757d;padding:5px 0;'>Method</td>    <td style='padding:5px 0;'>{method}</td></tr>
         {refLine}
         <tr><td style='color:#6c757d;padding:5px 0;'>Booking #</td> <td style='padding:5px 0;'>#{bookingId}</td></tr>
-      </table>
-      <p style='margin:20px 0 0;text-align:center;'>
-        <a href='{myBookings}' style='display:inline-block;background:#198754;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>View My Bookings</a>
-      </p>
+      </table>{myBookingsButton}
     </div>
     <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
       Automated confirmation · Booking #{bookingId}
@@ -241,7 +245,8 @@ public class EmailService
   </div>
 </body></html>";
 
-            var plain = $"Payment Received — Booking #{bookingId} Confirmed\n\n{greeting},\n\nYour payment for {courtName} on {dateLabel} ({timeLabel}) of ₱{amount} via {method} has been received. Your booking is now confirmed.\n\nView your bookings: {myBookings}";
+            var plain = $"Payment Received — Booking #{bookingId} Confirmed\n\n{greeting},\n\nYour payment for {courtName} on {dateLabel} ({timeLabel}) of ₱{amount} via {method} has been received. Your booking is now confirmed."
+                      + (isGuest ? "" : $"\n\nView your bookings: {myBookings}");
 
             await SendAsync(toEmail, $"✅ Booking Confirmed — {courtName} on {dateLabel}", html, plain);
         }

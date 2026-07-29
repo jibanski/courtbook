@@ -751,7 +751,8 @@ public class BookingsController : Controller
             booking.TotalPrice,
             booking.PaymentMethod,
             booking.PaymentReference,
-            baseUrl);
+            baseUrl,
+            booking.User.IsGuest);
     }
 
     /// <summary>
