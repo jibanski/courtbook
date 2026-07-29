@@ -163,8 +163,16 @@ public class BookingsController : Controller
         string userId;
         if (isGuest)
         {
-            var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(vm.GuestName!, vm.GuestEmail!, vm.GuestPhone!);
-            userId = guestUser.Id;
+            try
+            {
+                var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(vm.GuestName!, vm.GuestEmail!, vm.GuestPhone!);
+                userId = guestUser.Id;
+            }
+            catch (GuestEmailConflictException ex)
+            {
+                ModelState.AddModelError("GuestEmail", ex.Message);
+                return View(vm);
+            }
         }
         else
         {
