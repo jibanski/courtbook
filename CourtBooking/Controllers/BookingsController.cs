@@ -265,7 +265,7 @@ public class BookingsController : Controller
             return RedirectToAction(nameof(Pay), new { id = bookingId });
         }
 
-        var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "proofs");
+        var uploadsDir = Path.Combine(UploadsRoot, "uploads", "proofs");
         Directory.CreateDirectory(uploadsDir);
         var fileName = $"{bookingId}_{Guid.NewGuid():N}{ext}";
         var fullPath = Path.Combine(uploadsDir, fileName);
@@ -468,7 +468,7 @@ public class BookingsController : Controller
             return RedirectToAction(nameof(GuestPay), new { token });
         }
 
-        var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "proofs");
+        var uploadsDir = Path.Combine(UploadsRoot, "uploads", "proofs");
         Directory.CreateDirectory(uploadsDir);
         var fileName = $"{booking.Id}_{Guid.NewGuid():N}{ext}";
         var fullPath = Path.Combine(uploadsDir, fileName);
@@ -753,4 +753,13 @@ public class BookingsController : Controller
             booking.PaymentReference,
             baseUrl);
     }
+
+    /// <summary>
+    /// Root folder for file uploads. On Railway, UPLOADS_ROOT points to the mounted
+    /// persistent volume (e.g. /data) — the container's own wwwroot is ephemeral and
+    /// wiped on every redeploy. Falls back to wwwroot locally so behaviour is unchanged.
+    /// </summary>
+    private static string UploadsRoot =>
+        Environment.GetEnvironmentVariable("UPLOADS_ROOT")
+        ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
 }
