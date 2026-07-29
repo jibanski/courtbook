@@ -1155,15 +1155,15 @@ public class AdminController : Controller
         // Group into sessions so the roster + headcount-vs-max reads naturally.
         var sessions = signups
             .GroupBy(s => (s.CourtId, s.BookingDate, s.StartHour, s.EndHour))
-            .Select(g => new
+            .Select(g => new OpenPlaySessionRow
             {
-                g.Key.CourtId,
-                Court     = g.First().Court,
-                g.Key.BookingDate,
-                g.Key.StartHour,
-                g.Key.EndHour,
-                Signups   = g.OrderBy(s => s.CreatedAt).ToList(),
-                Taken     = g.Sum(s => s.SpotCount)
+                CourtId     = g.Key.CourtId,
+                Court       = g.First().Court,
+                BookingDate = g.Key.BookingDate,
+                StartHour   = g.Key.StartHour,
+                EndHour     = g.Key.EndHour,
+                Signups     = g.OrderBy(s => s.CreatedAt).ToList(),
+                Taken       = g.Sum(s => s.SpotCount)
             })
             .ToList();
 
