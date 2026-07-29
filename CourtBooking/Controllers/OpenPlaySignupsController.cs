@@ -68,7 +68,7 @@ public class OpenPlaySignupsController : Controller
     [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]
     public async Task<IActionResult> Create(
         int courtId, DateOnly date, int startHour, int endHour, int spotCount, string? notes,
-        string? guestName, string? guestEmail, string? guestPhone)
+        string? playerNames, string? guestName, string? guestEmail, string? guestPhone)
     {
         bool isGuest = User.Identity?.IsAuthenticated != true;
         if (isGuest && (string.IsNullOrWhiteSpace(guestName) || string.IsNullOrWhiteSpace(guestEmail) || string.IsNullOrWhiteSpace(guestPhone)))
@@ -144,6 +144,7 @@ public class OpenPlaySignupsController : Controller
             PricePerHeadSnapshot = pricePerHead,
             TotalPrice           = pricePerHead * spotCount,
             Notes                = notes,
+            PlayerNames          = spotCount > 1 && !string.IsNullOrWhiteSpace(playerNames) ? playerNames.Trim() : null,
             Status               = BookingStatus.Pending,
             PaymentStatus        = PaymentStatus.Unpaid,
             GuestAccessToken     = isGuest ? Guid.NewGuid() : null

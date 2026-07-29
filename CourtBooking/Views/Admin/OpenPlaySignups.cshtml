@@ -83,7 +83,15 @@
                                                 </div>
                                                 <small class="text-muted">@s.User.Email</small>
                                             </td>
-                                            <td>@s.SpotCount</td>
+                                            <td>
+                                                @s.SpotCount
+                                                @if (s.SpotCount > 1 && !string.IsNullOrWhiteSpace(s.PlayerNames))
+                                                {
+                                                    <div class="small text-muted" style="max-width:160px;">
+                                                        <i class="bi bi-people me-1"></i>@s.PlayerNames
+                                                    </div>
+                                                }
+                                            </td>
                                             <td>₱@s.TotalPrice.ToString("N0")</td>
                                             <td>
                                                 @if (!string.IsNullOrWhiteSpace(s.PaymentMethod))

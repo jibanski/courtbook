@@ -98,6 +98,11 @@
                         </select>
                         <div class="form-text">Bringing friends? Reserve a spot for each of them too.</div>
                     </div>
+                    <div class="mb-3 d-none" id="playerNamesGroup">
+                        <label class="form-label fw-semibold">Names of Other Players <span class="text-muted small">(optional)</span></label>
+                        <textarea name="playerNames" class="form-control" rows="2" placeholder="e.g. Juan, Maria, Pedro"></textarea>
+                        <div class="form-text">Let the facility know who's joining you for the extra spot(s).</div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Notes <span class="text-muted small">(optional)</span></label>
                         <textarea name="notes" class="form-control" rows="2" placeholder="Any special requests..."></textarea>
@@ -115,11 +120,15 @@
                         var pricePerHead = @block.PricePerHead;
                         var select = document.getElementById('spotCountSelect');
                         var preview = document.getElementById('totalPreview');
+                        var playerNamesGroup = document.getElementById('playerNamesGroup');
                         function sync() {
-                            var total = pricePerHead * parseInt(select.value, 10);
+                            var count = parseInt(select.value, 10);
+                            var total = pricePerHead * count;
                             preview.innerHTML = 'Total: <strong>₱' + total.toLocaleString() + '</strong>';
+                            playerNamesGroup.classList.toggle('d-none', count <= 1);
                         }
                         select.addEventListener('change', sync);
+                        sync();
                     })();
                 </script>
             }

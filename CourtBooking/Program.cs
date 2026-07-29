@@ -561,6 +561,17 @@ using (var scope = app.Services.CreateScope())
     }
     catch { /* column already exists or db not ready — non-fatal */ }
 
+    // ── Open Play: names of the other players when a sign-up takes multiple spots ──
+    try
+    {
+        if (isPostgres)
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"OpenPlaySignups\" ADD COLUMN IF NOT EXISTS \"PlayerNames\" character varying(500) NULL");
+        else
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"OpenPlaySignups\" ADD COLUMN \"PlayerNames\" TEXT NULL"); } catch { }
+    }
+    catch { /* column already exists or db not ready — non-fatal */ }
+
     foreach (var role in new[] { "Admin", "Customer" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
