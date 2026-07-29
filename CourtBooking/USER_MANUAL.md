@@ -415,7 +415,7 @@ A: All times across the app (booking grids, schedules, admin pages, emails) now 
 
 - **Email:** courtbooksolutions@gmail.com
 - **Phone:** +63 917 675 0210
-- **Hours:** Monday–Saturday, 9 AM – 6 PM (PHT)
+- **Hours:** Monday–Sunday, 9 AM – 6 PM (PHT)
 
 For urgent issues during your free trial or active subscription, email us with your **Facility Name** and **Reference Number** for faster handling.
 
