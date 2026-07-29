@@ -25,11 +25,18 @@ public class GuestCheckoutService
     public async Task<ApplicationUser> GetOrCreateGuestUserAsync(string fullName, string email, string phone)
     {
         var normalizedEmail = email.Trim().ToUpperInvariant();
-        var existing = await _db.Users.FirstOrDefaultAsync(u => u.IsGuest && u.NormalizedEmail == normalizedEmail);
+        var existing = await _db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
 
         var parts     = fullName.Trim().Split(' ', 2);
         var firstName = parts[0];
         var lastName  = parts.Length > 1 ? parts[1] : "";
+
+        // An email already tied to a real (non-guest) account can't be reused for guest
+        // checkout — Identity's unique username constraint would reject it anyway. Ask
+        // the visitor to log in instead of letting UserManager.CreateAsync throw.
+        if (existing is not null && !existing.IsGuest)
+            throw new GuestEmailConflictException(
+                "An account already exists with this email. Please log in to continue.");
 
         if (existing is not null)
         {
@@ -58,4 +65,10 @@ public class GuestCheckoutService
         await _userManager.AddToRoleAsync(guest, "Customer");
         return guest;
     }
+}
+
+/// <summary>Thrown when a guest checkout email already belongs to a registered (non-guest) account.</summary>
+public class GuestEmailConflictException : Exception
+{
+    public GuestEmailConflictException(string message) : base(message) { }
 }

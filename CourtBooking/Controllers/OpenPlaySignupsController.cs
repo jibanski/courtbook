@@ -111,8 +111,16 @@ public class OpenPlaySignupsController : Controller
         string userId;
         if (isGuest)
         {
-            var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(guestName!, guestEmail!, guestPhone!);
-            userId = guestUser.Id;
+            try
+            {
+                var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(guestName!, guestEmail!, guestPhone!);
+                userId = guestUser.Id;
+            }
+            catch (GuestEmailConflictException ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction(nameof(Create), new { courtId, date, startHour, endHour });
+            }
         }
         else
         {
