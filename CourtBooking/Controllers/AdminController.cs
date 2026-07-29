@@ -118,23 +118,39 @@ public class AdminController : Controller
         var todayDt  = DateTime.UtcNow.Date;
 
         var liveBookings = _db.Bookings.Where(b => courtIds.Contains(b.CourtId));
+        var liveSignups  = _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId));
 
-        var totalBookings   = await liveBookings.CountAsync(b => b.Status != BookingStatus.Cancelled);
-        var todayBookings   = await liveBookings.CountAsync(b => b.BookingDate == today && b.Status != BookingStatus.Cancelled);
-        var todayRevenue    = await liveBookings
-            .Where(b => b.PaidAt != null && b.PaidAt >= todayDt)
-            .SumAsync(b => (decimal?)b.TotalPrice) ?? 0m;
-        var totalRevenue    = await liveBookings
-            .Where(b => b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)
-            .SumAsync(b => (decimal?)b.TotalPrice) ?? 0m;
-        var awaitingPayment = await liveBookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
-        var pendingNoProof  = await liveBookings.CountAsync(b => b.Status == BookingStatus.Pending && b.PaymentReference == null);
+        // Open Play sign-ups are a separate entity from regular/bundle bookings but count
+        // toward the same revenue and conversion numbers, so project both to the same shape
+        // and combine (UNION ALL, via Concat) before aggregating.
+        var bookingRows = liveBookings.Select(b => new
+        {
+            b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
+            b.PaidAt, b.PaymentProofSubmittedAt, b.PaymentReference, b.PaymentMethod
+        });
+        var signupRows = liveSignups.Select(s => new
+        {
+            s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
+            s.PaidAt, s.PaymentProofSubmittedAt, s.PaymentReference, s.PaymentMethod
+        });
+        var combined = bookingRows.Concat(signupRows);
 
-        var revenueRows = await liveBookings
-            .Where(b => b.BookingDate >= since30
-                        && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed))
-            .GroupBy(b => b.BookingDate)
-            .Select(g => new { Day = g.Key, Revenue = g.Sum(b => b.TotalPrice), Count = g.Count() })
+        var totalBookings   = await combined.CountAsync(x => x.Status != BookingStatus.Cancelled);
+        var todayBookings   = await combined.CountAsync(x => x.BookingDate == today && x.Status != BookingStatus.Cancelled);
+        var todayRevenue    = await combined
+            .Where(x => x.PaidAt != null && x.PaidAt >= todayDt)
+            .SumAsync(x => (decimal?)x.TotalPrice) ?? 0m;
+        var totalRevenue    = await combined
+            .Where(x => x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
+            .SumAsync(x => (decimal?)x.TotalPrice) ?? 0m;
+        var awaitingPayment = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.PaymentProofSubmittedAt != null);
+        var pendingNoProof  = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.PaymentReference == null);
+
+        var revenueRows = await combined
+            .Where(x => x.BookingDate >= since30
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
+            .GroupBy(x => x.BookingDate)
+            .Select(g => new { Day = g.Key, Revenue = g.Sum(x => x.TotalPrice), Count = g.Count() })
             .ToListAsync();
 
         var revenueByDay = new List<object>();
@@ -151,18 +167,18 @@ public class AdminController : Controller
 
         // Payment mix — include legacy paid bookings that have no PaidAt by
         // falling back to BookingDate, matching the 'paid30' counter below.
-        var methodRows = await liveBookings
-            .Where(b => b.PaymentStatus == PaymentStatus.Paid
-                        && ((b.PaidAt != null && b.PaidAt >= since30Dt)
-                            || (b.PaidAt == null && b.BookingDate >= since30)))
-            .GroupBy(b => b.PaymentMethod ?? "Unknown")
-            .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(b => b.TotalPrice) })
+        var methodRows = await combined
+            .Where(x => x.PaymentStatus == PaymentStatus.Paid
+                        && ((x.PaidAt != null && x.PaidAt >= since30Dt)
+                            || (x.PaidAt == null && x.BookingDate >= since30)))
+            .GroupBy(x => x.PaymentMethod ?? "Unknown")
+            .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(x => x.TotalPrice) })
             .ToListAsync();
 
-        var bookings30 = await liveBookings
-            .CountAsync(b => b.BookingDate >= since30 && b.Status != BookingStatus.Cancelled);
-        var paid30 = await liveBookings
-            .CountAsync(b => b.BookingDate >= since30 && b.PaymentStatus == PaymentStatus.Paid);
+        var bookings30 = await combined
+            .CountAsync(x => x.BookingDate >= since30 && x.Status != BookingStatus.Cancelled);
+        var paid30 = await combined
+            .CountAsync(x => x.BookingDate >= since30 && x.PaymentStatus == PaymentStatus.Paid);
         var conversion = bookings30 > 0 ? Math.Round(paid30 * 100.0 / bookings30, 1) : 0.0;
 
         return Json(new

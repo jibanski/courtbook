@@ -45,6 +45,12 @@ public class OpenPlaySignup
     [MaxLength(500)]
     public string? Notes { get; set; }
 
+    /// <summary>Free-text names of the other players when SpotCount > 1 — e.g. "Juan, Maria, Pedro".
+    /// Only the primary signer has an account/guest record; this just lets the facility know
+    /// who's actually showing up for the extra spots.</summary>
+    [MaxLength(500)]
+    public string? PlayerNames { get; set; }
+
     public string? PaymentMethod { get; set; }
     public string? PaymentReference { get; set; }
     public string? PaymentProofPath { get; set; }
