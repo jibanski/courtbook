@@ -250,8 +250,8 @@ public class AdminController : Controller
                 CourtName = sg.Court.Name,
                 SpotCount = sg.SpotCount,
                 BookingDate = sg.BookingDate,
-                StartTime = new TimeOnly(sg.StartHour, 0),
-                EndTime = new TimeOnly(sg.EndHour, 0),
+                StartTime = new TimeOnly(sg.StartHour % 24, 0),
+                EndTime = new TimeOnly(sg.EndHour % 24, 0),
                 TotalPrice = sg.TotalPrice,
                 Status = sg.Status,
                 PaymentStatus = sg.PaymentStatus,
@@ -1205,8 +1205,8 @@ public class AdminController : Controller
                 signup.Id,
                 $"Open Play — {signup.Court.Name} ({signup.SpotCount} spot{(signup.SpotCount != 1 ? "s" : "")})",
                 signup.BookingDate,
-                new TimeOnly(signup.StartHour, 0),
-                new TimeOnly(signup.EndHour, 0),
+                new TimeOnly(signup.StartHour % 24, 0),
+                new TimeOnly(signup.EndHour % 24, 0),
                 signup.TotalPrice,
                 signup.PaymentMethod,
                 signup.PaymentReference,
@@ -1231,8 +1231,8 @@ public class AdminController : Controller
         var customerName  = signup.User?.FirstName;
         var courtName     = signup.Court?.Name ?? "the session";
         var bookingDate   = signup.BookingDate;
-        var startTime     = new TimeOnly(signup.StartHour, 0);
-        var endTime       = new TimeOnly(signup.EndHour, 0);
+        var startTime     = new TimeOnly(signup.StartHour % 24, 0);
+        var endTime       = new TimeOnly(signup.EndHour % 24, 0);
 
         signup.Status           = BookingStatus.Cancelled;
         signup.PaymentReference = null;
