@@ -57,6 +57,11 @@ public class HomeController : Controller
         if (User.IsInRole("Admin"))
             return RedirectToAction("Index", "Admin");
 
+        // Staff go to their front-desk area — never the multi-facility courts browser,
+        // which would otherwise show every facility on the platform, not just their employer's.
+        if (User.IsInRole("Staff"))
+            return RedirectToAction("Index", "Staff");
+
         // Customers: always send them to their preferred facility if one is set
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId != null)

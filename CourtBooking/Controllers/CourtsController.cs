@@ -39,6 +39,12 @@ public class CourtsController : Controller
                     return RedirectToAction("Index", "Facility", new { slug = settings.Slug });
             }
 
+            // Staff → redirect to their front-desk area, never this multi-facility browser
+            // (a Staff account has no PreferredFacilitySlug, so it would otherwise fall
+            // through to the generic listing below and see every facility on the platform).
+            if (User.IsInRole("Staff"))
+                return RedirectToAction("Index", "Staff");
+
             // Customers → redirect to their preferred facility
             if (!User.IsInRole("Admin") && !string.IsNullOrEmpty(user?.PreferredFacilitySlug))
                 return RedirectToAction("Index", "Facility", new { slug = user.PreferredFacilitySlug });
