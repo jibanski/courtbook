@@ -23,6 +23,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<OpenPlaySignup> OpenPlaySignups { get; set; }
     public DbSet<Review> Reviews { get; set; }
     public DbSet<PlatformConfig> PlatformConfig { get; set; }
+    public DbSet<AddOnItem> AddOnItems { get; set; }
+    public DbSet<BookingAddOn> BookingAddOns { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

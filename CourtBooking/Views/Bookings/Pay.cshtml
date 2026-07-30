@@ -64,6 +64,15 @@
                         <div class="col-6 fw-semibold">@Model.StartTime.ToString("hh:mm tt") – @Model.EndTime.ToString("hh:mm tt")</div>
                         <div class="col-6 text-muted small">Duration</div>
                         <div class="col-6 fw-semibold">@Model.DurationHours hrs</div>
+                        @if (Model.AddOns.Any())
+                        {
+                            <div class="col-12"><hr class="my-2"></div>
+                            @foreach (var addOn in Model.AddOns)
+                            {
+                                <div class="col-6 text-muted small">@addOn.Quantity&times; @addOn.AddOnItem.Name</div>
+                                <div class="col-6 small">₱@((addOn.Quantity * addOn.UnitPrice).ToString("N0"))</div>
+                            }
+                        }
                         <div class="col-12"><hr class="my-2"></div>
                         <div class="col-6 fw-bold">Total Amount</div>
                         <div class="col-6 fw-bold text-success fs-5">₱@Model.TotalPrice.ToString("N0")</div>

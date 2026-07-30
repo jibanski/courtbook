@@ -167,9 +167,22 @@
                         </div>
 
                         <div class="card-footer p-4 d-flex justify-content-between align-items-center">
+                            @{
+                                var rateRanges = ViewBag.RateRanges as Dictionary<int, (decimal Min, decimal Max)>;
+                                (decimal Min, decimal Max) range = (court.PricePerHour, court.PricePerHour);
+                                if (rateRanges != null && rateRanges.TryGetValue(court.Id, out var foundRange)) range = foundRange;
+                                var hasRange = range.Max > range.Min;
+                            }
                             <div>
                                 <span style="font-size:1.4rem;font-weight:800;color:var(--cb-lime);letter-spacing:-0.02em;">
-                                    ₱@court.PricePerHour.ToString("N0")
+                                    @if (hasRange)
+                                    {
+                                        @:₱@range.Min.ToString("N0")&ndash;@range.Max.ToString("N0")
+                                    }
+                                    else
+                                    {
+                                        @:₱@court.PricePerHour.ToString("N0")
+                                    }
                                 </span>
                                 <span style="color:var(--cb-text-3);font-size:.8rem;font-weight:400;">/hr</span>
                             </div>

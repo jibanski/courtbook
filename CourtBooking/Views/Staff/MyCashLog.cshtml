@@ -1,0 +1,89 @@
+@model List<CourtBooking.Models.Booking>
+@{
+    ViewData["Title"] = "My Cash Log";
+    DateOnly? from = ViewBag.From;
+    DateOnly? to = ViewBag.To;
+    decimal grandTotal = ViewBag.GrandTotal;
+    var byDay = Model.GroupBy(b => b.BookingDate).OrderByDescending(g => g.Key);
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">My Cash Log</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Cash bookings you've logged &mdash; compare against the cash you're handing over.</p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold">From</label>
+                    <input type="date" name="from" class="form-control" value="@from?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold">To</label>
+                    <input type="date" name="to" class="form-control" value="@to?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-4">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-filter me-1"></i>Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="alert alert-primary d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-cash-stack me-2"></i><strong>Total for this range</strong></span>
+        <span class="fs-5 fw-bold">₱@grandTotal.ToString("N0")</span>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5" style="color:var(--cb-text-3);">No cash bookings logged for this range.</div>
+    }
+    else
+    {
+        foreach (var day in byDay)
+        {
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>@day.Key.ToString("dddd, MMMM d, yyyy")</strong>
+                    <span>₱@day.Sum(b => b.TotalPrice).ToString("N0")</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr><th>Time</th><th>Court</th><th>Customer</th><th>Court Rental</th><th>Add-ons</th><th>Total Paid</th><th>Booked On</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in day.OrderBy(b => b.StartTime))
+                            {
+                                var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+                                var courtRental = b.TotalPrice - addOnsTotal;
+                                <tr>
+                                    <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
+                                    <td>@b.Court?.Name</td>
+                                    <td>@b.User?.FullName</td>
+                                    <td>₱@courtRental.ToString("N0")</td>
+                                    <td>
+                                        @if (b.AddOns.Any())
+                                        {
+                                            <span title="@string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}"))">₱@addOnsTotal.ToString("N0")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>₱@b.TotalPrice.ToString("N0")</td>
+                                    <td class="text-muted small text-nowrap">@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</div>

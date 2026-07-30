@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Confirm Booking";
     var facilityName = ViewBag.FacilityName as string;
+    var addOns = ViewBag.AddOns as List<CourtBooking.Models.AddOnItem>;
 }
 
 <div class="cb-page-header">
@@ -116,6 +117,23 @@
                             </div>
                         }
 
+                        @if (addOns is not null && addOns.Any())
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Add-ons <span class="text-muted fw-normal">(optional)</span></label>
+                                <div class="border rounded-3 p-2">
+                                    @foreach (var item in addOns)
+                                    {
+                                        <div class="d-flex justify-content-between align-items-center py-1">
+                                            <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2") each)</span></span>
+                                            <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:80px;"
+                                                   min="0" value="0" data-price="@item.Price" />
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
                         <div class="mb-3">
                             <label asp-for="Notes" class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(optional)</span></label>
                             <textarea asp-for="Notes" class="form-control" rows="2" placeholder="Any special requests..."></textarea>
@@ -145,15 +163,36 @@
 </div>
 
 @section Scripts {
+<script>
+    function addOnsTotal() {
+        let sum = 0;
+        document.querySelectorAll('.addon-qty').forEach(el => {
+            sum += (parseInt(el.value) || 0) * parseFloat(el.dataset.price);
+        });
+        return sum;
+    }
+
 @if (!Model.IsSlotBooking)
 {
-<script>
+    <text>
     const pricePerHour = @Model.Court?.PricePerHour;
     function updatePrice() {
         const duration = parseInt(document.getElementById('durationSelect').value);
-        document.getElementById('totalPrice').textContent = '₱' + (pricePerHour * duration).toLocaleString();
+        document.getElementById('totalPrice').textContent = '₱' + (pricePerHour * duration + addOnsTotal()).toLocaleString();
     }
     document.getElementById('durationSelect').addEventListener('change', updatePrice);
-</script>
+    </text>
 }
+else
+{
+    <text>
+    const baseTotal = @Model.TotalPrice;
+    function updatePrice() {
+        document.getElementById('totalPrice').textContent = '₱' + (baseTotal + addOnsTotal()).toLocaleString();
+    }
+    </text>
+}
+
+    document.querySelectorAll('.addon-qty').forEach(el => el.addEventListener('input', updatePrice));
+</script>
 }

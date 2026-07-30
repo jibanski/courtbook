@@ -1,5 +1,6 @@
 using CourtBooking.Data;
 using CourtBooking.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace CourtBooking.Services;
@@ -148,6 +149,96 @@ public class BookingService
         return ScheduleRules.ResolveTotalPrice(tiers, court.PricePerHour, date, isHoliday, start, end);
     }
 
+    /// <summary>
+    /// Re-resolves and saves <see cref="Booking.TotalPrice"/> for every not-yet-paid, non-cancelled booking
+    /// on this court, using the court's current rate/tiers. Called after an owner edits the base rate or a
+    /// rate tier so pending bookings reflect the new price instead of the one snapshotted when they were made.
+    /// Skips bundle rows (<see cref="Booking.CourtBundleId"/> set) — those are priced from the bundle's flat
+    /// rate, not this court's hourly rate — and anything already <see cref="PaymentStatus.Paid"/>/Refunded.
+    /// </summary>
+    public async Task<int> ResyncUnpaidPricesAsync(int courtId)
+    {
+        var court = await _db.Courts.FindAsync(courtId);
+        if (court is null) return 0;
+
+        var affected = await _db.Bookings
+            .Where(b => b.CourtId == courtId
+                     && b.CourtBundleId == null
+                     && b.PaymentStatus == PaymentStatus.Unpaid
+                     && b.Status != BookingStatus.Cancelled)
+            .Include(b => b.AddOns)
+            .ToListAsync();
+
+        foreach (var b in affected)
+        {
+            var courtTotal = await GetTotalPriceAsync(court, b.BookingDate, b.StartTime, b.EndTime);
+            var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+            b.TotalPrice = courtTotal + addOnsTotal;
+        }
+
+        if (affected.Count > 0) await _db.SaveChangesAsync();
+        return affected.Count;
+    }
+
+    // ── Add-on rentals ───────────────────────────────────────────────────────────
+
+    /// <summary>Active add-on items in this facility owner's catalog, selectable when booking any of their courts.</summary>
+    public Task<List<AddOnItem>> GetActiveAddOnsAsync(string ownerId) =>
+        _db.AddOnItems.Where(a => a.OwnerId == ownerId && a.IsActive).OrderBy(a => a.Name).ToListAsync();
+
+    /// <summary>
+    /// Reads quantity form fields named <c>addon_{Id}</c> for each of the owner's active add-ons,
+    /// builds a <see cref="BookingAddOn"/> for every quantity &gt; 0 (snapshotting the current price),
+    /// and returns them along with their combined total. Shared by the customer and staff walk-in
+    /// booking flows so add-on handling stays identical between them.
+    /// </summary>
+    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveSelectedAddOnsAsync(string ownerId, IFormCollection form)
+    {
+        var items = await GetActiveAddOnsAsync(ownerId);
+        var result = new List<BookingAddOn>();
+        decimal total = 0;
+
+        foreach (var item in items)
+        {
+            if (!form.TryGetValue($"addon_{item.Id}", out var raw)) continue;
+            if (!int.TryParse(raw, out var qty) || qty <= 0) continue;
+
+            result.Add(new BookingAddOn { AddOnItemId = item.Id, Quantity = qty, UnitPrice = item.Price });
+            total += qty * item.Price;
+        }
+
+        return (result, total);
+    }
+
+    /// <summary>The min and max hourly rate a court can charge across its base rate and any rate tiers —
+    /// a display-only range for customer-facing pages; actual charging still resolves a single rate per hour.</summary>
+    public async Task<(decimal Min, decimal Max)> GetRateRangeAsync(Court court)
+    {
+        var tiers = await GetRateTiersAsync(court.Id);
+        var prices = tiers.Select(t => t.PricePerHour).Append(court.PricePerHour).ToList();
+        return (prices.Min(), prices.Max());
+    }
+
+    /// <summary>Bulk variant of <see cref="GetRateRangeAsync"/> for list pages — one query for all rate tiers
+    /// across the given courts instead of one query per court.</summary>
+    public async Task<Dictionary<int, (decimal Min, decimal Max)>> GetRateRangesAsync(IEnumerable<Court> courts)
+    {
+        var courtList = courts as IList<Court> ?? courts.ToList();
+        var courtIds = courtList.Select(c => c.Id).ToList();
+        var tiersByCourtId = (await _db.CourtRateTiers.Where(t => courtIds.Contains(t.CourtId)).ToListAsync())
+            .GroupBy(t => t.CourtId)
+            .ToDictionary(g => g.Key, g => g.Select(t => t.PricePerHour).ToList());
+
+        var result = new Dictionary<int, (decimal Min, decimal Max)>();
+        foreach (var court in courtList)
+        {
+            var prices = tiersByCourtId.TryGetValue(court.Id, out var tierPrices) ? tierPrices : new List<decimal>();
+            prices.Add(court.PricePerHour);
+            result[court.Id] = (prices.Min(), prices.Max());
+        }
+        return result;
+    }
+
     /// <summary>True when any hour in [start, end) is scheduled as Admin-Hosted Open Play by default.</summary>
     public async Task<bool> HasOpenPlayHoursAsync(Court court, DateOnly date, TimeOnly start, TimeOnly end)
     {
@@ -234,5 +325,26 @@ public class BookingService
         if (!block.AllowPublicSignup || !block.MaxPlayers.HasValue) return 0;
         var taken = (await GetOpenPlaySignupsAsync(courtId, date, block.StartHour, block.EndHour)).Sum(s => s.SpotCount);
         return Math.Max(0, block.MaxPlayers.Value - taken);
+    }
+
+    // ── Staff walk-in cash bookings ─────────────────────────────────────────────
+
+    /// <summary>Cash bookings logged by staff for these courts — optionally filtered to one staff
+    /// member and/or a date range. Used by both the staff's own cash log and the owner's reconciliation view.</summary>
+    public async Task<List<Booking>> GetCashLogAsync(List<int> courtIds, string? staffId, DateOnly? from, DateOnly? to)
+    {
+        var query = _db.Bookings
+            .Where(b => courtIds.Contains(b.CourtId) && b.PaymentMethod == "Cash"
+                     && b.LoggedByStaffId != null && b.Status != BookingStatus.Cancelled)
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
+            .AsQueryable();
+
+        if (staffId != null) query = query.Where(b => b.LoggedByStaffId == staffId);
+        if (from.HasValue)   query = query.Where(b => b.BookingDate >= from.Value);
+        if (to.HasValue)     query = query.Where(b => b.BookingDate <= to.Value);
+
+        return await query.OrderByDescending(b => b.BookingDate).ThenBy(b => b.StartTime).ToListAsync();
     }
 }

@@ -1,0 +1,130 @@
+@model List<CourtBooking.Models.Booking>
+@{
+    ViewData["Title"] = "All Bookings";
+    var selectedStatus = ViewBag.SelectedStatus as string;
+    var selectedDate   = ViewBag.SelectedDate as DateOnly?;
+    var search         = ViewBag.Search as string;
+    var staffNames = ViewBag.StaffNames as Dictionary<string, string>;
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">All Bookings</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+            Read-only view of every booking on your facility's courts — use this to confirm a booking went through.
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-sm-4">
+                    <label class="form-label fw-semibold">Search</label>
+                    <input type="text" name="search" class="form-control" placeholder="Customer name or phone" value="@search" />
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label fw-semibold">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        @foreach (var s in Enum.GetNames<CourtBooking.Models.BookingStatus>())
+                        {
+                            <option value="@s" selected="@(selectedStatus == s)">@s</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label fw-semibold">Date</label>
+                    <input type="date" name="date" class="form-control" value="@selectedDate?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel me-1"></i>Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Court</th>
+                        <th>Customer</th>
+                        <th>Phone</th>
+                        <th>Court Rental</th>
+                        <th>Add-ons</th>
+                        <th>Total Paid</th>
+                        <th>Payment</th>
+                        <th>Booked By</th>
+                        <th>Booked On</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr><td colspan="12" class="text-center py-5" style="color:var(--cb-text-3);">No bookings found.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var b in Model)
+                        {
+                            var bookedByName = b.LoggedByStaffId != null && staffNames != null && staffNames.TryGetValue(b.LoggedByStaffId, out var n) ? n : null;
+                            var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+                            var courtRental = b.TotalPrice - addOnsTotal;
+                            <tr>
+                                <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
+                                <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
+                                <td>@b.Court?.Name</td>
+                                <td>@b.User?.FullName</td>
+                                <td>@(b.User?.PhoneNumber ?? "—")</td>
+                                <td>₱@courtRental.ToString("N0")</td>
+                                <td>
+                                    @if (b.AddOns.Any())
+                                    {
+                                        <span title="@string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}"))">₱@addOnsTotal.ToString("N0")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>₱@b.TotalPrice.ToString("N0")</td>
+                                <td>@(b.PaymentMethod ?? "—")</td>
+                                <td>
+                                    @if (bookedByName is not null)
+                                    {
+                                        <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-person-badge me-1"></i>@bookedByName</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">Online</span>
+                                    }
+                                </td>
+                                <td class="text-muted small text-nowrap">@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")</td>
+                                <td>
+                                    @{
+                                        var badgeClass = b.Status switch
+                                        {
+                                            CourtBooking.Models.BookingStatus.Confirmed => "bg-success-subtle",
+                                            CourtBooking.Models.BookingStatus.Pending => "bg-warning-subtle",
+                                            CourtBooking.Models.BookingStatus.Cancelled => "bg-danger-subtle",
+                                            _ => "bg-secondary"
+                                        };
+                                    }
+                                    <span class="badge @badgeClass">@b.Status</span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

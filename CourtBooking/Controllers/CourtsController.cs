@@ -136,6 +136,7 @@ public class CourtsController : Controller
             .ToListAsync();
 
         var vm = new CourtAvailabilityViewModel { Court = court, Date = selectedDate };
+        (vm.RateRangeMin, vm.RateRangeMax) = await _bookingService.GetRateRangeAsync(court);
 
         if (slots.Any())
         {

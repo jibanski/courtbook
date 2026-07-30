@@ -77,4 +77,10 @@ public class CourtAvailabilityViewModel
     // Open Play hours where the owner has enabled public sign-up. Keyed by hour; value is
     // the covering schedule block + live spots-remaining count (for the "Join Open Play" link).
     public Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)> OpenPlaySignupInfo { get; set; } = new();
+
+    // Display-only rate range spanning the court's base rate and any rate tiers (e.g. ₱250–350/hr).
+    // Equal when there are no tiers — the view falls back to showing a single price.
+    public decimal RateRangeMin { get; set; }
+    public decimal RateRangeMax { get; set; }
+    public bool HasRateRange => RateRangeMax > RateRangeMin;
 }

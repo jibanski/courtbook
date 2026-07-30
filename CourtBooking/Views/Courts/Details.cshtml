@@ -66,7 +66,17 @@
                         <li class="mb-2"><i class="bi bi-tag me-2 text-primary"></i><strong>Sport:</strong> @Model.Court.SportType</li>
                         <li class="mb-2"><i class="bi bi-house me-2 text-primary"></i><strong>Type:</strong> @(Model.Court.IsIndoor ? "Indoor" : "Outdoor")</li>
                         <li class="mb-2"><i class="bi bi-clock me-2 text-primary"></i><strong>Hours:</strong> @TimeDisplay.HourRange(Model.Court.OpeningHour, Model.Court.ClosingHour)</li>
-                        <li class="mb-2"><i class="bi bi-currency-dollar me-2 text-primary"></i><strong>Rate:</strong> ₱@Model.Court.PricePerHour.ToString("N0")/hour</li>
+                        <li class="mb-2">
+                            <i class="bi bi-currency-dollar me-2 text-primary"></i><strong>Rate:</strong>
+                            @if (Model.HasRateRange)
+                            {
+                                @:₱@Model.RateRangeMin.ToString("N0")&ndash;@Model.RateRangeMax.ToString("N0")/hour
+                            }
+                            else
+                            {
+                                @:₱@Model.Court.PricePerHour.ToString("N0")/hour
+                            }
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -164,6 +174,26 @@
                                 bool isOpenPlaySignup = Model.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
                                 var rate = Model.HourlyRates.TryGetValue(h, out var r) ? r : Model.Court.PricePerHour;
                                 var timeLabel = TimeDisplay.HourRange(h, h + 1);
+
+                                @* An open (not booked) bundle-only run is rendered once as a single full-width
+                                   block spanning its whole hour range, instead of one tile per hour. *@
+                                if (!isBooked && isBundleOnly)
+                                {
+                                    var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
+                                    <div class="col-12">
+                                        <a asp-controller="BundleBookings" asp-action="Create"
+                                           asp-route-bundleId="@bundleMatch.Bundle.Id"
+                                           asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                           asp-route-startHour="@bundleMatch.Block.StartHour"
+                                           asp-route-endHour="@bundleMatch.Block.EndHour"
+                                           class="btn w-100 small text-decoration-none" style="background:var(--cb-lime);color:#000;">
+                                            <i class="bi bi-box-seam me-1"></i>@bundleLabel &bull; Bundle Only
+                                        </a>
+                                    </div>
+                                    h = bundleMatch.Block.EndHour - 1;
+                                    continue;
+                                }
+
                                 <div class="col-6 col-sm-4 col-md-3">
                                     @if (isBooked)
                                     {
@@ -174,17 +204,6 @@
                                                 <text> &bull; Open Play</text>
                                             }
                                         </div>
-                                    }
-                                    else if (isBundleOnly)
-                                    {
-                                        <a asp-controller="BundleBookings" asp-action="Create"
-                                           asp-route-bundleId="@bundleMatch.Bundle.Id"
-                                           asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                           asp-route-startHour="@bundleMatch.Block.StartHour"
-                                           asp-route-endHour="@bundleMatch.Block.EndHour"
-                                           class="btn w-100 small text-decoration-none" style="background:var(--cb-lime);color:#000;">
-                                            <i class="bi bi-box-seam me-1"></i>@timeLabel &bull; Bundle Only
-                                        </a>
                                     }
                                     else if (isOpenPlaySignup && signupMatch.SpotsRemaining > 0)
                                     {

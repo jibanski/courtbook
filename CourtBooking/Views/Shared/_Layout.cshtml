@@ -42,6 +42,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+        (function () {
+            var saved = localStorage.getItem('cb-theme');
+            if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        })();
+    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - @_brand</title>
@@ -76,7 +82,7 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarMain">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
-                    @if (User.Identity?.IsAuthenticated == true)
+                    @if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Staff"))
                     {
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="Courts" asp-action="Index">
@@ -102,13 +108,36 @@
                                 <li><a class="dropdown-item" asp-controller="Admin" asp-action="Bookings"><i class="bi bi-calendar3 me-2 text-success"></i>All Bookings</a></li>
                                 <li><a class="dropdown-item" asp-controller="Admin" asp-action="Analytics"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Analytics <span class="badge bg-success-subtle text-success-emphasis ms-1" style="font-size:.65rem;">Live</span></a></li>
                                 <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-controller="Admin" asp-action="Staff"><i class="bi bi-person-badge me-2 text-info"></i>Staff</a></li>
+                                <li><a class="dropdown-item" asp-controller="Admin" asp-action="CashLog"><i class="bi bi-cash-coin me-2 text-success"></i>Cash Log</a></li>
+                                <li><a class="dropdown-item" asp-controller="Admin" asp-action="AddOns"><i class="bi bi-bag-plus me-2 text-warning"></i>Add-ons</a></li>
+                                <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="Reviews" asp-action="Index"><i class="bi bi-chat-quote me-2 text-info"></i>Share Story</a></li>
                                 <li><a class="dropdown-item" asp-controller="Admin" asp-action="Settings"><i class="bi bi-sliders me-2 text-primary"></i>Settings</a></li>
                             </ul>
                         </li>
                     }
+                    @if (User.IsInRole("Staff"))
+                    {
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                                <i class="bi bi-shop me-1"></i>Front Desk
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" asp-controller="Staff" asp-action="Index"><i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard</a></li>
+                                <li><a class="dropdown-item" asp-controller="Staff" asp-action="NewWalkIn"><i class="bi bi-calendar-plus me-2 text-success"></i>New Walk-in Booking</a></li>
+                                <li><a class="dropdown-item" asp-controller="Staff" asp-action="Bookings"><i class="bi bi-calendar3 me-2 text-info"></i>All Bookings</a></li>
+                                <li><a class="dropdown-item" asp-controller="Staff" asp-action="MyCashLog"><i class="bi bi-cash-coin me-2 text-success"></i>My Cash Log</a></li>
+                            </ul>
+                        </li>
+                    }
                 </ul>
                 <ul class="navbar-nav align-items-lg-center gap-1">
+                    <li class="nav-item">
+                        <button type="button" id="themeToggleBtn" class="btn btn-sm btn-outline-secondary border-0" title="Toggle light/dark theme">
+                            <i class="bi bi-sun-fill" id="themeToggleIcon"></i>
+                        </button>
+                    </li>
                     @if (User.Identity?.IsAuthenticated == true)
                     {
                         <li class="nav-item dropdown">

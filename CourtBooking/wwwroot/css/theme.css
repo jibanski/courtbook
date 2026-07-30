@@ -32,6 +32,34 @@
   --cb-transition:  all 0.22s cubic-bezier(0.4,0,0.2,1);
 }
 
+/* ── Light theme override ────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --cb-bg:          #F4F6F8;
+  --cb-surface:     #FFFFFF;
+  --cb-surface-2:   #F1F5F9;
+  --cb-surface-3:   #E5E9EF;
+  --cb-lime:        #5C8A00;
+  --cb-lime-dim:    rgba(92,138,0,0.10);
+  --cb-blue:        #5C8A00;
+  --cb-blue-dim:    rgba(92,138,0,0.10);
+  --cb-text:        #0F172A;
+  --cb-text-2:      #334155;
+  --cb-text-3:      #64748B;
+  --cb-border:      rgba(15,23,42,0.08);
+  --cb-border-hover:rgba(15,23,42,0.16);
+  --cb-shadow:      0 4px 24px rgba(15,23,42,0.08);
+  --cb-shadow-lg:   0 8px 48px rgba(15,23,42,0.12);
+}
+
+/* .cb-navbar / .cb-page-header / .cb-facility-hero paint their own background with a
+   hardcoded dark navy (not a variable) so they read as a fixed brand band in dark mode —
+   override them explicitly here so light mode doesn't leave a black strip across every page. */
+:root[data-theme="light"] .cb-navbar,
+:root[data-theme="light"] .cb-page-header,
+:root[data-theme="light"] .cb-facility-hero {
+  background: var(--cb-surface) !important;
+}
+
 /* ── Base Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 

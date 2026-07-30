@@ -5,6 +5,7 @@ using CourtBooking.Models;
 using CourtBooking.Services;
 using CourtBooking.ViewModels;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -19,17 +20,20 @@ public class AdminController : Controller
     private readonly BookingService _bookingService;
     private readonly EmailService _email;
     private readonly IConfiguration _config;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     public AdminController(
         ApplicationDbContext db,
         BookingService bookingService,
         EmailService email,
-        IConfiguration config)
+        IConfiguration config,
+        UserManager<ApplicationUser> userManager)
     {
         _db             = db;
         _bookingService = bookingService;
         _email          = email;
         _config         = config;
+        _userManager    = userManager;
     }
 
     // ── Current-owner helpers ─────────────────────────────────────────────────
@@ -146,6 +150,15 @@ public class AdminController : Controller
         var awaitingPayment = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.PaymentProofSubmittedAt != null);
         var pendingNoProof  = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.PaymentReference == null);
 
+        // Add-ons (e.g. paddle rentals) only ever attach to regular Bookings, not Open Play
+        // sign-ups, so this is a separate query rather than folded into `combined` above.
+        // Split out of totalRevenue so the owner can see rental vs. add-on sales separately.
+        var addOnsRevenue = await _db.BookingAddOns
+            .Where(a => courtIds.Contains(a.Booking.CourtId)
+                     && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed))
+            .SumAsync(a => (decimal?)(a.Quantity * a.UnitPrice)) ?? 0m;
+        var courtRentalRevenue = totalRevenue - addOnsRevenue;
+
         var revenueRows = await combined
             .Where(x => x.BookingDate >= since30
                         && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
@@ -194,7 +207,9 @@ public class AdminController : Controller
                 pendingNoProof,
                 conversionPct  = conversion,
                 paidLast30     = paid30,
-                bookingsLast30 = bookings30
+                bookingsLast30 = bookings30,
+                courtRentalRevenue,
+                addOnsRevenue
             },
             revenueByDay,
             methodBreakdown = methodRows.Select(r => new
@@ -206,12 +221,14 @@ public class AdminController : Controller
         });
     }
 
-    public async Task<IActionResult> Bookings(string? status, DateOnly? date, bool? awaitingConfirmation)
+    public async Task<IActionResult> Bookings(string? status, DateOnly? date, bool? awaitingConfirmation, string? search)
     {
         var courtIds = await GetMyCourtIdsAsync();
         var query = _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId))
-            .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle).AsQueryable();
+            .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle)
+            .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
+            .AsQueryable();
 
         if (awaitingConfirmation == true)
             query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
@@ -228,6 +245,9 @@ public class AdminController : Controller
         // so the owner has one consolidated view of everything booked on their courts.
         if (awaitingConfirmation != true)
         {
+            var staffIds = bookings.Where(b => b.LoggedByStaffId != null).Select(b => b.LoggedByStaffId!).Distinct().ToList();
+            var staffNames = await _db.Users.Where(u => staffIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName);
+
             var rows = bookings.Select(b => new AdminBookingRow
             {
                 Id = b.Id,
@@ -240,10 +260,14 @@ public class AdminController : Controller
                 BookingDate = b.BookingDate,
                 StartTime = b.StartTime,
                 EndTime = b.EndTime,
+                CreatedAt = b.CreatedAt,
                 TotalPrice = b.TotalPrice,
                 Status = b.Status,
                 PaymentStatus = b.PaymentStatus,
-                HasPaymentProof = b.HasPaymentProof
+                HasPaymentProof = b.HasPaymentProof,
+                BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
+                AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
+                AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null
             }).ToList();
 
             var signupQuery = _db.OpenPlaySignups
@@ -268,11 +292,20 @@ public class AdminController : Controller
                 BookingDate = sg.BookingDate,
                 StartTime = new TimeOnly(sg.StartHour % 24, 0),
                 EndTime = new TimeOnly(sg.EndHour % 24, 0),
+                CreatedAt = sg.CreatedAt,
                 TotalPrice = sg.TotalPrice,
                 Status = sg.Status,
                 PaymentStatus = sg.PaymentStatus,
                 HasPaymentProof = sg.HasPaymentProof
             }));
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                rows = rows.Where(r => r.CustomerName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                                     || (r.CustomerPhone != null && r.CustomerPhone.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                           .ToList();
+            }
 
             ViewBag.Rows = rows
                 .OrderByDescending(r => r.BookingDate)
@@ -282,6 +315,7 @@ public class AdminController : Controller
 
         ViewBag.SelectedStatus       = status;
         ViewBag.SelectedDate         = date;
+        ViewBag.Search               = search;
         ViewBag.AwaitingConfirmation = awaitingConfirmation;
         ViewBag.PendingPaymentCount  = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
         return View(bookings);
@@ -579,6 +613,8 @@ public class AdminController : Controller
         var existing = await MyCourts.FirstOrDefaultAsync(c => c.Id == court.Id);
         if (existing is null) return NotFound();
 
+        bool rateChanged = existing.PricePerHour != court.PricePerHour;
+
         existing.Name         = court.Name;
         existing.SportType    = court.SportType;
         existing.Description  = court.Description;
@@ -590,7 +626,18 @@ public class AdminController : Controller
         existing.ImageUrl     = await SaveCourtPhotoAsync(photo, court.Id, existing.ImageUrl);
 
         await _db.SaveChangesAsync();
-        TempData["Success"] = "Court updated successfully.";
+
+        if (rateChanged)
+        {
+            var resynced = await _bookingService.ResyncUnpaidPricesAsync(existing.Id);
+            TempData["Success"] = resynced > 0
+                ? $"Court updated successfully. {resynced} unpaid booking(s) updated to the new rate."
+                : "Court updated successfully.";
+        }
+        else
+        {
+            TempData["Success"] = "Court updated successfully.";
+        }
         return RedirectToAction(nameof(Courts));
     }
 
@@ -785,9 +832,12 @@ public class AdminController : Controller
             PricePerHour    = pricePerHour
         });
         await _db.SaveChangesAsync();
-        TempData["Success"] = OutOfHoursWarning(court, startHour, endHour) is { } warn
-            ? $"Rate tier added. {warn}"
-            : "Rate tier added.";
+        var resynced = await _bookingService.ResyncUnpaidPricesAsync(courtId);
+
+        var message = "Rate tier added.";
+        if (OutOfHoursWarning(court, startHour, endHour) is { } warn) message = $"Rate tier added. {warn}";
+        if (resynced > 0) message += $" {resynced} unpaid booking(s) updated to the new rate.";
+        TempData["Success"] = message;
         return RedirectToAction(nameof(Schedule), new { id = courtId });
     }
 
@@ -812,7 +862,10 @@ public class AdminController : Controller
         {
             _db.CourtRateTiers.Remove(tier);
             await _db.SaveChangesAsync();
-            TempData["Success"] = "Rate tier removed.";
+            var resynced = await _bookingService.ResyncUnpaidPricesAsync(courtId);
+            TempData["Success"] = resynced > 0
+                ? $"Rate tier removed. {resynced} unpaid booking(s) updated to the new rate."
+                : "Rate tier removed.";
         }
         return RedirectToAction(nameof(Schedule), new { id = courtId });
     }
@@ -1576,5 +1629,191 @@ public class AdminController : Controller
         await _db.SaveChangesAsync();
         TempData["Success"] = "Sign-up status updated.";
         return RedirectToAction(nameof(Bookings));
+    }
+
+    // ── Staff accounts (front-desk role, scoped to this owner) ──────────────────
+
+    public async Task<IActionResult> Staff()
+    {
+        ViewBag.StaffList = await _db.Users
+            .Where(u => u.EmployerOwnerId == CurrentUserId)
+            .OrderBy(u => u.FirstName).ThenBy(u => u.LastName)
+            .ToListAsync();
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateStaff(string firstName, string lastName, string email, string phone, string password)
+    {
+        if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            TempData["Error"] = "Name, email, and password are required.";
+            return RedirectToAction(nameof(Staff));
+        }
+
+        var staff = new ApplicationUser
+        {
+            UserName        = email.Trim(),
+            Email           = email.Trim(),
+            FirstName       = firstName.Trim(),
+            LastName        = lastName?.Trim() ?? "",
+            PhoneNumber     = phone?.Trim(),
+            EmailConfirmed  = true,
+            EmployerOwnerId = CurrentUserId
+        };
+
+        var result = await _userManager.CreateAsync(staff, password);
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = string.Join(" ", result.Errors.Select(e => e.Description));
+            return RedirectToAction(nameof(Staff));
+        }
+
+        await _userManager.AddToRoleAsync(staff, "Staff");
+        TempData["Success"] = $"Staff account created for {staff.FullName}.";
+        return RedirectToAction(nameof(Staff));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleStaffActive(string id)
+    {
+        var staff = await _db.Users.FirstOrDefaultAsync(u => u.Id == id && u.EmployerOwnerId == CurrentUserId);
+        if (staff is null) return NotFound();
+
+        bool isCurrentlyDisabled = staff.LockoutEnd.HasValue && staff.LockoutEnd > DateTimeOffset.UtcNow;
+        if (isCurrentlyDisabled)
+        {
+            await _userManager.SetLockoutEndDateAsync(staff, null);
+            TempData["Success"] = $"{staff.FullName} can log in again.";
+        }
+        else
+        {
+            await _userManager.SetLockoutEnabledAsync(staff, true);
+            await _userManager.SetLockoutEndDateAsync(staff, DateTimeOffset.MaxValue);
+            TempData["Success"] = $"{staff.FullName}'s access has been disabled.";
+        }
+        return RedirectToAction(nameof(Staff));
+    }
+
+    // ── Cash reconciliation: every staff member's logged cash bookings ──────────
+
+    public async Task<IActionResult> CashLog(DateOnly? from, DateOnly? to, string? staffId)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var bookings = await _bookingService.GetCashLogAsync(courtIds, staffId, from, to);
+
+        var staffIds = bookings.Select(b => b.LoggedByStaffId!).Distinct().ToList();
+        var staffNames = await _db.Users
+            .Where(u => staffIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.FullName);
+
+        ViewBag.StaffNames = staffNames;
+        ViewBag.StaffList  = await _db.Users.Where(u => u.EmployerOwnerId == CurrentUserId).ToListAsync();
+        ViewBag.From       = from;
+        ViewBag.To         = to;
+        ViewBag.StaffId    = staffId;
+        ViewBag.GrandTotal = bookings.Sum(b => b.TotalPrice);
+        return View(bookings);
+    }
+
+    // ── Add-on rentals catalog (e.g. paddles) ────────────────────────────────────
+
+    public async Task<IActionResult> AddOns()
+    {
+        ViewBag.AddOnList = await _db.AddOnItems
+            .Where(a => a.OwnerId == CurrentUserId)
+            .OrderBy(a => a.Name)
+            .ToListAsync();
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateAddOn(string name, decimal price)
+    {
+        if (string.IsNullOrWhiteSpace(name) || price < 0)
+        {
+            TempData["Error"] = "Name is required and price can't be negative.";
+            return RedirectToAction(nameof(AddOns));
+        }
+
+        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price });
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Add-on '{name}' created.";
+        return RedirectToAction(nameof(AddOns));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleAddOn(int id)
+    {
+        var item = await _db.AddOnItems.FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == CurrentUserId);
+        if (item is null) return NotFound();
+        item.IsActive = !item.IsActive;
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(AddOns));
+    }
+
+    // ── CSV export ────────────────────────────────────────────────────────────────
+
+    public async Task<IActionResult> ExportBookings(string? status, DateOnly? dateFrom, DateOnly? dateTo)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var query = _db.Bookings
+            .Where(b => courtIds.Contains(b.CourtId))
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
+            query = query.Where(b => b.Status == s);
+        if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
+        if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
+
+        var bookings = await query.OrderBy(b => b.BookingDate).ThenBy(b => b.StartTime).ToListAsync();
+
+        var staffIds = bookings.Where(b => b.LoggedByStaffId != null).Select(b => b.LoggedByStaffId!).Distinct().ToList();
+        var staffNames = await _db.Users.Where(u => staffIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName);
+
+        static string Csv(string? field)
+        {
+            field ??= "";
+            return field.Contains(',') || field.Contains('"') || field.Contains('\n')
+                ? "\"" + field.Replace("\"", "\"\"") + "\""
+                : field;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Booking ID,Date,Start,End,Court,Customer,Phone,Court Rental,Add-ons,Add-ons Total,Total Paid,Payment Method,Payment Reference,Payment Status,Status,Booked By,Booked On");
+        foreach (var b in bookings)
+        {
+            var addOnsSummary = string.Join("; ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}"));
+            var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+            var courtRental = b.TotalPrice - addOnsTotal;
+            var bookedBy = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var n) ? n : "";
+
+            sb.AppendLine(string.Join(",", new[]
+            {
+                Csv(b.Id.ToString()),
+                Csv(b.BookingDate.ToString("yyyy-MM-dd")),
+                Csv(b.StartTime.ToString("HH:mm")),
+                Csv(b.EndTime.ToString("HH:mm")),
+                Csv(b.Court.Name),
+                Csv(b.User.FullName),
+                Csv(b.User.PhoneNumber),
+                Csv(courtRental.ToString("F2")),
+                Csv(addOnsSummary),
+                Csv(addOnsTotal.ToString("F2")),
+                Csv(b.TotalPrice.ToString("F2")),
+                Csv(b.PaymentMethod),
+                Csv(b.PaymentReference),
+                Csv(b.PaymentStatus.ToString()),
+                Csv(b.Status.ToString()),
+                Csv(bookedBy),
+                Csv(b.CreatedAt.AddHours(8).ToString("yyyy-MM-dd HH:mm"))
+            }));
+        }
+
+        var fileName = $"bookings-{DateTime.Now:yyyyMMdd}.csv";
+        return File(System.Text.Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", fileName);
     }
 }
