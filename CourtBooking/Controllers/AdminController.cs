@@ -598,7 +598,7 @@ public class AdminController : Controller
         foreach (var s in slots)
         {
             slotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
-                court, selectedDate, new TimeOnly(s.StartHour, 0), new TimeOnly(s.EndHour, 0));
+                court, selectedDate, new TimeOnly(s.StartHour % 24, 0), new TimeOnly(s.EndHour % 24, 0));
         }
         ViewBag.SlotPrices = slotPrices;
 
@@ -1633,9 +1633,12 @@ public class AdminController : Controller
         var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
 
-        // Basic validation
-        var startDt = startDate.ToDateTime(new TimeOnly(startHour, 0));
-        var endDt   = endDate.ToDateTime(new TimeOnly(endHour,   0));
+        // Basic validation. Hour can be 24 (midnight/end-of-day, e.g. an "8pm-12am" block) — TimeOnly
+        // only accepts 0-23, so an hour of 24 means "midnight at the start of the next calendar day".
+        static DateTime ToInstant(DateOnly date, int hour) =>
+            date.AddDays(hour / 24).ToDateTime(new TimeOnly(hour % 24, 0));
+        var startDt = ToInstant(startDate, startHour);
+        var endDt   = ToInstant(endDate, endHour);
         if (endDt <= startDt)
         {
             TempData["Error"] = "End must be after start.";

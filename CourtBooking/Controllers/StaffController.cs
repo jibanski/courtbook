@@ -215,7 +215,7 @@ public class StaffController : Controller
             foreach (var s in slots)
             {
                 vm.SlotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
-                    court, selectedDate, new TimeOnly(s.StartHour, 0), new TimeOnly(s.EndHour, 0));
+                    court, selectedDate, new TimeOnly(s.StartHour % 24, 0), new TimeOnly(s.EndHour % 24, 0));
             }
         }
         else
@@ -275,7 +275,7 @@ public class StaffController : Controller
         ViewBag.Date      = date;
         ViewBag.StartHour = startHour;
         ViewBag.TotalPrice = await _bookingService.GetTotalPriceAsync(
-            court, date, new TimeOnly(startHour, 0), new TimeOnly(startHour + 1, 0));
+            court, date, new TimeOnly(startHour % 24, 0), new TimeOnly((startHour + 1) % 24, 0));
 
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         ViewBag.AddOns = employerOwnerId != null
@@ -334,8 +334,8 @@ public class StaffController : Controller
         if (durationHours < 1) durationHours = 1;
         if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
 
-        var startTime = new TimeOnly(startHour, 0);
-        var endTime   = new TimeOnly(startHour + durationHours, 0);
+        var startTime = new TimeOnly(startHour % 24, 0);
+        var endTime   = new TimeOnly((startHour + durationHours) % 24, 0);
 
         var available = await _bookingService.IsSlotAvailableAsync(courtId, date, startTime, endTime);
         if (!available)

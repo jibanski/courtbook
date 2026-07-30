@@ -61,8 +61,10 @@ public class BundleBookingsController : Controller
         ViewBag.Bundle    = bundle;
         ViewBag.Block     = block;
         ViewBag.Date      = date;
+        // EndHour can be 24 (representing midnight/12am for an overnight block, e.g. 8pm-12am) —
+        // TimeOnly only accepts 0-23, so wrap with % 24 the same way TimeDisplay.Hour does.
         ViewBag.Available = await _bookingService.IsBundleWindowFullyAvailableAsync(
-            bundle, date, new TimeOnly(startHour, 0), new TimeOnly(endHour, 0));
+            bundle, date, new TimeOnly(startHour % 24, 0), new TimeOnly(endHour % 24, 0));
         return View();
     }
 
@@ -99,8 +101,10 @@ public class BundleBookingsController : Controller
             return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
         }
 
-        var start = new TimeOnly(startHour, 0);
-        var end   = new TimeOnly(endHour, 0);
+        // EndHour can be 24 (midnight/12am for an overnight block, e.g. 8pm-12am) — TimeOnly only
+        // accepts 0-23, so wrap with % 24 the same way TimeDisplay.Hour and the GET action above do.
+        var start = new TimeOnly(startHour % 24, 0);
+        var end   = new TimeOnly(endHour % 24, 0);
 
         var memberCourts = bundle.Courts.Select(c => c.Court).ToList();
         if (memberCourts.Any(c => startHour < c.OpeningHour || endHour > c.ClosingHour))
