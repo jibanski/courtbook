@@ -179,7 +179,7 @@
                         <div class="table-responsive mb-4">
                             <table class="table table-sm align-middle">
                                 <thead>
-                                    <tr><th>Days</th><th>Hours</th><th>Type</th><th>Sign-up</th><th>Status</th><th></th></tr>
+                                    <tr><th>Days</th><th>Hours</th><th>Type</th><th>Price/Head</th><th>Sign-up</th><th>Status</th><th></th></tr>
                                 </thead>
                                 <tbody>
                                     @foreach (var b in blocks)
@@ -212,15 +212,37 @@
                                                 }
                                             </td>
                                             <td>
-                                                @if (b.AllowPublicSignup)
+                                                @if (b.Type == BookingType.AdminHostedOpenPlay)
                                                 {
-                                                    <span class="badge" style="background:var(--cb-lime);color:#000;">
-                                                        Max @b.MaxPlayers &bull; ₱@b.PricePerHead?.ToString("N0")/head
-                                                    </span>
+                                                    @if (b.PricePerHead.HasValue)
+                                                    {
+                                                        <text>₱@b.PricePerHead.Value.ToString("N0")/head</text>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">—</span>
+                                                    }
+                                                    @if (b.MaxPlayers.HasValue)
+                                                    {
+                                                        <div class="small text-muted">Max @b.MaxPlayers</div>
+                                                    }
                                                 }
                                                 else
                                                 {
-                                                    <span class="text-muted small">Offline only</span>
+                                                    <span class="text-muted">—</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (b.Type == BookingType.AdminHostedOpenPlay)
+                                                {
+                                                    @if (b.AllowPublicSignup)
+                                                    {
+                                                        <span class="badge" style="background:var(--cb-lime);color:#000;">Public</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted small">Staff only</span>
+                                                    }
                                                 }
                                             </td>
                                             <td>
@@ -233,7 +255,14 @@
                                                     <span class="badge bg-secondary-subtle text-secondary-emphasis">Paused</span>
                                                 }
                                             </td>
-                                            <td class="text-end">
+                                            <td class="text-end text-nowrap">
+                                                @if (b.Type == BookingType.AdminHostedOpenPlay)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" title="Edit pricing"
+                                                            data-bs-toggle="modal" data-bs-target="#editBlockModal-@b.Id">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                }
                                                 <form asp-action="ToggleScheduleBlock" method="post" class="d-inline">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="id" value="@b.Id" />
@@ -254,6 +283,49 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        @foreach (var b in blocks.Where(b => b.Type == BookingType.AdminHostedOpenPlay))
+                        {
+                            <div class="modal fade" id="editBlockModal-@b.Id" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form asp-action="EditScheduleBlockPricing" method="post">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@b.Id" />
+                                            <input type="hidden" name="courtId" value="@court.Id" />
+                                            <div class="modal-header">
+                                                <h6 class="modal-title">Edit Open Play Pricing &mdash; @TimeDisplay.HourRange(b.StartHour, b.EndHour)</h6>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="row g-2">
+                                                    <div class="col-6">
+                                                        <label class="form-label small fw-semibold">₱/Head</label>
+                                                        <input type="number" name="pricePerHead" step="0.01" min="0" class="form-control form-control-sm" value="@b.PricePerHead" />
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <label class="form-label small fw-semibold">Max Players <span class="text-muted fw-normal">(blank = unlimited)</span></label>
+                                                        <input type="number" name="maxPlayers" min="1" class="form-control form-control-sm" value="@b.MaxPlayers" />
+                                                    </div>
+                                                </div>
+                                                <label class="form-check mt-3">
+                                                    <input type="checkbox" class="form-check-input" name="allowPublicSignup" value="true" checked="@b.AllowPublicSignup" />
+                                                    <span class="form-check-label small">Enable public sign-up — customers can reserve a spot directly</span>
+                                                </label>
+                                                <p class="small text-muted mt-2 mb-0">
+                                                    Price/Head applies whether or not public sign-up is enabled — front-desk
+                                                    staff can always register a walk-in into this session at this rate.
+                                                </p>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        }
                     }
                     else
                     {
@@ -314,13 +386,13 @@
                         </div>
                         <div class="col-12" id="publicSignupFields">
                             <div class="border rounded-3 p-3 mt-2" style="background:var(--cb-surface-2);">
-                                <label class="form-check mb-2">
-                                    <input type="checkbox" class="form-check-input" name="allowPublicSignup" value="true" id="allowPublicSignupCheck" />
-                                    <span class="form-check-label small fw-semibold">Enable public sign-up — customers can reserve a spot directly</span>
-                                </label>
+                                <p class="small text-muted mb-2">
+                                    Price/Head and Max Players apply whenever front-desk staff register a walk-in into
+                                    this Open Play session — set them here even if you don't want customers to self-sign-up online.
+                                </p>
                                 <div class="row g-2">
                                     <div class="col-6">
-                                        <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Max Players</label>
+                                        <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Max Players <span class="text-muted fw-normal">(blank = unlimited)</span></label>
                                         <input type="number" name="maxPlayers" min="1" class="form-control form-control-sm" />
                                     </div>
                                     <div class="col-6">
@@ -328,6 +400,10 @@
                                         <input type="number" name="pricePerHead" step="0.01" min="0" class="form-control form-control-sm" />
                                     </div>
                                 </div>
+                                <label class="form-check mt-3 mb-0">
+                                    <input type="checkbox" class="form-check-input" name="allowPublicSignup" value="true" id="allowPublicSignupCheck" />
+                                    <span class="form-check-label small fw-semibold">Enable public sign-up — customers can reserve a spot directly</span>
+                                </label>
                             </div>
                         </div>
                     </form>

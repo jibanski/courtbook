@@ -92,7 +92,7 @@ public class BookingsController : Controller
         {
             CourtId = courtId,
             Court = court,
-            BookingDate = date ?? DateOnly.FromDateTime(DateTime.Today),
+            BookingDate = date ?? PhtClock.Today,
             StartHour = startHour ?? court.OpeningHour,
             DurationHours = (endHour.HasValue && startHour.HasValue) ? endHour.Value - startHour.Value : 1,
             FixedEndHour = endHour
@@ -125,7 +125,7 @@ public class BookingsController : Controller
         }
 
         // Past-date/time guard using Philippine Standard Time (UTC+8)
-        var localNow  = DateTime.UtcNow.AddHours(8);
+        var localNow  = PhtClock.Now;
         var todayPht  = DateOnly.FromDateTime(localNow);
         if (vm.BookingDate < todayPht)
             ModelState.AddModelError("BookingDate", "Cannot book a date in the past.");
@@ -217,6 +217,7 @@ public class BookingsController : Controller
             Status = BookingStatus.Pending,
             PaymentStatus = PaymentStatus.Unpaid,
             GuestAccessToken = isGuest ? Guid.NewGuid() : null,
+            CustomerNameSnapshot = isGuest ? vm.GuestName : null,
             AddOns = addOns
         };
 
@@ -430,7 +431,7 @@ public class BookingsController : Controller
         var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && b.UserId == userId);
         if (booking is null) return NotFound();
 
-        if (booking.BookingDate <= DateOnly.FromDateTime(DateTime.Today))
+        if (booking.BookingDate <= PhtClock.Today)
         {
             TempData["Error"] = "Cannot cancel a past or same-day booking.";
             return RedirectToAction(nameof(My));
@@ -520,7 +521,7 @@ public class BookingsController : Controller
         var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.GuestAccessToken == token);
         if (booking is null) return NotFound();
 
-        if (booking.BookingDate <= DateOnly.FromDateTime(DateTime.Today))
+        if (booking.BookingDate <= PhtClock.Today)
         {
             TempData["Error"] = "Cannot cancel a past or same-day booking.";
             return RedirectToAction(nameof(GuestPay), new { token });
@@ -579,7 +580,7 @@ public class BookingsController : Controller
 
             var baseUrl    = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
             var bookingsUrl = $"{baseUrl}/Admin/Bookings";
-            var bookedAt   = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
+            var bookedAt   = PhtClock.Now.ToString("MMM d, yyyy h:mm tt") + " PHT";
             var customerName  = customer?.FullName ?? "A customer";
             var customerEmail = customer?.Email    ?? "—";
             var dateLabel  = booking.BookingDate.ToString("dddd, MMMM d, yyyy");
@@ -652,7 +653,7 @@ public class BookingsController : Controller
 
             var baseUrl     = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
             var bookingsUrl = $"{baseUrl}/Admin/Bookings";
-            var submittedAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
+            var submittedAt = PhtClock.Now.ToString("MMM d, yyyy h:mm tt") + " PHT";
             var customerName  = customer?.FullName ?? "A customer";
             var dateLabel  = booking.BookingDate.ToString("dddd, MMMM d, yyyy");
             var timeLabel  = $"{booking.StartTime:hh\\:mm tt} – {booking.EndTime:hh\\:mm tt}";

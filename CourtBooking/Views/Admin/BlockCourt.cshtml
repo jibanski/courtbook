@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "Block Court";
     var court = ViewBag.Court as CourtBooking.Models.Court;
-    var today = DateOnly.FromDateTime(DateTime.Today);
+    var today = PhtClock.Today;
     var todayStr = today.ToString("yyyy-MM-dd");
 
     // Split into upcoming / expired blocks for display

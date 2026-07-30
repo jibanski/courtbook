@@ -33,6 +33,17 @@ public class Booking
     [MaxLength(100)]
     public string? FacilityName { get; set; }
 
+    /// <summary>
+    /// Snapshot of the customer's typed name at booking time (guest checkout / staff walk-in only).
+    /// A guest/walk-in shadow <see cref="ApplicationUser"/> is reused across visits by matching email
+    /// or phone, and its FirstName/LastName get overwritten on every reuse — without this snapshot,
+    /// an old booking would silently start displaying whatever name a later, unrelated visit typed
+    /// under the same contact info. Null for a real logged-in customer's own booking, where the
+    /// live <see cref="User"/>.FullName is accurate and safe to show.
+    /// </summary>
+    [MaxLength(200)]
+    public string? CustomerNameSnapshot { get; set; }
+
     [Required]
     public string UserId { get; set; } = string.Empty;
     public ApplicationUser User { get; set; } = null!;

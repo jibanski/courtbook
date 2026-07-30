@@ -1,4 +1,5 @@
 using CourtBooking.Data;
+using CourtBooking.Helpers;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using CourtBooking.ViewModels;
@@ -101,7 +102,7 @@ public class FacilityController : Controller
 
         var selectedDate = date.HasValue
             ? DateOnly.FromDateTime(date.Value)
-            : DateOnly.FromDateTime(DateTime.Today);
+            : PhtClock.Today;
 
         var slots = await _db.CourtTimeSlots
             .Where(s => s.CourtId == courtId && s.IsActive && s.SlotDate == selectedDate)

@@ -87,7 +87,7 @@ public class OpenPlaySignupsController : Controller
             return RedirectToAction(nameof(Create), new { courtId, date, startHour, endHour });
         }
 
-        var localNow = DateTime.UtcNow.AddHours(8);
+        var localNow = PhtClock.Now;
         var todayPht = DateOnly.FromDateTime(localNow);
         if (date < todayPht || (date == todayPht && startHour <= localNow.Hour))
         {
@@ -147,7 +147,8 @@ public class OpenPlaySignupsController : Controller
             PlayerNames          = spotCount > 1 && !string.IsNullOrWhiteSpace(playerNames) ? playerNames.Trim() : null,
             Status               = BookingStatus.Pending,
             PaymentStatus        = PaymentStatus.Unpaid,
-            GuestAccessToken     = isGuest ? Guid.NewGuid() : null
+            GuestAccessToken     = isGuest ? Guid.NewGuid() : null,
+            CustomerNameSnapshot = isGuest ? guestName : null
         };
         _db.OpenPlaySignups.Add(signup);
         await _db.SaveChangesAsync();
@@ -234,7 +235,7 @@ public class OpenPlaySignupsController : Controller
         var signup = await _db.OpenPlaySignups.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
         if (signup is null) return NotFound();
 
-        if (signup.BookingDate <= DateOnly.FromDateTime(DateTime.Today))
+        if (signup.BookingDate <= PhtClock.Today)
         {
             TempData["Error"] = "Cannot cancel a past or same-day sign-up.";
             return RedirectToAction("My", "Bookings");
@@ -319,7 +320,7 @@ public class OpenPlaySignupsController : Controller
         var signup = await _db.OpenPlaySignups.FirstOrDefaultAsync(s => s.GuestAccessToken == token);
         if (signup is null) return NotFound();
 
-        if (signup.BookingDate <= DateOnly.FromDateTime(DateTime.Today))
+        if (signup.BookingDate <= PhtClock.Today)
         {
             TempData["Error"] = "Cannot cancel a past or same-day sign-up.";
             return RedirectToAction(nameof(GuestPay), new { token });

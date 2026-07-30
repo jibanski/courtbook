@@ -16,6 +16,10 @@ public class AdminBookingRow
     public string CourtName { get; set; } = "";
     public string? BundleName { get; set; }
     public int? SpotCount { get; set; }
+
+    /// <summary>Open Play only: free-text names of the other players when SpotCount &gt; 1 — e.g.
+    /// "Juan, Maria, Pedro". Null for a single-spot sign-up or a regular court booking.</summary>
+    public string? PlayerNames { get; set; }
     public DateOnly BookingDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
@@ -27,6 +31,7 @@ public class AdminBookingRow
     public BookingStatus Status { get; set; }
     public PaymentStatus PaymentStatus { get; set; }
     public bool HasPaymentProof { get; set; }
+    public string? PaymentMethod { get; set; }
 
     /// <summary>Name of the Staff account that logged this as a walk-in booking, if any — null for
     /// bookings a customer made themselves online/as a guest.</summary>

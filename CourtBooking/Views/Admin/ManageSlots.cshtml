@@ -12,7 +12,7 @@
     var slotPrices   = ViewBag.SlotPrices as Dictionary<int, decimal> ?? new Dictionary<int, decimal>();
     var prevDate     = selDate.AddDays(-1);
     var nextDate     = selDate.AddDays(1);
-    var today        = DateOnly.FromDateTime(DateTime.Today);
+    var today        = PhtClock.Today;
 
     // Active = custom multi-hour windows; inactive = hour-block markers
     var activeSlots = Model.Where(s => s.IsActive).ToList();

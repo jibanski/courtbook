@@ -1,4 +1,5 @@
 using CourtBooking.Data;
+using CourtBooking.Helpers;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -90,7 +91,7 @@ public class BundleBookingsController : Controller
             return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
         }
 
-        var localNow = DateTime.UtcNow.AddHours(8);
+        var localNow = PhtClock.Now;
         var todayPht = DateOnly.FromDateTime(localNow);
         if (date < todayPht || (date == todayPht && startHour <= localNow.Hour))
         {
@@ -256,7 +257,7 @@ public class BundleBookingsController : Controller
             .ToListAsync();
         if (rows.Count == 0) return NotFound();
 
-        if (rows[0].BookingDate <= DateOnly.FromDateTime(DateTime.Today))
+        if (rows[0].BookingDate <= PhtClock.Today)
         {
             TempData["Error"] = "Cannot cancel a past or same-day booking.";
             return RedirectToAction("My", "Bookings");
@@ -353,7 +354,7 @@ public class BundleBookingsController : Controller
         var rows = await _db.Bookings.Where(b => b.GuestAccessToken == token).ToListAsync();
         if (rows.Count == 0) return NotFound();
 
-        if (rows[0].BookingDate <= DateOnly.FromDateTime(DateTime.Today))
+        if (rows[0].BookingDate <= PhtClock.Today)
         {
             TempData["Error"] = "Cannot cancel a past or same-day booking.";
             return RedirectToAction(nameof(GuestPay), new { token });
