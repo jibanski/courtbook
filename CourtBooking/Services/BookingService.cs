@@ -102,8 +102,8 @@ public class BookingService
 
         return slots
             .Where(slot => bookings.Any(b =>
-                b.StartTime < new TimeOnly(slot.EndHour, 0) &&
-                b.EndTime   > new TimeOnly(slot.StartHour, 0)))
+                b.StartTime < new TimeOnly(slot.EndHour % 24, 0) &&
+                b.EndTime   > new TimeOnly(slot.StartHour % 24, 0)))
             .Select(s => s.Id)
             .ToList();
     }

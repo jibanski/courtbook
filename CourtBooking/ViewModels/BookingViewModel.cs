@@ -34,9 +34,11 @@ public class BookingViewModel
     // and takes precedence over the flat Court.PricePerHour * duration fallback below.
     public decimal? ResolvedSlotTotal { get; set; }
 
-    public TimeOnly StartTime => new TimeOnly(StartHour, 0);
+    // FixedEndHour can be 24 (midnight/end-of-day, e.g. an "8pm-12am" slot) — TimeOnly only
+    // accepts 0-23, so wrap with % 24 the same way TimeDisplay.Hour does.
+    public TimeOnly StartTime => new TimeOnly(StartHour % 24, 0);
     public TimeOnly EndTime   => FixedEndHour.HasValue
-        ? new TimeOnly(FixedEndHour.Value, 0)
+        ? new TimeOnly(FixedEndHour.Value % 24, 0)
         : StartTime.AddHours(DurationHours);
     public decimal TotalPrice => ResolvedSlotTotal
         ?? ((Court?.PricePerHour ?? 0) *

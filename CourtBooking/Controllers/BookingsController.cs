@@ -98,15 +98,31 @@ public class BookingsController : Controller
             FixedEndHour = endHour
         };
 
-        // For a fixed-window (owner-defined slot) booking, resolve the tier-aware total
-        // up front so the confirmation page shows the same price we'll charge on POST.
-        if (vm.IsSlotBooking)
-        {
-            vm.ResolvedSlotTotal = await _bookingService.GetTotalPriceAsync(
-                court, vm.BookingDate, vm.StartTime, vm.EndTime);
-        }
+        // Resolve the tier-aware total up front (for both a fixed owner-defined slot and the
+        // regular hourly-grid default) so the confirmation page shows the same rate/price we'll
+        // charge on POST — the court's flat PricePerHour alone can be wrong for a tiered hour.
+        vm.ResolvedSlotTotal = await _bookingService.GetTotalPriceAsync(
+            court, vm.BookingDate, vm.StartTime, vm.EndTime);
 
         return View(vm);
+    }
+
+    /// <summary>
+    /// Tier-aware price preview for the hourly-grid booking form — re-fetched client-side whenever
+    /// the customer changes the date/start-hour/duration, so the displayed total never falls back
+    /// to the court's flat rate for an hour a <see cref="CourtRateTier"/> overrides.
+    /// </summary>
+    [HttpGet, AllowAnonymous]
+    public async Task<IActionResult> GetSlotPrice(int courtId, DateOnly date, int startHour, int durationHours)
+    {
+        var court = await _db.Courts.FirstOrDefaultAsync(c => c.Id == courtId && c.IsActive);
+        if (court is null) return NotFound();
+        if (durationHours < 1) durationHours = 1;
+
+        var start = new TimeOnly(startHour % 24, 0);
+        var end   = new TimeOnly((startHour + durationHours) % 24, 0);
+        var total = await _bookingService.GetTotalPriceAsync(court, date, start, end);
+        return Json(new { total, perHour = Math.Round(total / durationHours, 2) });
     }
 
     [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]

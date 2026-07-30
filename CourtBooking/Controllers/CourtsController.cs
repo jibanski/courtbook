@@ -152,7 +152,7 @@ public class CourtsController : Controller
             foreach (var s in slots)
             {
                 vm.SlotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
-                    court, selectedDate, new TimeOnly(s.StartHour, 0), new TimeOnly(s.EndHour, 0));
+                    court, selectedDate, new TimeOnly(s.StartHour % 24, 0), new TimeOnly(s.EndHour % 24, 0));
             }
         }
         else
