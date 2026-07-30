@@ -201,8 +201,10 @@ public class AdminController : Controller
         var rangeTo   = to ?? today;
         var rangeFrom = from ?? rangeTo.AddDays(-29);
         if (rangeFrom > rangeTo) (rangeFrom, rangeTo) = (rangeTo, rangeFrom);
-        var rangeFromDt = rangeFrom.ToDateTime(TimeOnly.MinValue).AddHours(-8); // PHT midnight, as a UTC instant
-        var todayDt     = today.ToDateTime(TimeOnly.MinValue).AddHours(-8);    // PHT midnight today, as a UTC instant
+        // DateOnly.ToDateTime() produces Kind=Unspecified, which Npgsql rejects when comparing
+        // against a "timestamp with time zone" column (PaidAt) — must be explicitly Utc.
+        var rangeFromDt = rangeFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8); // PHT midnight, as a UTC instant
+        var todayDt     = today.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);    // PHT midnight today, as a UTC instant
 
         var liveBookings = _db.Bookings.Where(b => courtIds.Contains(b.CourtId));
         var liveSignups  = _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId));
@@ -263,7 +265,7 @@ public class AdminController : Controller
 
         // Payment mix — include legacy paid bookings that have no PaidAt by
         // falling back to BookingDate, matching the 'paidInRange' counter below.
-        var rangeToExclusiveDt = rangeTo.AddDays(1).ToDateTime(TimeOnly.MinValue).AddHours(-8);
+        var rangeToExclusiveDt = rangeTo.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);
         var methodRows = await combined
             .Where(x => x.PaymentStatus == PaymentStatus.Paid
                         && ((x.PaidAt != null && x.PaidAt >= rangeFromDt && x.PaidAt < rangeToExclusiveDt)
