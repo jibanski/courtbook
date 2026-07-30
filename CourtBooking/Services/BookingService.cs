@@ -1,5 +1,7 @@
 using CourtBooking.Data;
+using CourtBooking.Helpers;
 using CourtBooking.Models;
+using CourtBooking.ViewModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -59,7 +61,7 @@ public class BookingService
     public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end)
     {
         // Reject past slots (Philippine Standard Time = UTC+8)
-        var localNow = DateTime.UtcNow.AddHours(8);
+        var localNow = PhtClock.Now;
         var today    = DateOnly.FromDateTime(localNow);
         if (date < today) return false;
         if (date == today && start.Hour <= localNow.Hour) return false;
@@ -327,13 +329,28 @@ public class BookingService
         return Math.Max(0, block.MaxPlayers.Value - taken);
     }
 
+    /// <summary>
+    /// Spots left for a STAFF-initiated walk-in registration into an Open Play session. Unlike
+    /// <see cref="GetOpenPlaySpotsRemainingAsync"/>, this ignores <see cref="CourtScheduleBlock.AllowPublicSignup"/> —
+    /// front-desk staff can register a walk-in into any Admin-Hosted Open Play block regardless of
+    /// whether online self-signup is enabled for customers. Returns null when the block has no
+    /// configured <see cref="CourtScheduleBlock.MaxPlayers"/> cap — treat that as unlimited capacity.
+    /// </summary>
+    public async Task<int?> GetOpenPlaySpotsRemainingForStaffAsync(CourtScheduleBlock block, int courtId, DateOnly date)
+    {
+        if (!block.MaxPlayers.HasValue) return null;
+        var taken = (await GetOpenPlaySignupsAsync(courtId, date, block.StartHour, block.EndHour)).Sum(s => s.SpotCount);
+        return Math.Max(0, block.MaxPlayers.Value - taken);
+    }
+
     // ── Staff walk-in cash bookings ─────────────────────────────────────────────
 
-    /// <summary>Cash bookings logged by staff for these courts — optionally filtered to one staff
-    /// member and/or a date range. Used by both the staff's own cash log and the owner's reconciliation view.</summary>
-    public async Task<List<Booking>> GetCashLogAsync(List<int> courtIds, string? staffId, DateOnly? from, DateOnly? to)
+    /// <summary>Cash walk-ins logged by staff for these courts — both regular court bookings and
+    /// Open Play sign-ups, merged into one list — optionally filtered to one staff member and/or a
+    /// date range. Used by both the staff's own cash log and the owner's reconciliation view.</summary>
+    public async Task<List<CashLogRow>> GetCashLogAsync(List<int> courtIds, string? staffId, DateOnly? from, DateOnly? to)
     {
-        var query = _db.Bookings
+        var bookingQuery = _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId) && b.PaymentMethod == "Cash"
                      && b.LoggedByStaffId != null && b.Status != BookingStatus.Cancelled)
             .Include(b => b.Court)
@@ -341,10 +358,72 @@ public class BookingService
             .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
             .AsQueryable();
 
-        if (staffId != null) query = query.Where(b => b.LoggedByStaffId == staffId);
-        if (from.HasValue)   query = query.Where(b => b.BookingDate >= from.Value);
-        if (to.HasValue)     query = query.Where(b => b.BookingDate <= to.Value);
+        var signupQuery = _db.OpenPlaySignups
+            .Where(s => courtIds.Contains(s.CourtId) && s.PaymentMethod == "Cash"
+                     && s.LoggedByStaffId != null && s.Status != BookingStatus.Cancelled)
+            .Include(s => s.Court)
+            .Include(s => s.User)
+            .AsQueryable();
 
-        return await query.OrderByDescending(b => b.BookingDate).ThenBy(b => b.StartTime).ToListAsync();
+        if (staffId != null)
+        {
+            bookingQuery = bookingQuery.Where(b => b.LoggedByStaffId == staffId);
+            signupQuery  = signupQuery.Where(s => s.LoggedByStaffId == staffId);
+        }
+        if (from.HasValue)
+        {
+            bookingQuery = bookingQuery.Where(b => b.BookingDate >= from.Value);
+            signupQuery  = signupQuery.Where(s => s.BookingDate >= from.Value);
+        }
+        if (to.HasValue)
+        {
+            bookingQuery = bookingQuery.Where(b => b.BookingDate <= to.Value);
+            signupQuery  = signupQuery.Where(s => s.BookingDate <= to.Value);
+        }
+
+        var bookings = await bookingQuery.ToListAsync();
+        var signups  = await signupQuery.ToListAsync();
+
+        var rows = bookings.Select(b =>
+        {
+            var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+            return new CashLogRow
+            {
+                Id              = b.Id,
+                IsOpenPlay      = false,
+                BookingDate     = b.BookingDate,
+                StartTime       = b.StartTime,
+                EndTime         = b.EndTime,
+                CourtName       = b.Court.Name,
+                CustomerName    = b.CustomerNameSnapshot ?? b.User.FullName,
+                CourtRental     = b.TotalPrice - addOnsTotal,
+                AddOnsTotal     = addOnsTotal,
+                AddOnsSummary   = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
+                TotalPrice      = b.TotalPrice,
+                LoggedByStaffId = b.LoggedByStaffId,
+                CreatedAt       = b.CreatedAt
+            };
+        }).ToList();
+
+        rows.AddRange(signups.Select(s => new CashLogRow
+        {
+            Id              = s.Id,
+            IsOpenPlay      = true,
+            BookingDate     = s.BookingDate,
+            StartTime       = new TimeOnly(s.StartHour % 24, 0),
+            EndTime         = new TimeOnly(s.EndHour % 24, 0),
+            CourtName       = s.Court.Name,
+            CustomerName    = s.CustomerNameSnapshot ?? s.User.FullName,
+            SpotCount       = s.SpotCount,
+            PlayerNames     = s.PlayerNames,
+            CourtRental     = s.TotalPrice,
+            AddOnsTotal     = 0,
+            AddOnsSummary   = null,
+            TotalPrice      = s.TotalPrice,
+            LoggedByStaffId = s.LoggedByStaffId,
+            CreatedAt       = s.CreatedAt
+        }));
+
+        return rows.OrderByDescending(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();
     }
 }

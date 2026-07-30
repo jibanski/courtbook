@@ -644,6 +644,35 @@ using (var scope = app.Services.CreateScope())
     }
     catch { /* column already exists or db not ready — non-fatal */ }
 
+    // ── Staff-logged Open Play walk-in sign-ups ──────────────────────────────────
+    try
+    {
+        if (isPostgres)
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"OpenPlaySignups\" ADD COLUMN IF NOT EXISTS \"LoggedByStaffId\" character varying(450) NULL");
+        else
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"OpenPlaySignups\" ADD COLUMN \"LoggedByStaffId\" TEXT NULL"); } catch { }
+    }
+    catch { /* column already exists or db not ready — non-fatal */ }
+
+    // ── Snapshot the customer's typed name at booking time (guest/walk-in reuse fix) ──
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"CustomerNameSnapshot\" character varying(200) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"OpenPlaySignups\" ADD COLUMN IF NOT EXISTS \"CustomerNameSnapshot\" character varying(200) NULL");
+        }
+        else
+        {
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"CustomerNameSnapshot\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"OpenPlaySignups\" ADD COLUMN \"CustomerNameSnapshot\" TEXT NULL"); } catch { }
+        }
+    }
+    catch { /* column already exists or db not ready — non-fatal */ }
+
     foreach (var role in new[] { "Admin", "Customer", "Staff" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));

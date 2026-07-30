@@ -49,7 +49,8 @@ public class AdminController : Controller
         var courtIds = await GetMyCourtIdsAsync();
 
         var totalBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status != BookingStatus.Cancelled);
-        var todayBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == DateOnly.FromDateTime(DateTime.Today) && b.Status != BookingStatus.Cancelled);
+        var todayBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == PhtClock.Today && b.Status != BookingStatus.Cancelled)
+                            + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == PhtClock.Today && s.Status != BookingStatus.Cancelled);
         var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
         var activeCourts    = await MyCourts.CountAsync(c => c.IsActive);
         var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
@@ -88,15 +89,85 @@ public class AdminController : Controller
         ViewBag.SetupDoneCount    = steps.Count(s => s.Done);
         ViewBag.SetupTotalCount   = steps.Length;
 
-        var recentBookings = await _db.Bookings
+        var recentBookingsRaw = await _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId))
-            .Include(b => b.Court)
-            .Include(b => b.User)
+            .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle)
+            .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
             .OrderByDescending(b => b.CreatedAt)
             .Take(10)
             .ToListAsync();
+        var recentSignupsRaw = await _db.OpenPlaySignups
+            .Where(sg => courtIds.Contains(sg.CourtId))
+            .Include(sg => sg.Court).Include(sg => sg.User)
+            .OrderByDescending(sg => sg.CreatedAt)
+            .Take(10)
+            .ToListAsync();
+        var recentRows = (await BuildAdminBookingRowsAsync(recentBookingsRaw, recentSignupsRaw))
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(10)
+            .ToList();
 
-        return View(recentBookings);
+        return View(recentRows);
+    }
+
+    /// <summary>
+    /// Merges regular/bundle bookings and Open Play sign-ups into one unified row list —
+    /// shared by the dashboard's "Recent Bookings" widget and the "All Bookings" page so
+    /// Open Play never silently disappears from either view.
+    /// </summary>
+    private async Task<List<AdminBookingRow>> BuildAdminBookingRowsAsync(List<Booking> bookings, List<OpenPlaySignup> signups)
+    {
+        var staffIds = bookings.Where(b => b.LoggedByStaffId != null).Select(b => b.LoggedByStaffId!)
+            .Concat(signups.Where(sg => sg.LoggedByStaffId != null).Select(sg => sg.LoggedByStaffId!))
+            .Distinct().ToList();
+        var staffNames = await _db.Users.Where(u => staffIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName);
+
+        var rows = bookings.Select(b => new AdminBookingRow
+        {
+            Id = b.Id,
+            IsOpenPlay = false,
+            CustomerName = b.CustomerNameSnapshot ?? b.User.FullName,
+            CustomerPhone = b.User.PhoneNumber,
+            IsGuest = b.User.IsGuest,
+            CourtName = b.Court.Name,
+            BundleName = b.CourtBundle?.Name,
+            BookingDate = b.BookingDate,
+            StartTime = b.StartTime,
+            EndTime = b.EndTime,
+            CreatedAt = b.CreatedAt,
+            TotalPrice = b.TotalPrice,
+            Status = b.Status,
+            PaymentStatus = b.PaymentStatus,
+            HasPaymentProof = b.HasPaymentProof,
+            PaymentMethod = b.PaymentMethod,
+            BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
+            AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
+            AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null
+        }).ToList();
+
+        rows.AddRange(signups.Select(sg => new AdminBookingRow
+        {
+            Id = sg.Id,
+            IsOpenPlay = true,
+            CustomerName = sg.CustomerNameSnapshot ?? sg.User.FullName,
+            CustomerPhone = sg.User.PhoneNumber,
+            IsGuest = sg.User.IsGuest,
+            CourtName = sg.Court.Name,
+            SpotCount = sg.SpotCount,
+            PlayerNames = sg.PlayerNames,
+            BookingDate = sg.BookingDate,
+            StartTime = new TimeOnly(sg.StartHour % 24, 0),
+            EndTime = new TimeOnly(sg.EndHour % 24, 0),
+            CreatedAt = sg.CreatedAt,
+            TotalPrice = sg.TotalPrice,
+            Status = sg.Status,
+            PaymentStatus = sg.PaymentStatus,
+            HasPaymentProof = sg.HasPaymentProof,
+            PaymentMethod = sg.PaymentMethod,
+            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
+        }));
+
+        return rows;
     }
 
     // ── Real-time analytics ───────────────────────────────────────────────────
@@ -105,21 +176,33 @@ public class AdminController : Controller
     public async Task<IActionResult> Analytics()
     {
         ViewBag.FacilitySettings = await GetMySettingsAsync();
+        ViewBag.Courts    = await MyCourts.OrderBy(c => c.Name).ToListAsync();
+        var today = PhtClock.Today;
+        ViewBag.DefaultFrom = today.AddDays(-29).ToString("yyyy-MM-dd");
+        ViewBag.DefaultTo   = today.ToString("yyyy-MM-dd");
         return View();
     }
 
     /// <summary>
     /// JSON endpoint backing /admin/analytics. Auto-refreshed every 10s by the page.
-    /// Returns counters, last-30-day revenue series, payment-method breakdown, conversion.
+    /// Returns counters, revenue series/payment-method breakdown/conversion for the selected
+    /// court + date range (defaults to all courts, last 30 days, when omitted) — the range/court
+    /// filter lets the owner narrow in on a specific period or court to trace a discrepancy.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> AnalyticsData()
+    public async Task<IActionResult> AnalyticsData(int? courtId, DateOnly? from, DateOnly? to)
     {
-        var courtIds = await GetMyCourtIdsAsync();
-        var today    = DateOnly.FromDateTime(DateTime.Today);
-        var since30  = today.AddDays(-29);
-        var since30Dt = DateTime.UtcNow.AddDays(-30);
-        var todayDt  = DateTime.UtcNow.Date;
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var courtIds = courtId.HasValue && myCourtIds.Contains(courtId.Value)
+            ? new List<int> { courtId.Value }
+            : myCourtIds;
+
+        var today = PhtClock.Today;
+        var rangeTo   = to ?? today;
+        var rangeFrom = from ?? rangeTo.AddDays(-29);
+        if (rangeFrom > rangeTo) (rangeFrom, rangeTo) = (rangeTo, rangeFrom);
+        var rangeFromDt = rangeFrom.ToDateTime(TimeOnly.MinValue).AddHours(-8); // PHT midnight, as a UTC instant
+        var todayDt     = today.ToDateTime(TimeOnly.MinValue).AddHours(-8);    // PHT midnight today, as a UTC instant
 
         var liveBookings = _db.Bookings.Where(b => courtIds.Contains(b.CourtId));
         var liveSignups  = _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId));
@@ -160,14 +243,14 @@ public class AdminController : Controller
         var courtRentalRevenue = totalRevenue - addOnsRevenue;
 
         var revenueRows = await combined
-            .Where(x => x.BookingDate >= since30
+            .Where(x => x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo
                         && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
             .GroupBy(x => x.BookingDate)
             .Select(g => new { Day = g.Key, Revenue = g.Sum(x => x.TotalPrice), Count = g.Count() })
             .ToListAsync();
 
         var revenueByDay = new List<object>();
-        for (var d = since30; d <= today; d = d.AddDays(1))
+        for (var d = rangeFrom; d <= rangeTo; d = d.AddDays(1))
         {
             var row = revenueRows.FirstOrDefault(r => r.Day == d);
             revenueByDay.Add(new
@@ -179,24 +262,27 @@ public class AdminController : Controller
         }
 
         // Payment mix — include legacy paid bookings that have no PaidAt by
-        // falling back to BookingDate, matching the 'paid30' counter below.
+        // falling back to BookingDate, matching the 'paidInRange' counter below.
+        var rangeToExclusiveDt = rangeTo.AddDays(1).ToDateTime(TimeOnly.MinValue).AddHours(-8);
         var methodRows = await combined
             .Where(x => x.PaymentStatus == PaymentStatus.Paid
-                        && ((x.PaidAt != null && x.PaidAt >= since30Dt)
-                            || (x.PaidAt == null && x.BookingDate >= since30)))
+                        && ((x.PaidAt != null && x.PaidAt >= rangeFromDt && x.PaidAt < rangeToExclusiveDt)
+                            || (x.PaidAt == null && x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo)))
             .GroupBy(x => x.PaymentMethod ?? "Unknown")
             .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(x => x.TotalPrice) })
             .ToListAsync();
 
-        var bookings30 = await combined
-            .CountAsync(x => x.BookingDate >= since30 && x.Status != BookingStatus.Cancelled);
-        var paid30 = await combined
-            .CountAsync(x => x.BookingDate >= since30 && x.PaymentStatus == PaymentStatus.Paid);
-        var conversion = bookings30 > 0 ? Math.Round(paid30 * 100.0 / bookings30, 1) : 0.0;
+        var bookingsInRange = await combined
+            .CountAsync(x => x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo && x.Status != BookingStatus.Cancelled);
+        var paidInRange = await combined
+            .CountAsync(x => x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo && x.PaymentStatus == PaymentStatus.Paid);
+        var conversion = bookingsInRange > 0 ? Math.Round(paidInRange * 100.0 / bookingsInRange, 1) : 0.0;
 
         return Json(new
         {
             generatedAt = DateTime.UtcNow,
+            rangeFrom = rangeFrom.ToString("yyyy-MM-dd"),
+            rangeTo   = rangeTo.ToString("yyyy-MM-dd"),
             counters = new
             {
                 totalBookings,
@@ -205,9 +291,9 @@ public class AdminController : Controller
                 totalRevenue,
                 awaitingPayment,
                 pendingNoProof,
-                conversionPct  = conversion,
-                paidLast30     = paid30,
-                bookingsLast30 = bookings30,
+                conversionPct    = conversion,
+                paidInRange,
+                bookingsInRange,
                 courtRentalRevenue,
                 addOnsRevenue
             },
@@ -245,31 +331,6 @@ public class AdminController : Controller
         // so the owner has one consolidated view of everything booked on their courts.
         if (awaitingConfirmation != true)
         {
-            var staffIds = bookings.Where(b => b.LoggedByStaffId != null).Select(b => b.LoggedByStaffId!).Distinct().ToList();
-            var staffNames = await _db.Users.Where(u => staffIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName);
-
-            var rows = bookings.Select(b => new AdminBookingRow
-            {
-                Id = b.Id,
-                IsOpenPlay = false,
-                CustomerName = b.User.FullName,
-                CustomerPhone = b.User.PhoneNumber,
-                IsGuest = b.User.IsGuest,
-                CourtName = b.Court.Name,
-                BundleName = b.CourtBundle?.Name,
-                BookingDate = b.BookingDate,
-                StartTime = b.StartTime,
-                EndTime = b.EndTime,
-                CreatedAt = b.CreatedAt,
-                TotalPrice = b.TotalPrice,
-                Status = b.Status,
-                PaymentStatus = b.PaymentStatus,
-                HasPaymentProof = b.HasPaymentProof,
-                BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
-                AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
-                AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null
-            }).ToList();
-
             var signupQuery = _db.OpenPlaySignups
                 .Where(sg => courtIds.Contains(sg.CourtId))
                 .Include(sg => sg.Court).Include(sg => sg.User).AsQueryable();
@@ -280,24 +341,8 @@ public class AdminController : Controller
                 signupQuery = signupQuery.Where(sg => sg.BookingDate == date.Value);
 
             var signups = await signupQuery.ToListAsync();
-            rows.AddRange(signups.Select(sg => new AdminBookingRow
-            {
-                Id = sg.Id,
-                IsOpenPlay = true,
-                CustomerName = sg.User.FullName,
-                CustomerPhone = sg.User.PhoneNumber,
-                IsGuest = sg.User.IsGuest,
-                CourtName = sg.Court.Name,
-                SpotCount = sg.SpotCount,
-                BookingDate = sg.BookingDate,
-                StartTime = new TimeOnly(sg.StartHour % 24, 0),
-                EndTime = new TimeOnly(sg.EndHour % 24, 0),
-                CreatedAt = sg.CreatedAt,
-                TotalPrice = sg.TotalPrice,
-                Status = sg.Status,
-                PaymentStatus = sg.PaymentStatus,
-                HasPaymentProof = sg.HasPaymentProof
-            }));
+
+            var rows = await BuildAdminBookingRowsAsync(bookings, signups);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -496,7 +541,7 @@ public class AdminController : Controller
         var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == id);
         if (court is null) return NotFound();
 
-        var selectedDate = date ?? DateOnly.FromDateTime(DateTime.Today);
+        var selectedDate = date ?? PhtClock.Today;
         var slots = await _db.CourtTimeSlots
             .Where(s => s.CourtId == id && s.SlotDate == selectedDate)
             .OrderBy(s => s.StartHour)
@@ -885,8 +930,10 @@ public class AdminController : Controller
             return RedirectToAction(nameof(Schedule), new { id = courtId });
         }
 
-        // Public sign-up only makes sense for Admin-Hosted Open Play, and needs both a capacity and a price.
-        if (type != BookingType.AdminHostedOpenPlay) allowPublicSignup = false;
+        // Price/Head and Max Players are captured for any Admin-Hosted Open Play block (front-desk
+        // staff can charge and cap walk-in registrations there regardless of public sign-up) — but
+        // public online sign-up specifically still needs both a capacity and a price to turn on.
+        if (type != BookingType.AdminHostedOpenPlay) { allowPublicSignup = false; maxPlayers = null; pricePerHead = null; }
         if (allowPublicSignup && (!maxPlayers.HasValue || maxPlayers.Value < 1 || !pricePerHead.HasValue || pricePerHead.Value < 0))
         {
             TempData["Error"] = "To enable public sign-up, set a Max Players (at least 1) and a Price/Head.";
@@ -912,13 +959,41 @@ public class AdminController : Controller
             EndHour           = endHour,
             Type              = type,
             AllowPublicSignup = allowPublicSignup,
-            MaxPlayers        = allowPublicSignup ? maxPlayers : null,
-            PricePerHead      = allowPublicSignup ? pricePerHead : null
+            MaxPlayers        = maxPlayers,
+            PricePerHead      = pricePerHead
         });
         await _db.SaveChangesAsync();
         TempData["Success"] = OutOfHoursWarning(court, startHour, endHour) is { } warn
             ? $"Schedule block added. {warn}"
             : "Schedule block added.";
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    /// <summary>Lets an owner update an Admin-Hosted Open Play block's per-head price, capacity, and
+    /// public sign-up toggle without deleting and re-adding the whole recurring schedule block.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditScheduleBlockPricing(int id, int courtId, decimal? pricePerHead, int? maxPlayers, bool allowPublicSignup = false)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
+        if (block is null) return NotFound();
+
+        if (block.Type != BookingType.AdminHostedOpenPlay)
+        {
+            TempData["Error"] = "Only Admin-Hosted Open Play blocks have a per-head price.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+        if (allowPublicSignup && (!maxPlayers.HasValue || maxPlayers.Value < 1 || !pricePerHead.HasValue || pricePerHead.Value < 0))
+        {
+            TempData["Error"] = "To enable public sign-up, set a Max Players (at least 1) and a Price/Head.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        block.PricePerHead      = pricePerHead;
+        block.MaxPlayers        = maxPlayers;
+        block.AllowPublicSignup = allowPublicSignup;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = "Open Play pricing updated.";
         return RedirectToAction(nameof(Schedule), new { id = courtId });
     }
 
@@ -1798,7 +1873,7 @@ public class AdminController : Controller
                 Csv(b.StartTime.ToString("HH:mm")),
                 Csv(b.EndTime.ToString("HH:mm")),
                 Csv(b.Court.Name),
-                Csv(b.User.FullName),
+                Csv(b.CustomerNameSnapshot ?? b.User.FullName),
                 Csv(b.User.PhoneNumber),
                 Csv(courtRental.ToString("F2")),
                 Csv(addOnsSummary),

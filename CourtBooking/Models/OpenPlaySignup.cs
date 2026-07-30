@@ -20,6 +20,11 @@ public class OpenPlaySignup
     [MaxLength(100)]
     public string? FacilityName { get; set; }
 
+    /// <summary>Snapshot of the customer's typed name at sign-up time — same reasoning and pattern as
+    /// <see cref="Booking.CustomerNameSnapshot"/>.</summary>
+    [MaxLength(200)]
+    public string? CustomerNameSnapshot { get; set; }
+
     [Required]
     public string UserId { get; set; } = string.Empty;
     public ApplicationUser User { get; set; } = null!;
@@ -72,4 +77,8 @@ public class OpenPlaySignup
     /// still be treated as "submitted, awaiting confirmation".
     /// </summary>
     public bool HasPaymentProof => !string.IsNullOrEmpty(PaymentProofPath);
+
+    /// <summary>The Staff account that logged this as a walk-in Open Play sign-up, if any —
+    /// null for sign-ups a customer made themselves online/as a guest.</summary>
+    public string? LoggedByStaffId { get; set; }
 }

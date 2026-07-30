@@ -150,7 +150,7 @@
                                                 <span class="fw-bold text-success">₱@groupTotal.ToString("N0")</span>
                                             </div>
                                             <div class="mb-2 small">
-                                                <div><i class="bi bi-person me-1 text-muted"></i><strong>@groupFirst.User.FullName</strong> (@groupFirst.User.Email)
+                                                <div><i class="bi bi-person me-1 text-muted"></i><strong>@(groupFirst.CustomerNameSnapshot ?? groupFirst.User.FullName)</strong> (@groupFirst.User.Email)
                                                     @if (groupFirst.User.IsGuest) { <span class="badge bg-secondary ms-1">Guest</span> }
                                                 </div>
                                                 <div><i class="bi bi-buildings me-1 text-muted"></i>@groupCourtNames</div>
@@ -216,7 +216,7 @@
                                             <span class="fw-bold text-success">₱@b.TotalPrice.ToString("N0")</span>
                                         </div>
                                         <div class="mb-2 small">
-                                            <div><i class="bi bi-person me-1 text-muted"></i><strong>@b.User.FullName</strong> (@b.User.Email)
+                                            <div><i class="bi bi-person me-1 text-muted"></i><strong>@(b.CustomerNameSnapshot ?? b.User.FullName)</strong> (@b.User.Email)
                                                 @if (b.User.IsGuest) { <span class="badge bg-secondary ms-1">Guest</span> }
                                             </div>
                                             <div><i class="bi bi-buildings me-1 text-muted"></i>@b.Court.Name — @b.Court.SportType</div>
@@ -312,6 +312,10 @@
                                             @if (b.IsGuest) { <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Guest</span> }
                                         </div>
                                         <small class="text-muted">@b.CustomerPhone</small>
+                                        @if (b.PlayerNames is not null)
+                                        {
+                                            <div class="small text-muted">with @b.PlayerNames</div>
+                                        }
                                     </td>
                                     <td>
                                         @b.CourtName

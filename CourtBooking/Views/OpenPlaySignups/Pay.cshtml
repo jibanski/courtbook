@@ -183,7 +183,7 @@
 
             @if (isGuest)
             {
-                @if (!isConfirmed && Model.BookingDate > DateOnly.FromDateTime(DateTime.Today))
+                @if (!isConfirmed && Model.BookingDate > PhtClock.Today)
                 {
                     <form asp-action="GuestCancel" method="post" onsubmit="return confirm('Cancel this sign-up?')" class="mb-3">
                         @Html.AntiForgeryToken()

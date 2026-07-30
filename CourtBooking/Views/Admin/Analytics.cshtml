@@ -1,6 +1,9 @@
 @{
     ViewData["Title"] = "Analytics";
     var settings = ViewBag.FacilitySettings as CourtBooking.Models.FacilitySettings;
+    var courts   = ViewBag.Courts as List<CourtBooking.Models.Court> ?? new List<CourtBooking.Models.Court>();
+    var defaultFrom = ViewBag.DefaultFrom as string;
+    var defaultTo   = ViewBag.DefaultTo as string;
 }
 
 <div class="cb-page-header">
@@ -26,6 +29,36 @@
 
 <div class="container">
 
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form id="analytics-filter-form" class="row g-2 align-items-end" onsubmit="return false;">
+                <div class="col-sm-4 col-md-3">
+                    <label class="form-label small fw-semibold">Court</label>
+                    <select id="f-court" class="form-select form-select-sm">
+                        <option value="">All Courts</option>
+                        @foreach (var c in courts)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-4 col-md-3">
+                    <label class="form-label small fw-semibold">From</label>
+                    <input type="date" id="f-from" class="form-control form-control-sm" value="@defaultFrom" />
+                </div>
+                <div class="col-sm-4 col-md-3">
+                    <label class="form-label small fw-semibold">To</label>
+                    <input type="date" id="f-to" class="form-control form-control-sm" value="@defaultTo" />
+                </div>
+                <div class="col-sm-12 col-md-3">
+                    <button type="button" id="f-apply" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-funnel me-1"></i>Apply Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
             <div class="card shadow-sm h-100"><div class="card-body">
@@ -50,7 +83,7 @@
         </div>
         <div class="col-6 col-md-3">
             <div class="card shadow-sm h-100"><div class="card-body">
-                <div class="text-muted small text-uppercase">Conversion (30d)</div>
+                <div class="text-muted small text-uppercase">Conversion <span id="lbl-conversion-range"></span></div>
                 <div class="fs-3 fw-bold" id="m-conversion">—</div>
                 <div class="small text-muted"><span id="m-paid30">0</span> paid / <span id="m-bookings30">0</span> total</div>
             </div></div>
@@ -61,7 +94,7 @@
         <div class="col-lg-8">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
-                    <i class="bi bi-bar-chart-line me-2 text-primary"></i>Revenue — Last 30 Days
+                    <i class="bi bi-bar-chart-line me-2 text-primary"></i>Revenue <span id="lbl-revenue-range">— Last 30 Days</span>
                 </div>
                 <div class="card-body">
                     <canvas id="revenueChart" height="120"></canvas>
@@ -71,7 +104,7 @@
         <div class="col-lg-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
-                    <i class="bi bi-pie-chart-fill me-2 text-success"></i>Payment Methods (30d)
+                    <i class="bi bi-pie-chart-fill me-2 text-success"></i>Payment Methods <span id="lbl-methods-range">(30d)</span>
                 </div>
                 <div class="card-body">
                     <canvas id="methodChart" height="200"></canvas>
@@ -108,7 +141,7 @@
         <div class="col-md-6">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
-                    <i class="bi bi-list-check me-2"></i>Payment Mix (30d)
+                    <i class="bi bi-list-check me-2"></i>Payment Mix <span id="lbl-mix-range">(30d)</span>
                 </div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0">
@@ -165,18 +198,36 @@
             });
         }
 
+        function currentFilters() {
+            const courtId = document.getElementById('f-court').value;
+            const from    = document.getElementById('f-from').value;
+            const to      = document.getElementById('f-to').value;
+            const params  = new URLSearchParams();
+            if (courtId) params.set('courtId', courtId);
+            if (from)    params.set('from', from);
+            if (to)      params.set('to', to);
+            return params.toString();
+        }
+
         async function refresh() {
             try {
-                const res = await fetch('@Url.Action("AnalyticsData", "Admin")', { credentials: 'same-origin' });
+                const qs  = currentFilters();
+                const res = await fetch('@Url.Action("AnalyticsData", "Admin")' + (qs ? '?' + qs : ''), { credentials: 'same-origin' });
                 if (!res.ok) throw new Error(res.status);
                 const d = await res.json();
+
+                const rangeLabel = `(${d.rangeFrom} to ${d.rangeTo})`;
+                document.getElementById('lbl-revenue-range').textContent  = `— ${rangeLabel}`;
+                document.getElementById('lbl-methods-range').textContent  = rangeLabel;
+                document.getElementById('lbl-mix-range').textContent      = rangeLabel;
+                document.getElementById('lbl-conversion-range').textContent = rangeLabel;
 
                 document.getElementById('m-todayBookings').textContent  = d.counters.todayBookings;
                 document.getElementById('m-todayRevenue').textContent   = peso(d.counters.todayRevenue);
                 document.getElementById('m-awaiting').textContent       = d.counters.awaitingPayment;
                 document.getElementById('m-conversion').textContent     = d.counters.conversionPct + '%';
-                document.getElementById('m-paid30').textContent         = d.counters.paidLast30;
-                document.getElementById('m-bookings30').textContent     = d.counters.bookingsLast30;
+                document.getElementById('m-paid30').textContent         = d.counters.paidInRange;
+                document.getElementById('m-bookings30').textContent     = d.counters.bookingsInRange;
                 document.getElementById('m-totalBookings').textContent  = d.counters.totalBookings;
                 document.getElementById('m-totalRevenue').textContent   = peso(d.counters.totalRevenue);
                 document.getElementById('m-courtRentalRevenue').textContent = peso(d.counters.courtRentalRevenue);
@@ -216,6 +267,7 @@
             initCharts();
             refresh();
             setInterval(refresh, 10000);
+            document.getElementById('f-apply').addEventListener('click', refresh);
         });
     </script>
 }

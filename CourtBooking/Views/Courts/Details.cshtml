@@ -89,8 +89,8 @@
                         <div class="input-group">
                             <input type="date" name="date" class="form-control"
                                    value="@Model.Date.ToString("yyyy-MM-dd")"
-                                   min="@DateTime.Today.ToString("yyyy-MM-dd")"
-                                   max="@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")" />
+                                   min="@PhtClock.Today.ToString("yyyy-MM-dd")"
+                                   max="@PhtClock.Today.AddDays(30).ToString("yyyy-MM-dd")" />
                             <button type="submit" class="btn btn-primary">Go</button>
                         </div>
                     </form>

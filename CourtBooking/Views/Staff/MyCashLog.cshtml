@@ -1,4 +1,4 @@
-@model List<CourtBooking.Models.Booking>
+@model List<CourtBooking.ViewModels.CashLogRow>
 @{
     ViewData["Title"] = "My Cash Log";
     DateOnly? from = ViewBag.From;
@@ -59,17 +59,29 @@
                         <tbody>
                             @foreach (var b in day.OrderBy(b => b.StartTime))
                             {
-                                var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
-                                var courtRental = b.TotalPrice - addOnsTotal;
                                 <tr>
                                     <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
-                                    <td>@b.Court?.Name</td>
-                                    <td>@b.User?.FullName</td>
-                                    <td>₱@courtRental.ToString("N0")</td>
                                     <td>
-                                        @if (b.AddOns.Any())
+                                        @b.CourtName
+                                        @if (b.IsOpenPlay)
                                         {
-                                            <span title="@string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}"))">₱@addOnsTotal.ToString("N0")</span>
+                                            <span class="badge bg-primary-subtle text-primary-emphasis ms-1" style="font-size:.65rem;">
+                                                <i class="bi bi-people"></i> Open Play &middot; @b.SpotCount spot@(b.SpotCount != 1 ? "s" : "")
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @b.CustomerName
+                                        @if (b.PlayerNames is not null)
+                                        {
+                                            <div class="small text-muted">with @b.PlayerNames</div>
+                                        }
+                                    </td>
+                                    <td>₱@b.CourtRental.ToString("N0")</td>
+                                    <td>
+                                        @if (b.AddOnsSummary is not null)
+                                        {
+                                            <span title="@b.AddOnsSummary">₱@b.AddOnsTotal.ToString("N0")</span>
                                         }
                                         else
                                         {

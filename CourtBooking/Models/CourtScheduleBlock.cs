@@ -34,10 +34,12 @@ public class CourtScheduleBlock
     /// <summary>When true, customers can reserve a spot in this Open Play session directly through CourtBook.</summary>
     public bool AllowPublicSignup { get; set; }
 
-    /// <summary>Capacity for the session — only meaningful when <see cref="AllowPublicSignup"/> is true.</summary>
+    /// <summary>Capacity for the session — used to cap both public sign-ups and staff-registered walk-ins.
+    /// Null means no configured cap (unlimited headcount).</summary>
     public int? MaxPlayers { get; set; }
 
-    /// <summary>Price per reserved spot — only meaningful when <see cref="AllowPublicSignup"/> is true.</summary>
+    /// <summary>Price per head for this session — used for public sign-ups (when enabled) and for
+    /// front-desk staff registering a walk-in, regardless of <see cref="AllowPublicSignup"/>.</summary>
     [Range(0, 100000)]
     public decimal? PricePerHead { get; set; }
 }

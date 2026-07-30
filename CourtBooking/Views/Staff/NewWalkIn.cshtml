@@ -3,7 +3,7 @@
     ViewData["Title"] = "New Walk-in Booking";
     var courts = ViewBag.Courts as List<CourtBooking.Models.Court>;
 
-    var localNow   = DateTime.UtcNow.AddHours(8);
+    var localNow   = PhtClock.Now;
     var today      = DateOnly.FromDateTime(localNow);
     var selectedDate = Model?.Date ?? (ViewBag.SelectedDate as DateOnly? ?? today);
     bool isPastDate = selectedDate < today;
@@ -89,6 +89,53 @@
                                 continue;
                             }
 
+                            bool isOpenPlaySignup = Model.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
+                            if (!isPast && !isBooked && !isBlocked && isOpenPlaySignup)
+                            {
+                                var openPlayLabel = TimeDisplay.HourRange(signupMatch.Block.StartHour, signupMatch.Block.EndHour);
+                                bool isUnlimited = signupMatch.SpotsRemaining == int.MaxValue;
+                                <div class="col-12">
+                                    @if (isUnlimited || signupMatch.SpotsRemaining > 0)
+                                    {
+                                        <a asp-action="OpenPlayForm"
+                                           asp-route-courtId="@Model.Court.Id"
+                                           asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                           asp-route-startHour="@signupMatch.Block.StartHour"
+                                           asp-route-endHour="@signupMatch.Block.EndHour"
+                                           class="p-2 text-center rounded-3 d-block text-decoration-none"
+                                           style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
+                                            <div style="font-size:.85rem;color:var(--cb-text);font-weight:700;">@openPlayLabel</div>
+                                            <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
+                                                <i class="bi bi-people me-1"></i>Open Play
+                                                @if (signupMatch.Block.PricePerHead.HasValue)
+                                                {
+                                                    <text>&middot; ₱@signupMatch.Block.PricePerHead.Value.ToString("N0")/head</text>
+                                                }
+                                                @if (!isUnlimited)
+                                                {
+                                                    <text>&middot; @signupMatch.SpotsRemaining spot@(signupMatch.SpotsRemaining != 1 ? "s" : "") left</text>
+                                                }
+                                            </div>
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.75;">
+                                            <div style="font-size:.85rem;color:var(--cb-text-2);font-weight:700;">@openPlayLabel</div>
+                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">
+                                                Open Play — Full
+                                                @if (signupMatch.Block.PricePerHead.HasValue)
+                                                {
+                                                    <text>&middot; ₱@signupMatch.Block.PricePerHead.Value.ToString("N0")/head</text>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                                h = signupMatch.Block.EndHour - 1;
+                                continue;
+                            }
+
                             <div class="col-6 col-sm-4 col-md-3">
                                 @if (isPast)
                                 {
@@ -109,13 +156,6 @@
                                     <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.55;">
                                         <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
                                         <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Unavailable</div>
-                                    </div>
-                                }
-                                else if (isOpenPlay)
-                                {
-                                    <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.75;">
-                                        <div style="font-size:.8rem;color:var(--cb-text-2);font-weight:600;">@timeLabel</div>
-                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Open Play</div>
                                     </div>
                                 }
                                 else

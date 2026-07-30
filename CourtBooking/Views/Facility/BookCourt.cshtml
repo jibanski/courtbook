@@ -6,7 +6,7 @@
     ViewData["Title"] = $"Book {Model.Court.Name}";
 
     // ── Past-time detection (Philippine Standard Time = UTC+8) ──────────────
-    var   localNow   = DateTime.UtcNow.AddHours(8);
+    var   localNow   = PhtClock.Now;
     var   today      = DateOnly.FromDateTime(localNow);
     bool  isPastDate = Model.Date < today;
     bool  isToday    = Model.Date == today;
@@ -501,8 +501,8 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
 (function () {
-    var minDate = "@DateTime.Today.ToString("yyyy-MM-dd")";
-    var maxDate = "@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")";
+    var minDate = "@PhtClock.Today.ToString("yyyy-MM-dd")";
+    var maxDate = "@PhtClock.Today.AddDays(30).ToString("yyyy-MM-dd")";
     var current = "@Model.Date.ToString("yyyy-MM-dd")";
 
     flatpickr("#calendarInline", {

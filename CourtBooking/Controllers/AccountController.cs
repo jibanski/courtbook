@@ -1,4 +1,5 @@
 using CourtBooking.Data;
+using CourtBooking.Helpers;
 using CourtBooking.Models;
 using CourtBooking.Services;
 using CourtBooking.ViewModels;
@@ -584,7 +585,7 @@ Need help? {contactEmail}
     private async Task SendRegistrationNotificationAsync(ApplicationUser user)
     {
         var notifyEmails = new[] { "courtbooksolutions@gmail.com" };
-        var registeredAt = DateTime.UtcNow.AddHours(8).ToString("MMM d, yyyy h:mm tt") + " PHT";
+        var registeredAt = PhtClock.Now.ToString("MMM d, yyyy h:mm tt") + " PHT";
 
         var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>

@@ -73,8 +73,8 @@
                         <div class="mb-3">
                             <label asp-for="BookingDate" class="form-label fw-semibold">Date</label>
                             <input asp-for="BookingDate" type="date" class="form-control"
-                                   min="@DateTime.Today.ToString("yyyy-MM-dd")"
-                                   max="@DateTime.Today.AddDays(30).ToString("yyyy-MM-dd")" />
+                                   min="@PhtClock.Today.ToString("yyyy-MM-dd")"
+                                   max="@PhtClock.Today.AddDays(30).ToString("yyyy-MM-dd")" />
                             <span asp-validation-for="BookingDate" class="text-danger small"></span>
                         </div>
 

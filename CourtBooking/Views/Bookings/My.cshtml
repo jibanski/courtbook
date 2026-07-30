@@ -43,7 +43,7 @@
                     if (renderedGroups.Contains(gid)) { continue; }
                     renderedGroups.Add(gid);
                     var groupRows = Model.Where(b => b.BundleGroupId == gid).ToList();
-                    var groupIsPast = groupRows[0].BookingDate < DateOnly.FromDateTime(DateTime.Today);
+                    var groupIsPast = groupRows[0].BookingDate < PhtClock.Today;
                     var groupCombinedTotal = groupRows.Sum(b => b.TotalPrice);
                     var groupCourtNames = string.Join(", ", groupRows.Select(b => b.Court.Name));
                     var groupPendingPayment = groupRows[0].PaymentStatus == CourtBooking.Models.PaymentStatus.Unpaid
@@ -111,7 +111,7 @@
                     </div>
                     continue;
                 }
-                var isPast = booking.BookingDate < DateOnly.FromDateTime(DateTime.Today);
+                var isPast = booking.BookingDate < PhtClock.Today;
                 var isPendingPayment   = booking.PaymentStatus == CourtBooking.Models.PaymentStatus.Unpaid
                                        && booking.Status == CourtBooking.Models.BookingStatus.Pending
                                        && !booking.HasPaymentProof;
@@ -231,7 +231,7 @@
             <div class="row g-3">
                 @foreach (var s in signups)
                 {
-                    var sIsPast = s.BookingDate < DateOnly.FromDateTime(DateTime.Today);
+                    var sIsPast = s.BookingDate < PhtClock.Today;
                     var sPendingPayment = s.PaymentStatus == CourtBooking.Models.PaymentStatus.Unpaid
                                        && s.Status == CourtBooking.Models.BookingStatus.Pending
                                        && !s.HasPaymentProof;
