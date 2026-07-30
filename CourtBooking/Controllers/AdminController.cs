@@ -512,6 +512,17 @@ public class AdminController : Controller
         ViewBag.BlockedHours      = blockedHours;
         ViewBag.ActiveRangeBlocks = activeRangeBlocks;
         ViewBag.OpenPlayHours     = openPlayHours;
+
+        // Tier-aware total price per slot for this date (falls back to court.PricePerHour * duration
+        // when no CourtRateTier covers the slot's hours). Keyed by slot Id.
+        var slotPrices = new Dictionary<int, decimal>();
+        foreach (var s in slots)
+        {
+            slotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
+                court, selectedDate, new TimeOnly(s.StartHour, 0), new TimeOnly(s.EndHour, 0));
+        }
+        ViewBag.SlotPrices = slotPrices;
+
         return View(slots);
     }
 
@@ -941,9 +952,9 @@ public class AdminController : Controller
         var myCourtIds = await GetMyCourtIdsAsync();
         var validCourtIds = (courtIds ?? Array.Empty<int>()).Where(myCourtIds.Contains).Distinct().ToList();
 
-        if (string.IsNullOrWhiteSpace(name) || validCourtIds.Count < 2)
+        if (string.IsNullOrWhiteSpace(name) || validCourtIds.Count < 1)
         {
-            TempData["Error"] = "Give the bundle a name and pick at least 2 of your courts.";
+            TempData["Error"] = "Give the bundle a name and pick at least 1 of your courts.";
             return RedirectToAction(nameof(Bundles));
         }
 

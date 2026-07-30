@@ -9,6 +9,7 @@
     var bundleOnlyHours = ViewBag.BundleOnlyHours as Dictionary<int, string> ?? new Dictionary<int, string>();
     var openPlaySignupInfo = ViewBag.OpenPlaySignupInfo as Dictionary<int, (int MaxPlayers, int Taken)> ?? new Dictionary<int, (int MaxPlayers, int Taken)>();
     var rangeBanners = ViewBag.ActiveRangeBlocks as List<CourtBooking.Models.CourtBlock> ?? new();
+    var slotPrices   = ViewBag.SlotPrices as Dictionary<int, decimal> ?? new Dictionary<int, decimal>();
     var prevDate     = selDate.AddDays(-1);
     var nextDate     = selDate.AddDays(1);
     var today        = DateOnly.FromDateTime(DateTime.Today);
@@ -239,7 +240,9 @@
                         <div class="d-flex flex-wrap gap-2 mb-4">
                             @foreach (var slot in activeSlots)
                             {
-                                decimal price = court.PricePerHour * slot.DurationHours;
+                                decimal price = slotPrices.TryGetValue(slot.Id, out var _p)
+                                    ? _p
+                                    : court.PricePerHour * slot.DurationHours;
                                 <div class="d-flex align-items-center gap-1">
                                     <div class="rounded-3 px-3 py-2 d-flex align-items-center gap-2"
                                          style="background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">

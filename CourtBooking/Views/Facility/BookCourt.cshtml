@@ -182,7 +182,9 @@
                             {
                                 bool isUnavailable = Model.UnavailableSlotIds.Contains(slot.Id);
                                 bool isPast        = SlotIsPast(slot.StartHour);
-                                decimal price = Model.Court.PricePerHour * slot.DurationHours;
+                                decimal price = Model.SlotPrices.TryGetValue(slot.Id, out var _p)
+                                    ? _p
+                                    : Model.Court.PricePerHour * slot.DurationHours;
                                 <div class="col-sm-6 col-md-4">
                                     @if (isPast)
                                     {

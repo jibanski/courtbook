@@ -30,12 +30,17 @@ public class BookingViewModel
     public string? GuestEmail { get; set; }
     public string? GuestPhone { get; set; }
 
+    // When set (from the GET action), this is the tier-aware total for a fixed-slot booking
+    // and takes precedence over the flat Court.PricePerHour * duration fallback below.
+    public decimal? ResolvedSlotTotal { get; set; }
+
     public TimeOnly StartTime => new TimeOnly(StartHour, 0);
     public TimeOnly EndTime   => FixedEndHour.HasValue
         ? new TimeOnly(FixedEndHour.Value, 0)
         : StartTime.AddHours(DurationHours);
-    public decimal TotalPrice => (Court?.PricePerHour ?? 0) *
-        (FixedEndHour.HasValue ? FixedEndHour.Value - StartHour : DurationHours);
+    public decimal TotalPrice => ResolvedSlotTotal
+        ?? ((Court?.PricePerHour ?? 0) *
+            (FixedEndHour.HasValue ? FixedEndHour.Value - StartHour : DurationHours));
 }
 
 public class CourtAvailabilityViewModel
@@ -60,6 +65,10 @@ public class CourtAvailabilityViewModel
     // Resolved per-hour rate (tiered if a CourtRateTier matches, else Court.PricePerHour) —
     // fallback hourly-grid mode only.
     public Dictionary<int, decimal> HourlyRates { get; set; } = new();
+
+    // Tier-aware total price per pre-defined CourtTimeSlot on this date, keyed by slot Id.
+    // Populated only when TimeSlots is non-empty (slot mode).
+    public Dictionary<int, decimal> SlotPrices { get; set; } = new();
 
     // Hours sellable only as part of a flat-price multi-court bundle — not directly bookable.
     // Keyed by hour; value is the covering bundle + rate block (for the "Book This Bundle" link).

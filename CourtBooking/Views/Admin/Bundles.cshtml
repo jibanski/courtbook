@@ -9,7 +9,7 @@
     <div class="container">
         <h1 class="mb-1" style="font-size:1.75rem;font-weight:800;">Court Bundles</h1>
         <p class="mb-0" style="color:var(--cb-text-2);font-size:.9rem;">
-            Sell two or more courts together as one flat-price package during peak hours (e.g. "All 3 Courts").
+            Sell one or more courts together as a flat-price package during peak hours (e.g. "All 3 Courts").
         </p>
     </div>
 </div>
@@ -84,9 +84,9 @@
                     <h6 class="mb-0 fw-bold"><i class="bi bi-plus-circle me-2" style="color:var(--cb-lime);"></i>Create a Bundle</h6>
                 </div>
                 <div class="card-body">
-                    @if (myCourts.Count < 2)
+                    @if (myCourts.Count < 1)
                     {
-                        <p class="text-muted small mb-0">You need at least 2 courts to create a bundle.</p>
+                        <p class="text-muted small mb-0">You need at least 1 court to create a bundle.</p>
                     }
                     else
                     {
