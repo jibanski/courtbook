@@ -572,7 +572,79 @@ using (var scope = app.Services.CreateScope())
     }
     catch { /* column already exists or db not ready — non-fatal */ }
 
-    foreach (var role in new[] { "Admin", "Customer" })
+    // ── Add-on rentals (e.g. paddles) attachable to a booking ────────────────────
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""AddOnItems"" (
+                    ""Id""       serial                  PRIMARY KEY,
+                    ""OwnerId""  character varying(450)  NOT NULL,
+                    ""Name""     character varying(100)  NOT NULL DEFAULT '',
+                    ""Price""    numeric(10,2)           NOT NULL DEFAULT 0,
+                    ""IsActive"" boolean                 NOT NULL DEFAULT TRUE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""BookingAddOns"" (
+                    ""Id""          serial          PRIMARY KEY,
+                    ""BookingId""   integer         NOT NULL,
+                    ""AddOnItemId"" integer         NOT NULL,
+                    ""Quantity""    integer         NOT NULL DEFAULT 1,
+                    ""UnitPrice""   numeric(10,2)   NOT NULL DEFAULT 0,
+                    CONSTRAINT ""FK_BookingAddOns_Bookings_BookingId""
+                        FOREIGN KEY (""BookingId"") REFERENCES ""Bookings"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_BookingAddOns_AddOnItems_AddOnItemId""
+                        FOREIGN KEY (""AddOnItemId"") REFERENCES ""AddOnItems"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+        }
+        else
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""AddOnItems"" (
+                    ""Id""       INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""OwnerId""  TEXT     NOT NULL,
+                    ""Name""     TEXT     NOT NULL DEFAULT '',
+                    ""Price""    TEXT     NOT NULL DEFAULT '0',
+                    ""IsActive"" INTEGER  NOT NULL DEFAULT 1
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""BookingAddOns"" (
+                    ""Id""          INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""BookingId""   INTEGER  NOT NULL,
+                    ""AddOnItemId"" INTEGER  NOT NULL,
+                    ""Quantity""    INTEGER  NOT NULL DEFAULT 1,
+                    ""UnitPrice""   TEXT     NOT NULL DEFAULT '0',
+                    FOREIGN KEY (""BookingId"") REFERENCES ""Bookings"" (""Id"") ON DELETE CASCADE,
+                    FOREIGN KEY (""AddOnItemId"") REFERENCES ""AddOnItems"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+        }
+    }
+    catch { /* table already exists or db not ready — non-fatal */ }
+
+    // ── Staff accounts: limited-access logins scoped to the admin who created them ──
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"AspNetUsers\" ADD COLUMN IF NOT EXISTS \"EmployerOwnerId\" character varying(450) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"LoggedByStaffId\" character varying(450) NULL");
+        }
+        else
+        {
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"AspNetUsers\" ADD COLUMN \"EmployerOwnerId\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"LoggedByStaffId\" TEXT NULL"); } catch { }
+        }
+    }
+    catch { /* column already exists or db not ready — non-fatal */ }
+
+    foreach (var role in new[] { "Admin", "Customer", "Staff" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
 

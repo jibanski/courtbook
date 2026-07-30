@@ -1,0 +1,140 @@
+@model CourtBooking.ViewModels.CourtAvailabilityViewModel
+@{
+    ViewData["Title"] = "New Walk-in Booking";
+    var courts = ViewBag.Courts as List<CourtBooking.Models.Court>;
+
+    var localNow   = DateTime.UtcNow.AddHours(8);
+    var today      = DateOnly.FromDateTime(localNow);
+    var selectedDate = Model?.Date ?? (ViewBag.SelectedDate as DateOnly? ?? today);
+    bool isPastDate = selectedDate < today;
+    bool isToday    = selectedDate == today;
+    int  nowHour    = localNow.Hour;
+    bool SlotIsPast(int startHour) => isPastDate || (isToday && startHour <= nowHour);
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">New Walk-in Booking</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Pick a court, date, and time for the customer paying cash.</p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" asp-action="NewWalkIn" class="row g-2 align-items-end">
+                <div class="col-sm-5">
+                    <label class="form-label small fw-semibold">Court</label>
+                    <select name="courtId" class="form-select" required>
+                        <option value="">Choose a court&hellip;</option>
+                        @if (courts is not null)
+                        {
+                            foreach (var c in courts)
+                            {
+                                <option value="@c.Id" selected="@(Model?.Court.Id == c.Id)">@c.Name (@c.SportType)</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold">Date</label>
+                    <input type="date" name="date" class="form-control" value="@selectedDate.ToString("yyyy-MM-dd")" min="@today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-3">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search me-1"></i>Show Availability</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (Model is not null)
+    {
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0" style="font-size:1rem;font-weight:700;">
+                    @Model.Court.Name &mdash; @selectedDate.ToString("dddd, MMMM d, yyyy")
+                </h5>
+            </div>
+            <div class="card-body">
+                @if (Model.HasSlots)
+                {
+                    <div class="alert alert-warning mb-0">
+                        This date uses fixed time-slot bundles. Walk-in booking for slot-mode dates isn't
+                        supported here yet — please use a different date, or ask the customer to book on the site directly.
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-2">
+                        @for (int h = Model.Court.OpeningHour; h < Model.Court.ClosingHour; h++)
+                        {
+                            bool isBooked  = Model.BookedHours.Contains(h);
+                            bool isBlocked = Model.BlockedHours.Contains(h);
+                            bool isPast    = SlotIsPast(h);
+                            bool isOpenPlay = Model.OpenPlayHours.Contains(h);
+                            bool isBundleOnly = Model.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
+                            var rate = Model.HourlyRates.TryGetValue(h, out var r) ? r : Model.Court.PricePerHour;
+                            var timeLabel = TimeDisplay.HourRange(h, h + 1);
+
+                            if (!isPast && !isBooked && !isBlocked && isBundleOnly)
+                            {
+                                var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
+                                <div class="col-12">
+                                    <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.7;">
+                                        <div style="font-size:.85rem;color:var(--cb-text-2);font-weight:700;">@bundleLabel</div>
+                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Bundle Only &mdash; not bookable individually</div>
+                                    </div>
+                                </div>
+                                h = bundleMatch.Block.EndHour - 1;
+                                continue;
+                            }
+
+                            <div class="col-6 col-sm-4 col-md-3">
+                                @if (isPast)
+                                {
+                                    <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.45;">
+                                        <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
+                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Past</div>
+                                    </div>
+                                }
+                                else if (isBooked)
+                                {
+                                    <div class="p-2 text-center rounded-3" style="opacity:.7;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);">
+                                        <div style="font-size:.8rem;color:#f87171;font-weight:600;">@timeLabel</div>
+                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Booked@(isOpenPlay ? " • Open Play" : "")</div>
+                                    </div>
+                                }
+                                else if (isBlocked)
+                                {
+                                    <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.55;">
+                                        <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
+                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Unavailable</div>
+                                    </div>
+                                }
+                                else if (isOpenPlay)
+                                {
+                                    <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.75;">
+                                        <div style="font-size:.8rem;color:var(--cb-text-2);font-weight:600;">@timeLabel</div>
+                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Open Play</div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <a asp-action="WalkInForm"
+                                       asp-route-courtId="@Model.Court.Id"
+                                       asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                       asp-route-startHour="@h"
+                                       class="p-2 text-center rounded-3 d-block text-decoration-none"
+                                       style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
+                                        <div style="font-size:.8rem;color:var(--cb-text);font-weight:600;">@timeLabel</div>
+                                        <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">₱@rate.ToString("N0")</div>
+                                    </a>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>

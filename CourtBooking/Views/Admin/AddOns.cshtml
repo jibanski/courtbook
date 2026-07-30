@@ -1,0 +1,88 @@
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Add-ons";
+    var addOnList = ViewBag.AddOnList as List<AddOnItem>;
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">Add-ons</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+            Rentable extras (paddles, shuttlecocks, etc.) customers and staff can attach to a booking.
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header"><strong>Add New Item</strong></div>
+                <div class="card-body">
+                    <form asp-action="CreateAddOn" method="post">
+                        @Html.AntiForgeryToken()
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Name</label>
+                            <input name="name" class="form-control" placeholder="e.g. Paddle Rental" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Price per unit (₱)</label>
+                            <input type="number" name="price" class="form-control" min="0" step="0.01" required />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-lg me-1"></i>Add Item
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header"><strong>Catalog</strong></div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr><th>Name</th><th>Price</th><th>Status</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @if (addOnList is null || !addOnList.Any())
+                            {
+                                <tr><td colspan="4" class="text-center py-4" style="color:var(--cb-text-3);">No add-ons yet.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in addOnList)
+                                {
+                                    <tr>
+                                        <td>@item.Name</td>
+                                        <td>₱@item.Price.ToString("N2")</td>
+                                        <td>
+                                            @if (item.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Disabled</span>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <form asp-action="ToggleAddOn" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@item.Id" />
+                                                <button type="submit" class="btn btn-sm @(item.IsActive ? "btn-outline-secondary" : "btn-outline-success")">
+                                                    @(item.IsActive ? "Disable" : "Enable")
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

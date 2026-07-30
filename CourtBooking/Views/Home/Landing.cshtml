@@ -166,6 +166,8 @@
                 new { icon = "bi-speedometer2", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Admin Dashboard", desc = "Monitor bookings, revenue, court utilization, and pending payments from one clean, real-time dashboard." },
                 new { icon = "bi-buildings", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Multi-Court Management", desc = "Manage unlimited courts, each with its own schedule, pricing, sport type, and availability settings." },
                 new { icon = "bi-phone-fill", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Mobile-Friendly", desc = "Works perfectly on any device. Customers book from their phones, you manage from anywhere." },
+                new { icon = "bi-person-badge", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Front-Desk Staff Accounts", desc = "Give your front-desk staff a limited-access login to book walk-in customers and log cash, GCash, or Maya payments — without giving them access to your settings, rates, or billing." },
+                new { icon = "bi-bag-plus", color = "var(--cb-lime)", bg = "var(--cb-lime-dim)", title = "Add-on Rentals & Reports", desc = "Sell rentals like paddles alongside a booking, then export a full CSV of every transaction — court rentals, add-ons, and who booked it — anytime you need your records." },
             })
             {
                 <div class="col-md-6 col-lg-4">
@@ -536,6 +538,26 @@
                         new {
                             q = "Do my customers need to download an app?",
                             a = "No app needed. Customers book directly from your facility link on any browser. CourtBook also works as a Progressive Web App (PWA) — customers can add it to their home screen for an app-like experience."
+                        },
+                        new {
+                            q = "Can I give my front-desk staff their own login?",
+                            a = "Yes. Create a Staff account from Manage &gt; Staff and set their password yourself. They get a limited \"Front Desk\" area to book walk-in customers, log cash/GCash/Maya payments, and look up bookings — with no access to your Settings, Rates, Courts, Analytics, or billing."
+                        },
+                        new {
+                            q = "How do walk-in customers pay if they're not booking online?",
+                            a = "Your front-desk staff picks the court and time, enters the customer's name and phone, and confirms the payment method — Cash, GCash, or Maya (whichever you've set up). The booking is confirmed immediately, no proof-of-payment step needed since staff verifies it in person; a screenshot can still be attached for GCash/Maya if you want a record."
+                        },
+                        new {
+                            q = "Can I sell add-ons like paddle or equipment rentals alongside a booking?",
+                            a = "Yes. Set up a catalog of rentable items (name + price) from Manage &gt; Add-ons, and both your customers (booking online) and your staff (booking a walk-in) can add them to a booking with a quantity. The cost is added on top of the court rate automatically."
+                        },
+                        new {
+                            q = "How do I reconcile the cash my staff collects?",
+                            a = "The Cash Log (Manage &gt; Cash Log for you, \"My Cash Log\" for staff) lists every cash walk-in booking grouped by staff member and by day, broken down into court rental vs. add-ons vs. total paid, so you can match it against the cash actually handed over."
+                        },
+                        new {
+                            q = "Can I export my bookings and transactions?",
+                            a = "Yes — from Manage &gt; All Bookings, use \"Export to CSV\" with a date range and status filter. The file includes every booking's date/time, court, customer, court rental, add-ons, total paid, payment method and reference, status, which staff member (if any) logged it, and when it was booked — ready to open in Excel or Google Sheets."
                         },
                         new {
                             q = "How does CourtBook sustain itself if it's free?",

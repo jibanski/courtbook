@@ -3,6 +3,7 @@
     ViewData["Title"] = "All Bookings";
     var selectedStatus       = ViewBag.SelectedStatus as string;
     var selectedDate         = ViewBag.SelectedDate as DateOnly?;
+    var search               = ViewBag.Search as string;
     bool awaitingMode        = ViewBag.AwaitingConfirmation == true;
     int  pendingPaymentCount = (int)(ViewBag.PendingPaymentCount ?? 0);
     var rows = ViewBag.Rows as List<CourtBooking.ViewModels.AdminBookingRow>;
@@ -40,6 +41,10 @@
             <div class="card-body">
                 <form method="get" class="row g-3 align-items-end">
                     <div class="col-sm-4">
+                        <label class="form-label fw-semibold">Search</label>
+                        <input type="text" name="search" class="form-control" placeholder="Customer name or phone" value="@search" />
+                    </div>
+                    <div class="col-sm-3">
                         <label class="form-label fw-semibold">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All Statuses</option>
@@ -49,13 +54,45 @@
                             }
                         </select>
                     </div>
-                    <div class="col-sm-4">
+                    <div class="col-sm-3">
                         <label class="form-label fw-semibold">Date</label>
                         <input type="date" name="date" class="form-control" value="@selectedDate?.ToString("yyyy-MM-dd")" />
                     </div>
-                    <div class="col-sm-4">
+                    <div class="col-sm-2">
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="bi bi-funnel me-1"></i>Filter
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Export -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h6 class="fw-bold mb-3"><i class="bi bi-download me-2"></i>Export to CSV</h6>
+                <form method="get" asp-action="ExportBookings" class="row g-3 align-items-end">
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">All Statuses</option>
+                            @foreach (var s in Enum.GetNames<CourtBooking.Models.BookingStatus>())
+                            {
+                                <option value="@s" selected="@(selectedStatus == s)">@s</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold">From</label>
+                        <input type="date" name="dateFrom" class="form-control" />
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold">To</label>
+                        <input type="date" name="dateTo" class="form-control" />
+                    </div>
+                    <div class="col-sm-3">
+                        <button type="submit" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
                         </button>
                     </div>
                 </form>
@@ -248,9 +285,13 @@
                                 <th>Court</th>
                                 <th>Date</th>
                                 <th>Time</th>
-                                <th>Amount</th>
+                                <th>Court Rental</th>
+                                <th>Add-ons</th>
+                                <th>Total Paid</th>
                                 <th>Booking</th>
                                 <th>Payment</th>
+                                <th>Booked By</th>
+                                <th>Booked On</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -289,6 +330,17 @@
                                     </td>
                                     <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
                                     <td>@b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")</td>
+                                    <td>₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0"))</td>
+                                    <td>
+                                        @if (b.AddOnsSummary is not null)
+                                        {
+                                            <span title="@b.AddOnsSummary">₱@b.AddOnsTotal.ToString("N0")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
                                     <td>₱@b.TotalPrice.ToString("N0")</td>
                                     <td><span class="badge @cls">@b.Status</span></td>
                                     <td>
@@ -309,6 +361,19 @@
                                             <span class="badge bg-warning text-dark">Unpaid</span>
                                         }
                                     </td>
+                                    <td>
+                                        @if (b.BookedByStaffName is not null)
+                                        {
+                                            <span class="badge bg-info-subtle text-info-emphasis" title="Logged by front-desk staff">
+                                                <i class="bi bi-person-badge me-1"></i>@b.BookedByStaffName
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">Online</span>
+                                        }
+                                    </td>
+                                    <td class="text-muted small text-nowrap">@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")</td>
                                     <td>
                                         <form asp-action="@(b.IsOpenPlay ? "UpdateSignupStatus" : "UpdateBookingStatus")" asp-route-id="@b.Id" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()

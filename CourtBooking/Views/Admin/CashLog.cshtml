@@ -1,0 +1,118 @@
+@using CourtBooking.Models
+@model List<Booking>
+@{
+    ViewData["Title"] = "Cash Log";
+    DateOnly? from = ViewBag.From;
+    DateOnly? to = ViewBag.To;
+    string? staffId = ViewBag.StaffId;
+    decimal grandTotal = ViewBag.GrandTotal;
+    var staffNames = ViewBag.StaffNames as Dictionary<string, string>;
+    var staffList = ViewBag.StaffList as List<ApplicationUser>;
+    var byStaff = Model.GroupBy(b => b.LoggedByStaffId!);
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">Cash Log</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+            Walk-in cash bookings logged by staff &mdash; compare against cash handed over.
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">Staff</label>
+                    <select name="staffId" class="form-select">
+                        <option value="">All staff</option>
+                        @if (staffList is not null)
+                        {
+                            foreach (var s in staffList)
+                            {
+                                <option value="@s.Id" selected="@(staffId == s.Id)">@s.FullName</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">From</label>
+                    <input type="date" name="from" class="form-control" value="@from?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">To</label>
+                    <input type="date" name="to" class="form-control" value="@to?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-3">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-filter me-1"></i>Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="alert alert-primary d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-cash-stack me-2"></i><strong>Total for this range</strong></span>
+        <span class="fs-5 fw-bold">₱@grandTotal.ToString("N0")</span>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5" style="color:var(--cb-text-3);">No cash bookings logged for this range.</div>
+    }
+    else
+    {
+        foreach (var staffGroup in byStaff)
+        {
+            var staffName = staffNames != null && staffNames.TryGetValue(staffGroup.Key, out var n) ? n : "(unknown staff)";
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong><i class="bi bi-person-badge me-2" style="color:var(--cb-lime);"></i>@staffName</strong>
+                    <span>₱@staffGroup.Sum(b => b.TotalPrice).ToString("N0")</span>
+                </div>
+                <div class="card-body p-0">
+                    @foreach (var day in staffGroup.GroupBy(b => b.BookingDate).OrderByDescending(g => g.Key))
+                    {
+                        <div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center" style="background:var(--cb-surface-2);">
+                            <strong class="small">@day.Key.ToString("MMM d, yyyy")</strong>
+                            <span class="small">₱@day.Sum(b => b.TotalPrice).ToString("N0")</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr><th>Time</th><th>Court</th><th>Customer</th><th>Court Rental</th><th>Add-ons</th><th>Total Paid</th><th>Booked On</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var b in day.OrderBy(b => b.StartTime))
+                                    {
+                                        var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+                                        var courtRental = b.TotalPrice - addOnsTotal;
+                                        <tr>
+                                            <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
+                                            <td>@b.Court?.Name</td>
+                                            <td>@b.User?.FullName</td>
+                                            <td>₱@courtRental.ToString("N0")</td>
+                                            <td>
+                                                @if (b.AddOns.Any())
+                                                {
+                                                    <span title="@string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}"))">₱@addOnsTotal.ToString("N0")</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">—</span>
+                                                }
+                                            </td>
+                                            <td>₱@b.TotalPrice.ToString("N0")</td>
+                                            <td class="text-muted small text-nowrap">@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>

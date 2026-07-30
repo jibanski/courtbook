@@ -1,0 +1,105 @@
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Staff";
+    var staffList = ViewBag.StaffList as List<ApplicationUser>;
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">Staff</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+            Front-desk accounts that can create walk-in cash bookings, but can't touch settings, rates, or billing.
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header"><strong>Add Staff Account</strong></div>
+                <div class="card-body">
+                    <form asp-action="CreateStaff" method="post">
+                        @Html.AntiForgeryToken()
+                        <div class="row g-2 mb-2">
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">First Name</label>
+                                <input name="firstName" class="form-control" required />
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Last Name</label>
+                                <input name="lastName" class="form-control" />
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Email</label>
+                            <input type="email" name="email" class="form-control" required />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Phone</label>
+                            <input type="tel" name="phone" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Password</label>
+                            <input type="text" name="password" class="form-control" required minlength="6" />
+                            <div class="form-text">At least 6 characters. Tell the staff member this password directly.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-person-plus me-1"></i>Create Staff Account
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header"><strong>Staff Accounts</strong></div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @if (staffList is null || !staffList.Any())
+                            {
+                                <tr><td colspan="5" class="text-center py-4" style="color:var(--cb-text-3);">No staff accounts yet.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var s in staffList)
+                                {
+                                    bool disabled = s.LockoutEnd.HasValue && s.LockoutEnd > DateTimeOffset.UtcNow;
+                                    <tr>
+                                        <td>@s.FullName</td>
+                                        <td>@s.Email</td>
+                                        <td>@(s.PhoneNumber ?? "—")</td>
+                                        <td>
+                                            @if (disabled)
+                                            {
+                                                <span class="badge bg-danger-subtle">Disabled</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-success-subtle">Active</span>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <form asp-action="ToggleStaffActive" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@s.Id" />
+                                                <button type="submit" class="btn btn-sm @(disabled ? "btn-outline-success" : "btn-outline-danger")">
+                                                    @(disabled ? "Reactivate" : "Disable")
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

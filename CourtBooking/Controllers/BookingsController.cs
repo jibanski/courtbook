@@ -86,6 +86,7 @@ public class BookingsController : Controller
                 .FirstOrDefaultAsync())
             : null;
         ViewBag.FacilityName = facilityName;
+        ViewBag.AddOns = court.OwnerId != null ? await _bookingService.GetActiveAddOnsAsync(court.OwnerId) : new List<AddOnItem>();
 
         var vm = new BookingViewModel
         {
@@ -199,6 +200,10 @@ public class BookingsController : Controller
                 .FirstOrDefaultAsync()
             : null;
 
+        var (addOns, addOnsTotal) = court.OwnerId != null
+            ? await _bookingService.ResolveSelectedAddOnsAsync(court.OwnerId, Request.Form)
+            : (new List<BookingAddOn>(), 0m);
+
         var booking = new Booking
         {
             CourtId = vm.CourtId,
@@ -207,11 +212,12 @@ public class BookingsController : Controller
             BookingDate = vm.BookingDate,
             StartTime = vm.StartTime,
             EndTime = vm.EndTime,
-            TotalPrice = totalPrice,
+            TotalPrice = totalPrice + addOnsTotal,
             Notes = vm.Notes,
             Status = BookingStatus.Pending,
             PaymentStatus = PaymentStatus.Unpaid,
-            GuestAccessToken = isGuest ? Guid.NewGuid() : null
+            GuestAccessToken = isGuest ? Guid.NewGuid() : null,
+            AddOns = addOns
         };
 
         await _bookingService.CreateBookingAsync(booking);
@@ -237,6 +243,7 @@ public class BookingsController : Controller
         var userId = _userManager.GetUserId(User)!;
         var booking = await _db.Bookings
             .Include(b => b.Court)
+            .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
             .FirstOrDefaultAsync(b => b.Id == id && b.UserId == userId);
 
         if (booking is null) return NotFound();
@@ -444,6 +451,7 @@ public class BookingsController : Controller
     {
         var booking = await _db.Bookings
             .Include(b => b.Court)
+            .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
             .FirstOrDefaultAsync(b => b.GuestAccessToken == token);
         if (booking is null) return NotFound();
 

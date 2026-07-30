@@ -21,5 +21,10 @@ public class ApplicationUser : IdentityUser
     /// <summary>True for a shadow account auto-created for a guest checkout — no password, never signed in.</summary>
     public bool IsGuest { get; set; }
 
+    /// <summary>For a Staff account, the Id of the Admin (facility owner) who created it — scopes
+    /// what courts/bookings this staff member can see, mirroring <c>Court.OwnerId</c>. Null for
+    /// Admin and Customer accounts.</summary>
+    public string? EmployerOwnerId { get; set; }
+
     public string FullName => $"{FirstName} {LastName}".Trim();
 }

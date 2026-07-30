@@ -65,6 +65,14 @@ public class Booking
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>The Staff account that logged this as a cash walk-in booking (<see cref="PaymentMethod"/>
+    /// = "Cash"). Null for every online/guest-checkout booking.</summary>
+    public string? LoggedByStaffId { get; set; }
+
+    /// <summary>Rented add-on items (e.g. paddles) attached to this booking. <see cref="TotalPrice"/>
+    /// already includes their cost — this collection is for itemized display only.</summary>
+    public ICollection<BookingAddOn> AddOns { get; set; } = new List<BookingAddOn>();
+
     /// <summary>Platform commission charged when this booking is confirmed (commission-model facilities only).</summary>
     public decimal? CommissionAmount { get; set; }
 

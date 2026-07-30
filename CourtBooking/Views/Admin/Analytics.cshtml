@@ -95,6 +95,10 @@
                         <dd class="col-5 fw-bold text-end" id="m-totalBookings">—</dd>
                         <dt class="col-7 text-muted">Total revenue</dt>
                         <dd class="col-5 fw-bold text-end text-success" id="m-totalRevenue">—</dd>
+                        <dt class="col-7 text-muted ps-3">— Court rentals</dt>
+                        <dd class="col-5 text-end" id="m-courtRentalRevenue">—</dd>
+                        <dt class="col-7 text-muted ps-3">— Add-ons</dt>
+                        <dd class="col-5 text-end" id="m-addOnsRevenue">—</dd>
                         <dt class="col-7 text-muted">Pending (no proof)</dt>
                         <dd class="col-5 fw-bold text-end" id="m-pendingNoProof">—</dd>
                     </dl>
@@ -175,6 +179,8 @@
                 document.getElementById('m-bookings30').textContent     = d.counters.bookingsLast30;
                 document.getElementById('m-totalBookings').textContent  = d.counters.totalBookings;
                 document.getElementById('m-totalRevenue').textContent   = peso(d.counters.totalRevenue);
+                document.getElementById('m-courtRentalRevenue').textContent = peso(d.counters.courtRentalRevenue);
+                document.getElementById('m-addOnsRevenue').textContent  = peso(d.counters.addOnsRevenue);
                 document.getElementById('m-pendingNoProof').textContent = d.counters.pendingNoProof;
 
                 revenueChart.data.labels = d.revenueByDay.map(r => r.date.slice(5));

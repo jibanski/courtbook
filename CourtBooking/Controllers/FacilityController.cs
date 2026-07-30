@@ -74,6 +74,7 @@ public class FacilityController : Controller
         ViewBag.SelectedSport       = sport;
         ViewBag.Slug                = slug;
         ViewBag.ShowBackToDirectory = showBackToDirectory;
+        ViewBag.RateRanges          = await _bookingService.GetRateRangesAsync(courts);
         return View(courts);
     }
 
@@ -108,6 +109,7 @@ public class FacilityController : Controller
             .ToListAsync();
 
         var vm = new CourtAvailabilityViewModel { Court = court, Date = selectedDate };
+        (vm.RateRangeMin, vm.RateRangeMax) = await _bookingService.GetRateRangeAsync(court);
 
         if (slots.Any())
         {

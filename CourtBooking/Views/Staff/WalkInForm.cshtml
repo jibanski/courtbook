@@ -1,0 +1,148 @@
+@{
+    ViewData["Title"] = "Confirm Walk-in Booking";
+    var court = ViewBag.Court as CourtBooking.Models.Court;
+    DateOnly date = ViewBag.Date;
+    int startHour = ViewBag.StartHour;
+    decimal totalPrice = ViewBag.TotalPrice;
+    var addOns = ViewBag.AddOns as List<CourtBooking.Models.AddOnItem>;
+    var paymentMethods = ViewBag.PaymentMethods as List<string> ?? new List<string> { "Cash" };
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">Confirm Walk-in Booking</h1>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0 fw-bold">@court?.Name &mdash; @court?.SportType</h5>
+                    <small class="text-muted">@date.ToString("dddd, MMMM d, yyyy") &bull; starting @TimeDisplay.Hour(startHour)</small>
+                </div>
+                <div class="card-body">
+                    @if (TempData["Error"] != null)
+                    {
+                        <div class="alert alert-danger">@TempData["Error"]</div>
+                    }
+                    <form asp-action="CreateWalkIn" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="courtId" value="@court?.Id" />
+                        <input type="hidden" name="date" value="@date.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="startHour" value="@startHour" />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Customer Name</label>
+                            <input name="customerName" class="form-control" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Customer Phone</label>
+                            <input type="tel" name="customerPhone" class="form-control" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Duration</label>
+                            <select name="durationHours" class="form-select" id="durationSelect">
+                                @for (int d = 1; d <= 4 && startHour + d <= court?.ClosingHour; d++)
+                                {
+                                    <option value="@d">@d hour@(d > 1 ? "s" : "")</option>
+                                }
+                            </select>
+                        </div>
+                        @if (addOns is not null && addOns.Any())
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Add-ons <span class="text-muted fw-normal">(optional)</span></label>
+                                <div class="border rounded-3 p-2">
+                                    @foreach (var item in addOns)
+                                    {
+                                        <div class="d-flex justify-content-between align-items-center py-1">
+                                            <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2") each)</span></span>
+                                            <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:80px;"
+                                                   min="0" value="0" data-price="@item.Price" />
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Payment Method</label>
+                            <select name="paymentMethod" class="form-select" id="paymentMethodSelect">
+                                @foreach (var method in paymentMethods)
+                                {
+                                    <option value="@method">@method</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3" id="referenceField" style="display:none;">
+                            <label class="form-label fw-semibold">Reference Number <span class="text-muted fw-normal">(optional)</span></label>
+                            <input name="paymentReference" class="form-control" placeholder="e.g. GCash/Maya reference number" />
+                        </div>
+                        <div class="mb-3" id="proofField" style="display:none;">
+                            <label class="form-label fw-semibold">Proof of Payment <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="file" name="paymentProof" class="form-control" accept="image/jpeg,image/png,image/webp" />
+                            <div class="form-text">Screenshot of the GCash/Maya payment confirmation, for your records.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(optional)</span></label>
+                            <textarea name="notes" class="form-control" rows="2"></textarea>
+                        </div>
+
+                        <div class="alert alert-primary">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-cash-coin me-2"></i><strong>Amount Due</strong></span>
+                                <span class="fs-5 fw-bold" id="totalPrice">₱@totalPrice.ToString("N0")</span>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
+                            <a asp-action="NewWalkIn" asp-route-courtId="@court?.Id" asp-route-date="@date.ToString("yyyy-MM-dd")" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>Back
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="bi bi-check-circle me-1"></i>Confirm Payment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const pricePerHour = @(court?.PricePerHour ?? 0);
+    const durationSelect = document.getElementById('durationSelect');
+
+    function addOnsTotal() {
+        let sum = 0;
+        document.querySelectorAll('.addon-qty').forEach(el => {
+            sum += (parseInt(el.value) || 0) * parseFloat(el.dataset.price);
+        });
+        return sum;
+    }
+
+    function updateTotal() {
+        const duration = parseInt(durationSelect?.value || 1);
+        document.getElementById('totalPrice').textContent = '₱' + (pricePerHour * duration + addOnsTotal()).toLocaleString();
+    }
+
+    durationSelect?.addEventListener('change', updateTotal);
+    document.querySelectorAll('.addon-qty').forEach(el => el.addEventListener('input', updateTotal));
+
+    const paymentMethodSelect = document.getElementById('paymentMethodSelect');
+    const referenceField = document.getElementById('referenceField');
+    const proofField = document.getElementById('proofField');
+    function toggleReferenceField() {
+        const show = paymentMethodSelect.value !== 'Cash';
+        referenceField.style.display = show ? '' : 'none';
+        proofField.style.display = show ? '' : 'none';
+    }
+    paymentMethodSelect?.addEventListener('change', toggleReferenceField);
+    toggleReferenceField();
+</script>
+}
