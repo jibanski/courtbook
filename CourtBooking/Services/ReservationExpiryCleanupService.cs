@@ -56,22 +56,41 @@ public class ReservationExpiryCleanupService : BackgroundService
 
         var now = DateTime.UtcNow;
 
-        // Find expired Bookings that are still Pending
-        // Load into memory first, then filter to avoid PostgreSQL TEXT vs TIMESTAMP comparison issues
-        var allPendingBookings = await db.Bookings
-            .Where(b => b.Status == BookingStatus.Pending && b.ReservedUntil.HasValue)
-            .ToListAsync(ct);
-        var expiredBookings = allPendingBookings
-            .Where(b => b.ReservedUntil.Value <= now)
-            .ToList();
+        List<Booking> expiredBookings;
+        List<OpenPlaySignup> expiredSignups;
 
-        // Find expired OpenPlaySignups that are still Pending
-        var allPendingSignups = await db.OpenPlaySignups
-            .Where(s => s.Status == BookingStatus.Pending && s.ReservedUntil.HasValue)
-            .ToListAsync(ct);
-        var expiredSignups = allPendingSignups
-            .Where(s => s.ReservedUntil.Value <= now)
-            .ToList();
+        // PostgreSQL stores ReservedUntil as TEXT but model expects DateTime.
+        // Wrap in try-catch to gracefully skip cleanup if type mismatch occurs,
+        // allowing the app to function while we migrate the column type.
+        try
+        {
+            // Find expired Bookings that are still Pending
+            expiredBookings = await db.Bookings
+                .Where(b => b.Status == BookingStatus.Pending
+                         && b.ReservedUntil.HasValue
+                         && b.ReservedUntil.Value <= now)
+                .ToListAsync(ct);
+        }
+        catch (InvalidCastException ex)
+        {
+            _logger.LogWarning(ex, "[ReservationExpiry] skipping booking cleanup due to ReservedUntil TEXT/DateTime type mismatch");
+            expiredBookings = new List<Booking>();
+        }
+
+        try
+        {
+            // Find expired OpenPlaySignups that are still Pending
+            expiredSignups = await db.OpenPlaySignups
+                .Where(s => s.Status == BookingStatus.Pending
+                         && s.ReservedUntil.HasValue
+                         && s.ReservedUntil.Value <= now)
+                .ToListAsync(ct);
+        }
+        catch (InvalidCastException ex)
+        {
+            _logger.LogWarning(ex, "[ReservationExpiry] skipping signup cleanup due to ReservedUntil TEXT/DateTime type mismatch");
+            expiredSignups = new List<OpenPlaySignup>();
+        }
 
         if (expiredBookings.Count > 0)
         {
