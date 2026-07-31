@@ -91,13 +91,23 @@ public class BookingService
         }
 
         // EndTime==MinValue means the existing booking ends at midnight (stored as 00:00)
-        var effectiveEnd = end == TimeOnly.MinValue ? TimeOnly.MaxValue : end;
-        return !await _db.Bookings.AnyAsync(b =>
-            b.CourtId == courtId &&
-            b.BookingDate == date &&
-            b.Status != BookingStatus.Cancelled &&
-            b.StartTime < effectiveEnd &&
-            (b.EndTime > start || b.EndTime == TimeOnly.MinValue));
+        int newEndHour = end.Hour == 0 ? 24 : end.Hour;
+        
+        var bookings = await _db.Bookings
+            .Where(b =>
+                b.CourtId == courtId &&
+                b.BookingDate == date &&
+                b.Status != BookingStatus.Cancelled)
+            .ToListAsync();
+        
+        foreach (var b in bookings)
+        {
+            int existingEndHour = b.EndTime.Hour == 0 ? 24 : b.EndTime.Hour;
+            if (b.StartTime.Hour < newEndHour && existingEndHour > start.Hour)
+                return false;
+        }
+        
+        return true;
     }
 
     public async Task<List<int>> GetUnavailableSlotIdsAsync(int courtId, DateOnly date, IEnumerable<CourtTimeSlot> slots)
