@@ -91,8 +91,6 @@ public class BookingService
         }
 
         // EndTime==MinValue means the existing booking ends at midnight (stored as 00:00)
-        int newEndHour = end.Hour == 0 ? 24 : end.Hour;
-        
         var bookings = await _db.Bookings
             .Where(b =>
                 b.CourtId == courtId &&
@@ -102,8 +100,12 @@ public class BookingService
         
         foreach (var b in bookings)
         {
-            int existingEndHour = b.EndTime.Hour == 0 ? 24 : b.EndTime.Hour;
-            if (b.StartTime.Hour < newEndHour && existingEndHour > start.Hour)
+            // Normalize midnight times: treat 00:00 as 24:00 (end-of-day)
+            TimeOnly existingEnd = b.EndTime == TimeOnly.MinValue ? TimeOnly.MaxValue : b.EndTime;
+            TimeOnly newEnd = end == TimeOnly.MinValue ? TimeOnly.MaxValue : end;
+            
+            // Check for overlap: existing starts before new ends AND existing ends after new starts
+            if (b.StartTime < newEnd && existingEnd > start)
                 return false;
         }
         
