@@ -57,18 +57,21 @@ public class ReservationExpiryCleanupService : BackgroundService
         var now = DateTime.UtcNow;
 
         // Find expired Bookings that are still Pending
-        var expiredBookings = await db.Bookings
-            .Where(b => b.Status == BookingStatus.Pending
-                     && b.ReservedUntil.HasValue
-                     && b.ReservedUntil.Value <= now)
+        // Load into memory first, then filter to avoid PostgreSQL TEXT vs TIMESTAMP comparison issues
+        var allPendingBookings = await db.Bookings
+            .Where(b => b.Status == BookingStatus.Pending && b.ReservedUntil.HasValue)
             .ToListAsync(ct);
+        var expiredBookings = allPendingBookings
+            .Where(b => b.ReservedUntil.Value <= now)
+            .ToList();
 
         // Find expired OpenPlaySignups that are still Pending
-        var expiredSignups = await db.OpenPlaySignups
-            .Where(s => s.Status == BookingStatus.Pending
-                     && s.ReservedUntil.HasValue
-                     && s.ReservedUntil.Value <= now)
+        var allPendingSignups = await db.OpenPlaySignups
+            .Where(s => s.Status == BookingStatus.Pending && s.ReservedUntil.HasValue)
             .ToListAsync(ct);
+        var expiredSignups = allPendingSignups
+            .Where(s => s.ReservedUntil.Value <= now)
+            .ToList();
 
         if (expiredBookings.Count > 0)
         {
