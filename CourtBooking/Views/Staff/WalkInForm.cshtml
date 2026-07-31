@@ -44,7 +44,7 @@
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Duration</label>
                             <select name="durationHours" class="form-select" id="durationSelect">
-                                @for (int d = 1; d <= 4 && startHour + d <= court?.ClosingHour; d++)
+                                @for (int d = 1; d <= 16 && startHour + d <= court?.ClosingHour; d++)
                                 {
                                     <option value="@d">@d hour@(d > 1 ? "s" : "")</option>
                                 }
