@@ -1,0 +1,79 @@
+@model CourtBooking.Models.CourtBundle
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Edit Bundle";
+    var myCourts = ViewBag.MyCourts as List<Court> ?? new();
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0" style="font-size:.8rem;">
+                <li class="breadcrumb-item">
+                    <a asp-action="Bundles" style="color:var(--cb-text-3);text-decoration:none;">Bundles</a>
+                </li>
+                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">Edit @Model.Name</li>
+            </ol>
+        </nav>
+        <h1 class="mb-1" style="font-size:1.75rem;font-weight:800;">Edit Bundle</h1>
+        <p class="mb-0" style="color:var(--cb-text-2);font-size:.9rem;">
+            Update the bundle name and courts included in this package.
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-10">
+
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success">@TempData["Success"]</div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["Error"]</div>
+            }
+
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-pencil me-2" style="color:var(--cb-lime);"></i>Edit Bundle</h6>
+                </div>
+                <div class="card-body">
+                    <form asp-action="EditBundle" method="post" class="row g-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold mb-1">Bundle Name</label>
+                            <input type="text" name="name" class="form-control" value="@Model.Name" maxlength="100" required />
+                        </div>
+                        
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold mb-1">Courts in this bundle</label>
+                            <div class="d-flex flex-wrap gap-3">
+                                @{
+                                    var selectedCourtIds = Model.Courts.Select(c => c.CourtId).ToList();
+                                }
+                                @foreach (var c in myCourts)
+                                {
+                                    <label class="form-check">
+                                        <input type="checkbox" class="form-check-input" name="courtIds" value="@c.Id" 
+                                               @(selectedCourtIds.Contains(c.Id) ? "checked" : "") />
+                                        <span class="form-check-label">@c.Name</span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                        
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+                            <a asp-action="Bundles" class="btn btn-outline-secondary ms-2">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>

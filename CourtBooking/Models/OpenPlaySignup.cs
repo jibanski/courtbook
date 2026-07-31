@@ -64,6 +64,13 @@ public class OpenPlaySignup
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// For Pending sign-ups: reservation expires at this time if payment is not confirmed.
+    /// Allows a 15-minute window for customers to complete payment. Null for Confirmed/Cancelled/Completed sign-ups.
+    /// Staff-logged cash sign-ups skip this timer (they're created as Confirmed immediately).
+    /// </summary>
+    public DateTime? ReservedUntil { get; set; }
+
     public decimal? CommissionAmount { get; set; }
 
     /// <summary>Set only for a guest checkout (no login) — the unguessable capability token emailed to

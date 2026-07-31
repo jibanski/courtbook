@@ -149,7 +149,8 @@ public class StaffController : Controller
             PaymentMethod = b.PaymentMethod,
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
-            AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null
+            AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
+            PaymentProofPath = b.PaymentProofPath
         }).ToList();
 
         rows.AddRange(signups.Select(sg => new AdminBookingRow
@@ -507,6 +508,33 @@ public class StaffController : Controller
     }
 
     // ── My cash log ───────────────────────────────────────────────────────────
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConfirmPayment(int id)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var booking  = await _db.Bookings
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
+        if (booking is null) return NotFound();
+
+        if (booking.ReservedUntil.HasValue && DateTime.UtcNow > booking.ReservedUntil.Value)
+        {
+            booking.Status = BookingStatus.Cancelled;
+            await _db.SaveChangesAsync();
+            TempData["Error"] = $"Booking #{id} has expired (payment window elapsed) and has been cancelled.";
+            return RedirectToAction(nameof(Bookings), new { status = "Pending" });
+        }
+
+        booking.Status        = BookingStatus.Confirmed;
+        booking.PaymentStatus = PaymentStatus.Paid;
+        booking.PaidAt        = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Booking #{id} confirmed.";
+        return RedirectToAction(nameof(Bookings), new { status = "Pending" });
+    }
 
     public async Task<IActionResult> MyCashLog(DateOnly? from, DateOnly? to)
     {

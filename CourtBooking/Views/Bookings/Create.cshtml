@@ -51,7 +51,7 @@
                                 <h6 class="fw-bold mb-2"><i class="bi bi-person me-1"></i>Your Info</h6>
                                 <p class="small text-muted mb-2">Booking as a guest — no account needed.</p>
                                 <div class="mb-2">
-                                    <label class="form-label small fw-semibold">Name</label>
+                                    <label class="form-label small fw-semibold">Full Name</label>
                                     <input name="GuestName" class="form-control" required />
                                 </div>
                                 <div class="row g-2">
@@ -97,9 +97,23 @@
                             <div class="mb-3">
                                 <label asp-for="StartHour" class="form-label fw-semibold">Start Time</label>
                                 <select asp-for="StartHour" class="form-select" id="startHourSelect">
+                                    @{
+                                        var today = PhtClock.Today;
+                                        var now = PhtClock.Now;
+                                        var isToday = Model.BookingDate == today;
+                                        var currentHour = isToday ? now.Hour : -1;
+                                    }
                                     @for (int h = (Model.Court?.OpeningHour ?? 6); h < (Model.Court?.ClosingHour ?? 22); h++)
                                     {
-                                        <option value="@h" selected="@(Model.StartHour == h)">@TimeDisplay.Hour(h)</option>
+                                        var isPastTime = isToday && h <= currentHour;
+                                        if (isPastTime)
+                                        {
+                                            <option value="@h" disabled>@TimeDisplay.Hour(h) (past)</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@h" selected="@(Model.StartHour == h)">@TimeDisplay.Hour(h)</option>
+                                        }
                                     }
                                 </select>
                                 <span asp-validation-for="StartHour" class="text-danger small"></span>
@@ -108,10 +122,10 @@
                             <div class="mb-3">
                                 <label asp-for="DurationHours" class="form-label fw-semibold">Duration</label>
                                 <select asp-for="DurationHours" class="form-select" id="durationSelect">
-                                    <option value="1">1 hour</option>
-                                    <option value="2">2 hours</option>
-                                    <option value="3">3 hours</option>
-                                    <option value="4">4 hours</option>
+                                    @for (int i = 1; i <= 16; i++)
+                                    {
+                                        <option value="@i">@i hour@(i > 1 ? "s" : "")</option>
+                                    }
                                 </select>
                                 <span asp-validation-for="DurationHours" class="text-danger small"></span>
                             </div>

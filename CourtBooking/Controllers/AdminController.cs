@@ -378,6 +378,15 @@ public class AdminController : Controller
             .FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
         if (booking is null) return NotFound();
 
+        // Check if the 15-minute reservation window has expired
+        if (booking.ReservedUntil.HasValue && DateTime.UtcNow > booking.ReservedUntil.Value)
+        {
+            booking.Status = BookingStatus.Cancelled;
+            await _db.SaveChangesAsync();
+            TempData["Error"] = $"Booking #{id} has expired (payment window elapsed) and has been automatically cancelled. The slot is now available for other customers.";
+            return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
+        }
+
         booking.Status        = BookingStatus.Confirmed;
         booking.PaymentStatus = PaymentStatus.Paid;
         booking.PaidAt        = DateTime.UtcNow;
@@ -918,6 +927,49 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditRateTier(int id, int courtId, string[] days, bool includeHolidays, int startHour, int endHour, decimal pricePerHour)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var tier = await _db.CourtRateTiers.FirstOrDefaultAsync(t => t.Id == id && myCourtIds.Contains(t.CourtId));
+        if (tier is null) return NotFound();
+
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        var daysCsv = NormalizeDays(days);
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
+        {
+            TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        var existing = await _bookingService.GetRateTiersAsync(courtId);
+        bool overlaps = existing.Any(t => t.Id != id &&
+            startHour < t.EndHour && endHour > t.StartHour &&
+            DaysOverlap(t.DaysOfWeek, t.IncludeHolidays, daysCsv, includeHolidays));
+        if (overlaps)
+        {
+            TempData["Error"] = "This rate tier overlaps an existing tier on one of the selected days.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        tier.DaysOfWeek      = daysCsv;
+        tier.IncludeHolidays = includeHolidays;
+        tier.StartHour       = startHour;
+        tier.EndHour         = endHour;
+        tier.PricePerHour    = pricePerHour;
+        await _db.SaveChangesAsync();
+
+        var resynced = await _bookingService.ResyncUnpaidPricesAsync(courtId);
+        var message = resynced > 0
+            ? $"Rate tier updated. {resynced} unpaid booking(s) updated to the new rate."
+            : "Rate tier updated.";
+        if (OutOfHoursWarning(court, startHour, endHour) is { } warn) message += $" {warn}";
+        TempData["Success"] = message;
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> AddScheduleBlock(
         int courtId, string[] days, bool includeHolidays, int startHour, int endHour, BookingType type,
         bool allowPublicSignup = false, int? maxPlayers = null, decimal? pricePerHead = null)
@@ -996,6 +1048,58 @@ public class AdminController : Controller
         block.AllowPublicSignup = allowPublicSignup;
         await _db.SaveChangesAsync();
         TempData["Success"] = "Open Play pricing updated.";
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditScheduleBlock(
+        int id, int courtId, string[] days, bool includeHolidays, int startHour, int endHour, BookingType type,
+        bool allowPublicSignup = false, int? maxPlayers = null, decimal? pricePerHead = null)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
+        if (block is null) return NotFound();
+
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        var daysCsv = NormalizeDays(days);
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
+        {
+            TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        if (type != BookingType.AdminHostedOpenPlay) { allowPublicSignup = false; maxPlayers = null; pricePerHead = null; }
+        if (allowPublicSignup && (!maxPlayers.HasValue || maxPlayers.Value < 1 || !pricePerHead.HasValue || pricePerHead.Value < 0))
+        {
+            TempData["Error"] = "To enable public sign-up, set a Max Players (at least 1) and a Price/Head.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        var existing = await _bookingService.GetScheduleBlocksAsync(courtId);
+        bool overlaps = existing.Any(b => b.Id != id &&
+            startHour < b.EndHour && endHour > b.StartHour &&
+            DaysOverlap(b.DaysOfWeek, b.IncludeHolidays, daysCsv, includeHolidays));
+        if (overlaps)
+        {
+            TempData["Error"] = "This schedule block overlaps an existing block on one of the selected days.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        block.DaysOfWeek        = daysCsv;
+        block.IncludeHolidays   = includeHolidays;
+        block.StartHour         = startHour;
+        block.EndHour           = endHour;
+        block.Type              = type;
+        block.AllowPublicSignup = allowPublicSignup;
+        block.MaxPlayers        = maxPlayers;
+        block.PricePerHead      = pricePerHead;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = OutOfHoursWarning(court, startHour, endHour) is { } warn
+            ? $"Schedule block updated. {warn}"
+            : "Schedule block updated.";
         return RedirectToAction(nameof(Schedule), new { id = courtId });
     }
 
@@ -1093,6 +1197,55 @@ public class AdminController : Controller
         _db.CourtBundles.Add(bundle);
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Bundle '{bundle.Name}' created.";
+        return RedirectToAction(nameof(Bundles));
+    }
+
+    public async Task<IActionResult> EditBundle(int id)
+    {
+        var bundle = await _db.CourtBundles
+            .Include(b => b.Courts).ThenInclude(bc => bc.Court)
+            .FirstOrDefaultAsync(b => b.Id == id && b.OwnerId == CurrentUserId);
+        if (bundle is null) return NotFound();
+
+        var myCourts = await _db.Courts
+            .Where(c => c.OwnerId == CurrentUserId)
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+        ViewBag.MyCourts = myCourts;
+        return View(bundle);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditBundle(int id, string name, int[] courtIds)
+    {
+        var bundle = await _db.CourtBundles
+            .Include(b => b.Courts)
+            .FirstOrDefaultAsync(b => b.Id == id && b.OwnerId == CurrentUserId);
+        if (bundle is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(name) || courtIds.Length == 0)
+        {
+            TempData["Error"] = "Give the bundle a name and pick at least 1 of your courts.";
+            return RedirectToAction(nameof(EditBundle), new { id });
+        }
+
+        var myCourts = await _db.Courts
+            .Where(c => c.OwnerId == CurrentUserId)
+            .Select(c => c.Id)
+            .ToListAsync();
+        var validCourtIds = courtIds.Where(cid => myCourts.Contains(cid)).Distinct().ToList();
+
+        if (validCourtIds.Count == 0)
+        {
+            TempData["Error"] = "Give the bundle a name and pick at least 1 of your courts.";
+            return RedirectToAction(nameof(EditBundle), new { id });
+        }
+
+        bundle.Name = name.Trim();
+        bundle.Courts = validCourtIds.Select(cid => new CourtBundleCourt { CourtId = cid }).ToList();
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Bundle '{bundle.Name}' updated.";
         return RedirectToAction(nameof(Bundles));
     }
 
@@ -1206,6 +1359,50 @@ public class AdminController : Controller
             block.IsActive = !block.IsActive;
             await _db.SaveChangesAsync();
         }
+        return RedirectToAction(nameof(BundleSchedule), new { id = bundleId });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditBundleRateBlock(int id, int bundleId)
+    {
+        var bundle = await _db.CourtBundles
+            .FirstOrDefaultAsync(b => b.Id == bundleId && b.OwnerId == CurrentUserId);
+        if (bundle is null) return NotFound();
+
+        var block = await _db.CourtBundleRateBlocks
+            .FirstOrDefaultAsync(b => b.Id == id && b.CourtBundleId == bundleId);
+        if (block is null) return NotFound();
+
+        ViewBag.Bundle = bundle;
+        return View(block);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditBundleRateBlock(int id, int bundleId, string daysOfWeek, int startHour, int endHour, decimal flatPrice, bool includeHolidays)
+    {
+        var bundle = await _db.CourtBundles
+            .FirstOrDefaultAsync(b => b.Id == bundleId && b.OwnerId == CurrentUserId);
+        if (bundle is null) return NotFound();
+
+        var block = await _db.CourtBundleRateBlocks
+            .FirstOrDefaultAsync(b => b.Id == id && b.CourtBundleId == bundleId);
+        if (block is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(daysOfWeek) || startHour >= endHour || flatPrice <= 0)
+        {
+            TempData["Error"] = "Select at least one day, set valid hours, and enter a price > 0.";
+            return RedirectToAction(nameof(EditBundleRateBlock), new { id, bundleId });
+        }
+
+        block.DaysOfWeek = daysOfWeek.Trim();
+        block.StartHour = startHour;
+        block.EndHour = endHour;
+        block.FlatPrice = flatPrice;
+        block.IncludeHolidays = includeHolidays;
+
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = "Peak window updated.";
         return RedirectToAction(nameof(BundleSchedule), new { id = bundleId });
     }
 

@@ -76,6 +76,13 @@ public class Booking
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// For Pending bookings: reservation expires at this time if payment is not confirmed.
+    /// Allows a 15-minute window for customers to complete payment. Null for Confirmed/Cancelled/Completed bookings.
+    /// Staff-logged cash bookings skip this timer (they're Created as Confirmed immediately).
+    /// </summary>
+    public DateTime? ReservedUntil { get; set; }
+
     /// <summary>The Staff account that logged this as a cash walk-in booking (<see cref="PaymentMethod"/>
     /// = "Cash"). Null for every online/guest-checkout booking.</summary>
     public string? LoggedByStaffId { get; set; }

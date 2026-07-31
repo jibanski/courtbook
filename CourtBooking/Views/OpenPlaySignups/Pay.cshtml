@@ -56,6 +56,61 @@
                 </div>
             </div>
 
+            @* ── Reservation Timer ── *@
+            @if (!isConfirmed && Model.ReservedUntil.HasValue)
+            {
+                var remainSec = (int)Math.Max(0, (Model.ReservedUntil.Value - DateTime.UtcNow).TotalSeconds);
+                var totalSec = 15 * 60;
+                var initPct = (int)Math.Round((double)remainSec / totalSec * 100);
+                var initDisplay = $"{remainSec / 60:D2}:{remainSec % 60:D2}";
+                <div class="card shadow-sm mb-4" id="timerCard" style="border-left: 4px solid var(--cb-orange);">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-3">
+                            <div>
+                                <i class="bi bi-hourglass-split fs-4" style="color:var(--cb-orange);"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <p class="mb-1 small fw-semibold text-muted">YOUR RESERVATION EXPIRES IN</p>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <span id="timerDisplay" class="fs-4 fw-bold" style="font-family:'Courier New',monospace;color:#dc3545;">@initDisplay</span>
+                                    <span class="small text-muted">(minutes : seconds)</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="progress mt-3" style="height: 6px;">
+                            <div id="timerProgress" class="progress-bar bg-success" role="progressbar" style="width: @initPct%;" aria-valuenow="@initPct" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                </div>
+                <script>
+                    (function () {
+                        let s = @remainSec;
+                        const total = @totalSec;
+                        function tick() {
+                            const disp = document.getElementById('timerDisplay');
+                            const card = document.getElementById('timerCard');
+                            const bar  = document.getElementById('timerProgress');
+                            if (!disp) return;
+                            disp.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+                            bar.style.width = Math.max(0, (s / total) * 100) + '%';
+                            if (s <= 0) {
+                                disp.style.color = '#dc3545'; card.style.borderLeftColor = '#dc3545'; bar.className = 'progress-bar bg-danger';
+                                setTimeout(() => location.reload(), 2000);
+                            } else if (s <= 180) {
+                                disp.style.color = '#dc3545'; card.style.borderLeftColor = '#dc3545'; bar.className = 'progress-bar bg-danger';
+                            } else if (s <= 300) {
+                                disp.style.color = '#dc3545'; card.style.borderLeftColor = '#ffc107'; bar.className = 'progress-bar bg-warning';
+                            } else {
+                                disp.style.color = '#dc3545'; card.style.borderLeftColor = 'var(--cb-orange)'; bar.className = 'progress-bar bg-success';
+                            }
+                            if (s > 0) s--;
+                        }
+                        tick();
+                        setInterval(tick, 1000);
+                    })();
+                </script>
+            }
+
             @if (TempData["Error"] is string err)
             {
                 <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">

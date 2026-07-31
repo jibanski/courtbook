@@ -16,7 +16,7 @@ public class BookingViewModel
     public int StartHour { get; set; }
 
     [Required]
-    [Range(1, 12, ErrorMessage = "Duration must be at least 1 hour.")]
+    [Range(1, 16, ErrorMessage = "Duration must be between 1 and 16 hours.")]
     public int DurationHours { get; set; } = 1;
 
     // When set, duration is fixed by the slot and the dropdown is hidden
@@ -26,8 +26,11 @@ public class BookingViewModel
     public string? Notes { get; set; }
 
     // Guest checkout only (no account) — required when the visitor isn't logged in.
+    [Required(ErrorMessage = "Full name is required.")]
     public string? GuestName { get; set; }
+    [Required(ErrorMessage = "Email is required.")]
     public string? GuestEmail { get; set; }
+    [Required(ErrorMessage = "Phone is required.")]
     public string? GuestPhone { get; set; }
 
     // When set (from the GET action), this is the tier-aware total for a fixed-slot booking
