@@ -62,7 +62,9 @@ public static class ScheduleRules
     {
         var tierList = tiers as IList<CourtRateTier> ?? tiers.ToList();
         decimal total = 0;
-        for (int h = start.Hour; h < end.Hour; h++)
+        // end.Hour is 0 when endHour==24 (midnight) due to TimeOnly wrapping — treat 0 as 24
+        int endHour = end.Hour == 0 ? 24 : end.Hour;
+        for (int h = start.Hour; h < endHour; h++)
             total += ResolveHourlyRate(tierList, fallback, date, isHoliday, h);
         return total;
     }

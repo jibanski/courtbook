@@ -43,4 +43,7 @@ public class AdminBookingRow
 
     /// <summary>Human-readable "2x Paddle Rental, 1x Shuttlecock" summary for a tooltip — null when there are none.</summary>
     public string? AddOnsSummary { get; set; }
+
+    /// <summary>Path to the uploaded payment proof screenshot, if any.</summary>
+    public string? PaymentProofPath { get; set; }
 }

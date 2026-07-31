@@ -160,7 +160,8 @@ public class BundleBookingsController : Controller
             PaymentStatus = PaymentStatus.Unpaid,
             CourtBundleId = bundle.Id,
             BundleGroupId = groupId,
-            GuestAccessToken = guestToken
+            GuestAccessToken = guestToken,
+            ReservedUntil = DateTime.UtcNow.AddMinutes(15)
         }).ToList();
 
         _db.Bookings.AddRange(bookings);
@@ -193,22 +194,46 @@ public class BundleBookingsController : Controller
             ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == first.Court.OwnerId)
             : null) ?? new FacilitySettings();
 
-        ViewBag.Settings     = settings;
-        ViewBag.CombinedTotal = rows.Sum(r => r.TotalPrice);
-        ViewBag.CourtNames    = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
-        ViewBag.GroupId       = groupId;
+        ViewBag.Settings      = settings;
+        ViewBag.CombinedTotal  = rows.Sum(r => r.TotalPrice);
+        ViewBag.CourtNames     = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
+        ViewBag.GroupId        = groupId;
+        var user = await _userManager.GetUserAsync(User);
+        ViewBag.CustomerFullName = first.CustomerNameSnapshot ?? user?.FullName;
         return View(first);
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> SubmitProof(Guid groupId, string method, string? reference, IFormFile? screenshot)
+    public async Task<IActionResult> SubmitProof(Guid groupId, string method, string? reference, IFormFile? screenshot, string? fullName)
     {
         var userId = _userManager.GetUserId(User)!;
         var rows = await _db.Bookings
             .Include(b => b.Court)
+            .Include(b => b.User)
             .Where(b => b.BundleGroupId == groupId && b.UserId == userId && b.PaymentStatus == PaymentStatus.Unpaid)
             .ToListAsync();
         if (rows.Count == 0) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            TempData["Error"] = "Full name is required.";
+            return RedirectToAction(nameof(Pay), new { groupId });
+        }
+        foreach (var row in rows)
+            row.CustomerNameSnapshot = fullName.Trim();
+
+        // Check if any of the bookings in this bundle have expired
+        var expiredRows = rows.Where(b => b.ReservedUntil.HasValue && DateTime.UtcNow > b.ReservedUntil.Value).ToList();
+        if (expiredRows.Count > 0)
+        {
+            foreach (var row in expiredRows)
+            {
+                row.Status = BookingStatus.Cancelled;
+            }
+            await _db.SaveChangesAsync();
+            TempData["Error"] = "One or more slots in this bundle have expired (15-minute payment window elapsed). The bundle has been released. Please book again.";
+            return RedirectToAction(nameof(Index));
+        }
 
         if (screenshot is null || screenshot.Length == 0)
         {
@@ -302,13 +327,36 @@ public class BundleBookingsController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]
-    public async Task<IActionResult> GuestSubmitProof(Guid token, string method, string? reference, IFormFile? screenshot)
+    public async Task<IActionResult> GuestSubmitProof(Guid token, string method, string? reference, IFormFile? screenshot, string? fullName)
     {
         var rows = await _db.Bookings
             .Include(b => b.Court)
             .Where(b => b.GuestAccessToken == token && b.PaymentStatus == PaymentStatus.Unpaid)
             .ToListAsync();
         if (rows.Count == 0) return NotFound();
+
+        var firstBooking = rows.First();
+        var nameToUse = !string.IsNullOrWhiteSpace(fullName) ? fullName.Trim() : firstBooking.CustomerNameSnapshot;
+        if (string.IsNullOrWhiteSpace(nameToUse))
+        {
+            TempData["Error"] = "Full name is required.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+        foreach (var row in rows)
+            row.CustomerNameSnapshot = nameToUse;
+
+        // Check if any of the bookings in this bundle have expired
+        var expiredRows = rows.Where(b => b.ReservedUntil.HasValue && DateTime.UtcNow > b.ReservedUntil.Value).ToList();
+        if (expiredRows.Count > 0)
+        {
+            foreach (var row in expiredRows)
+            {
+                row.Status = BookingStatus.Cancelled;
+            }
+            await _db.SaveChangesAsync();
+            TempData["Error"] = "One or more slots in this bundle have expired (15-minute payment window elapsed). The bundle has been released. Please book again.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
 
         if (screenshot is null || screenshot.Length == 0)
         {

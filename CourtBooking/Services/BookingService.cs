@@ -22,7 +22,8 @@ public class BookingService
         var bookedHours = new List<int>();
         foreach (var b in bookings)
         {
-            for (int h = b.StartTime.Hour; h < b.EndTime.Hour; h++)
+            int endHour = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
+            for (int h = b.StartTime.Hour; h < endHour; h++)
                 bookedHours.Add(h);
         }
         return bookedHours;
@@ -66,12 +67,15 @@ public class BookingService
         if (date < today) return false;
         if (date == today && start.Hour <= localNow.Hour) return false;
 
+        // end.Hour==0 means midnight (24:00 wrapped to 00:00); treat as end-of-day
+        int endHourInt = end.Hour == 0 ? 24 : end.Hour;
+
         // Reject if an inactive time-slot marker overlaps
         var slotBlocked = await _db.CourtTimeSlots.AnyAsync(s =>
             s.CourtId == courtId &&
             s.SlotDate == date &&
             !s.IsActive &&
-            s.StartHour < end.Hour &&
+            s.StartHour < endHourInt &&
             s.EndHour   > start.Hour);
         if (slotBlocked) return false;
 
@@ -83,15 +87,17 @@ public class BookingService
         foreach (var blk in rangeBlocks)
         {
             var (from, to) = blk.HoursOn(date);
-            if (from < end.Hour && to > start.Hour) return false;
+            if (from < endHourInt && to > start.Hour) return false;
         }
 
+        // EndTime==MinValue means the existing booking ends at midnight (stored as 00:00)
+        var effectiveEnd = end == TimeOnly.MinValue ? TimeOnly.MaxValue : end;
         return !await _db.Bookings.AnyAsync(b =>
             b.CourtId == courtId &&
             b.BookingDate == date &&
             b.Status != BookingStatus.Cancelled &&
-            b.StartTime < end &&
-            b.EndTime > start);
+            b.StartTime < effectiveEnd &&
+            (b.EndTime > start || b.EndTime == TimeOnly.MinValue));
     }
 
     public async Task<List<int>> GetUnavailableSlotIdsAsync(int courtId, DateOnly date, IEnumerable<CourtTimeSlot> slots)
@@ -103,7 +109,7 @@ public class BookingService
         return slots
             .Where(slot => bookings.Any(b =>
                 b.StartTime < new TimeOnly(slot.EndHour % 24, 0) &&
-                b.EndTime   > new TimeOnly(slot.StartHour % 24, 0)))
+                (b.EndTime == TimeOnly.MinValue || b.EndTime > new TimeOnly(slot.StartHour % 24, 0))))
             .Select(s => s.Id)
             .ToList();
     }

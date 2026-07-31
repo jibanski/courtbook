@@ -1,0 +1,119 @@
+@model CourtBooking.Models.CourtBundleRateBlock
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Edit Peak Window";
+    var bundle = ViewBag.Bundle as CourtBundle;
+    var days = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0" style="font-size:.8rem;">
+                <li class="breadcrumb-item">
+                    <a asp-action="Bundles" style="color:var(--cb-text-3);text-decoration:none;">Bundles</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a asp-action="BundleSchedule" asp-route-id="@bundle!.Id" style="color:var(--cb-text-3);text-decoration:none;">@bundle.Name — Peak Windows</a>
+                </li>
+                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">Edit Window</li>
+            </ol>
+        </nav>
+        <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">Edit Peak Window</h1>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-10">
+
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success">@TempData["Success"]</div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["Error"]</div>
+            }
+
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-pencil me-2" style="color:var(--cb-lime);"></i>Edit Peak Window</h6>
+                </div>
+                <div class="card-body">
+                    <form asp-action="EditBundleRateBlock" method="post" class="row g-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <input type="hidden" name="bundleId" value="@Model.CourtBundleId" />
+
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold mb-2" style="color:var(--cb-text-2);">Days</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var d in days)
+                                {
+                                    <label class="form-check form-check-inline">
+                                        <input type="checkbox" class="form-check-input" name="daysOfWeek" value="@d" 
+                                               @(Model.DaysOfWeek.Contains(d) ? "checked" : "") />
+                                        <span class="form-check-label small">@d</span>
+                                    </label>
+                                }
+                                <label class="form-check form-check-inline ms-2">
+                                    <input type="checkbox" class="form-check-input" name="includeHolidays" value="true" 
+                                           @(Model.IncludeHolidays ? "checked" : "") />
+                                    <span class="form-check-label small">+ Holidays</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Start</label>
+                            <select name="startHour" class="form-select form-select-sm">
+                                @for (int h = 0; h < 24; h++)
+                                {
+                                    if (Model.StartHour == h)
+                                    {
+                                        <option value="@h" selected>@TimeDisplay.Hour(h)</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@h">@TimeDisplay.Hour(h)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">End</label>
+                            <select name="endHour" class="form-select form-select-sm">
+                                @for (int h = 1; h <= 24; h++)
+                                {
+                                    if (Model.EndHour == h)
+                                    {
+                                        <option value="@h" selected>@TimeDisplay.Hour(h)</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@h">@TimeDisplay.Hour(h)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-4">
+                            <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Flat Price</label>
+                            <input type="number" name="flatPrice" step="0.01" min="0" class="form-control form-control-sm" 
+                                   value="@Model.FlatPrice" required />
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Save Changes
+                            </button>
+                            <a asp-action="BundleSchedule" asp-route-id="@Model.CourtBundleId" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -16,11 +16,18 @@
                 <li class="breadcrumb-item active" style="color:var(--cb-text-2);">@bundle!.Name</li>
             </ol>
         </nav>
-        <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">@bundle.Name — Peak Windows</h1>
-        <p class="mb-0" style="color:var(--cb-text-3);font-size:.875rem;">
-            Courts: @string.Join(", ", bundle.Courts.Select(c => c.Court.Name)) &bull;
-            Add recurring windows when this bundle is sellable as a flat-price package instead of individual court booking.
-        </p>
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">@bundle.Name — Peak Windows</h1>
+                <p class="mb-0" style="color:var(--cb-text-3);font-size:.875rem;">
+                    Courts: @string.Join(", ", bundle.Courts.Select(c => c.Court.Name)) &bull;
+                    Add recurring windows when this bundle is sellable as a flat-price package instead of individual court booking.
+                </p>
+            </div>
+            <a asp-action="EditBundle" asp-route-id="@bundle.Id" class="btn btn-sm btn-outline-info ms-3">
+                <i class="bi bi-pencil me-1"></i>Edit Bundle
+            </a>
+        </div>
     </div>
 </div>
 
@@ -78,6 +85,9 @@
                                                 }
                                             </td>
                                             <td class="text-end">
+                                                <a asp-action="EditBundleRateBlock" asp-route-id="@b.Id" asp-route-bundleId="@bundle.Id" class="btn btn-sm btn-outline-info" title="Edit window">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
                                                 <form asp-action="ToggleBundleRateBlock" method="post" class="d-inline">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="id" value="@b.Id" />

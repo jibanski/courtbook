@@ -91,6 +91,7 @@ builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<GuestCheckoutService>();
 builder.Services.AddHttpClient();                                 // for EmailService (Brevo HTTP API)
 builder.Services.AddHostedService<SubscriptionReminderHostedService>();
+builder.Services.AddHostedService<ReservationExpiryCleanupService>();
 builder.Services.AddControllersWithViews();
 
 // ── Data Protection key persistence ───────────────────────────────────────

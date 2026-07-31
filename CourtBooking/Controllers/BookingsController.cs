@@ -234,6 +234,7 @@ public class BookingsController : Controller
             PaymentStatus = PaymentStatus.Unpaid,
             GuestAccessToken = isGuest ? Guid.NewGuid() : null,
             CustomerNameSnapshot = isGuest ? vm.GuestName : null,
+            ReservedUntil = DateTime.UtcNow.AddMinutes(15),
             AddOns = addOns
         };
 
@@ -282,9 +283,27 @@ public class BookingsController : Controller
         var userId = _userManager.GetUserId(User)!;
         var booking = await _db.Bookings
             .Include(b => b.Court)
+            .Include(b => b.User)
             .FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == userId && b.PaymentStatus == PaymentStatus.Unpaid);
 
         if (booking is null) return NotFound();
+
+        // Verify full name is present (required for payment records)
+        var fullName = booking.CustomerNameSnapshot ?? booking.User?.FullName;
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            TempData["Error"] = "Full name is required to submit payment. Please update your profile.";
+            return RedirectToAction(nameof(Pay), new { id = bookingId });
+        }
+
+        // Check if the 15-minute reservation window has expired
+        if (booking.ReservedUntil.HasValue && DateTime.UtcNow > booking.ReservedUntil.Value)
+        {
+            booking.Status = BookingStatus.Cancelled;
+            await _db.SaveChangesAsync();
+            TempData["Error"] = "Your reservation has expired (15-minute payment window elapsed). The slot has been released. Please select another time.";
+            return RedirectToAction(nameof(Index));
+        }
 
         if (screenshot is null || screenshot.Length == 0)
         {
@@ -490,6 +509,22 @@ public class BookingsController : Controller
             .Include(b => b.Court)
             .FirstOrDefaultAsync(b => b.GuestAccessToken == token && b.PaymentStatus == PaymentStatus.Unpaid);
         if (booking is null) return NotFound();
+
+        // Verify full name is present (required for payment records)
+        if (string.IsNullOrWhiteSpace(booking.CustomerNameSnapshot))
+        {
+            TempData["Error"] = "Full name is required to submit payment. Please provide your name when completing the booking.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+
+        // Check if the 15-minute reservation window has expired
+        if (booking.ReservedUntil.HasValue && DateTime.UtcNow > booking.ReservedUntil.Value)
+        {
+            booking.Status = BookingStatus.Cancelled;
+            await _db.SaveChangesAsync();
+            TempData["Error"] = "Your reservation has expired (15-minute payment window elapsed). The slot has been released. Please book another time.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
 
         if (screenshot is null || screenshot.Length == 0)
         {

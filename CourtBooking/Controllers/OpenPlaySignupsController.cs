@@ -148,7 +148,8 @@ public class OpenPlaySignupsController : Controller
             Status               = BookingStatus.Pending,
             PaymentStatus        = PaymentStatus.Unpaid,
             GuestAccessToken     = isGuest ? Guid.NewGuid() : null,
-            CustomerNameSnapshot = isGuest ? guestName : null
+            CustomerNameSnapshot = isGuest ? guestName : null,
+            ReservedUntil        = DateTime.UtcNow.AddMinutes(15)
         };
         _db.OpenPlaySignups.Add(signup);
         await _db.SaveChangesAsync();
@@ -188,8 +189,26 @@ public class OpenPlaySignupsController : Controller
         var userId = _userManager.GetUserId(User)!;
         var signup = await _db.OpenPlaySignups
             .Include(s => s.Court)
+            .Include(s => s.User)
             .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId && s.PaymentStatus == PaymentStatus.Unpaid);
         if (signup is null) return NotFound();
+
+        // Verify full name is present (required for payment records)
+        var fullName = signup.CustomerNameSnapshot ?? signup.User?.FullName;
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            TempData["Error"] = "Full name is required to submit payment. Please update your profile.";
+            return RedirectToAction(nameof(Pay), new { id });
+        }
+
+        // Check if the 15-minute reservation window has expired
+        if (signup.ReservedUntil.HasValue && DateTime.UtcNow > signup.ReservedUntil.Value)
+        {
+            signup.Status = BookingStatus.Cancelled;
+            await _db.SaveChangesAsync();
+            TempData["Error"] = "Your reservation has expired (15-minute payment window elapsed). Your spot has been released. Please sign up again.";
+            return RedirectToAction(nameof(Index), "FacilityController");
+        }
 
         if (screenshot is null || screenshot.Length == 0)
         {
@@ -276,6 +295,22 @@ public class OpenPlaySignupsController : Controller
             .Include(s => s.Court)
             .FirstOrDefaultAsync(s => s.GuestAccessToken == token && s.PaymentStatus == PaymentStatus.Unpaid);
         if (signup is null) return NotFound();
+
+        // Verify full name is present (required for payment records)
+        if (string.IsNullOrWhiteSpace(signup.CustomerNameSnapshot))
+        {
+            TempData["Error"] = "Full name is required to submit payment. Please provide your name when completing the signup.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+
+        // Check if the 15-minute reservation window has expired
+        if (signup.ReservedUntil.HasValue && DateTime.UtcNow > signup.ReservedUntil.Value)
+        {
+            signup.Status = BookingStatus.Cancelled;
+            await _db.SaveChangesAsync();
+            TempData["Error"] = "Your reservation has expired (15-minute payment window elapsed). Your spot has been released. Please sign up again.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
 
         if (screenshot is null || screenshot.Length == 0)
         {

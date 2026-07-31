@@ -5,6 +5,7 @@
     var selectedDate   = ViewBag.SelectedDate as DateOnly?;
     var search         = ViewBag.Search as string;
     var rows = ViewBag.Rows as List<AdminBookingRow> ?? new List<AdminBookingRow>();
+    var awaitingRows = rows.Where(r => r.HasPaymentProof && r.Status == CourtBooking.Models.BookingStatus.Pending).ToList();
 }
 
 <div class="cb-page-header">
@@ -17,7 +18,59 @@
 </div>
 
 <div class="container py-4">
-    <div class="card mb-4">
+    @if (TempData["Success"] is string ok)
+    {
+        <div class="alert alert-success">@ok</div>
+    }
+    @if (TempData["Error"] is string err)
+    {
+        <div class="alert alert-danger">@err</div>
+    }
+
+    @if (awaitingRows.Any())
+    {
+        <div class="card mb-4" style="border-left:4px solid var(--cb-lime);">
+            <div class="card-header fw-bold">
+                <i class="bi bi-hourglass-split me-2" style="color:var(--cb-lime);"></i>Awaiting Payment Confirmation
+                <span class="badge ms-2" style="background:var(--cb-lime);color:#000;">@awaitingRows.Count</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Date</th><th>Time</th><th>Court</th><th>Customer</th><th>Amount</th><th>Method</th><th>Proof</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var b in awaitingRows)
+                        {
+                            <tr>
+                                <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
+                                <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
+                                <td>@b.CourtName</td>
+                                <td>@b.CustomerName</td>
+                                <td>₱@b.TotalPrice.ToString("N0")</td>
+                                <td>@(b.PaymentMethod ?? "—")</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
+                                    {
+                                        <a href="@b.PaymentProofPath" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-image me-1"></i>View
+                                        </a>
+                                    }
+                                </td>
+                                <td>
+                                    <form asp-action="ConfirmPayment" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@b.Id" />
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="bi bi-check-circle me-1"></i>Confirm
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
         <div class="card-body">
             <form method="get" class="row g-3 align-items-end">
                 <div class="col-sm-4">
