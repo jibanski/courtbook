@@ -48,13 +48,27 @@ public class AdminController : Controller
     {
         var courtIds = await GetMyCourtIdsAsync();
 
-        var totalBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status != BookingStatus.Cancelled);
-        var todayBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == PhtClock.Today && b.Status != BookingStatus.Cancelled)
-                            + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == PhtClock.Today && s.Status != BookingStatus.Cancelled);
-        var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
-        var activeCourts    = await MyCourts.CountAsync(c => c.IsActive);
-        var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
-        var awaitingSignups = await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
+        // Run independent dashboard counters in parallel
+        var totalBookingsTask   = _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status != BookingStatus.Cancelled);
+        var todayBookingsTask   = _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == PhtClock.Today && b.Status != BookingStatus.Cancelled);
+        var todaySignupsTask    = _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == PhtClock.Today && s.Status != BookingStatus.Cancelled);
+        var totalRevenueTask    = _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
+        var activeCourtsTask    = MyCourts.CountAsync(c => c.IsActive);
+        var awaitingPaymentTask = _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
+        var awaitingSignupsTask = _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
+        var settingsTask        = GetMySettingsAsync();
+
+        await Task.WhenAll(totalBookingsTask, todayBookingsTask, todaySignupsTask,
+                           totalRevenueTask, activeCourtsTask, awaitingPaymentTask,
+                           awaitingSignupsTask, settingsTask);
+
+        var totalBookings   = totalBookingsTask.Result;
+        var todayBookings   = todayBookingsTask.Result + todaySignupsTask.Result;
+        var totalRevenue    = totalRevenueTask.Result;
+        var activeCourts    = activeCourtsTask.Result;
+        var awaitingPayment = awaitingPaymentTask.Result;
+        var awaitingSignups = awaitingSignupsTask.Result;
+        var settings        = settingsTask.Result;
 
         ViewBag.TotalBookings   = totalBookings;
         ViewBag.TodayBookings   = todayBookings;
@@ -62,7 +76,6 @@ public class AdminController : Controller
         ViewBag.ActiveCourts    = activeCourts;
         ViewBag.AwaitingPayment = awaitingPayment;
         ViewBag.AwaitingSignups = awaitingSignups;
-        var settings = await GetMySettingsAsync();
         ViewBag.FacilitySettings = settings;
 
         // ── Setup Checklist (shown on dashboard until all required items are done) ──

@@ -134,5 +134,27 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Review>().HasIndex(r => new { r.IsApproved, r.IsFeatured, r.DisplayOrder });
+
+        // Booking availability and list queries
+        builder.Entity<Booking>().HasIndex(b => new { b.CourtId, b.BookingDate, b.Status });
+        builder.Entity<Booking>().HasIndex(b => b.UserId);
+        builder.Entity<Booking>().HasIndex(b => new { b.Status, b.PaymentProofSubmittedAt });
+
+        // Open Play sign-up queries
+        builder.Entity<OpenPlaySignup>().HasIndex(s => new { s.CourtId, s.BookingDate, s.Status });
+        builder.Entity<OpenPlaySignup>().HasIndex(s => s.UserId);
+
+        // Time-slot and block lookups (availability grid)
+        builder.Entity<CourtTimeSlot>().HasIndex(s => new { s.CourtId, s.SlotDate });
+        builder.Entity<CourtBlock>().HasIndex(b => new { b.CourtId, b.StartDate, b.EndDate });
+
+        // Rate and schedule config lookups (pricing, booking form)
+        builder.Entity<CourtRateTier>().HasIndex(t => t.CourtId);
+        builder.Entity<CourtScheduleBlock>().HasIndex(b => b.CourtId);
+        builder.Entity<FacilityHoliday>().HasIndex(h => new { h.OwnerId, h.Date });
+
+        // Facility settings (looked up on most pages)
+        builder.Entity<FacilitySettings>().HasIndex(s => s.OwnerId).IsUnique();
+        builder.Entity<FacilitySettings>().HasIndex(s => s.Slug).IsUnique();
     }
 }
