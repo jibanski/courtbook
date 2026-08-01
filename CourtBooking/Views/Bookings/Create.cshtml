@@ -101,14 +101,14 @@
                                         var today = PhtClock.Today;
                                         var now = PhtClock.Now;
                                         var isToday = Model.BookingDate == today;
-                                        var currentHour = isToday ? now.Hour : -1;
+                                        var nowTotalMins = isToday ? now.Hour * 60 + now.Minute + 20 : -1;
                                     }
                                     @for (int h = (Model.Court?.OpeningHour ?? 6); h < (Model.Court?.ClosingHour ?? 22); h++)
                                     {
-                                        var isPastTime = isToday && h <= currentHour;
+                                        var isPastTime = isToday && (h * 60) <= nowTotalMins;
                                         if (isPastTime)
                                         {
-                                            <option value="@h" disabled>@TimeDisplay.Hour(h) (past)</option>
+                                            <option value="@h" disabled>@TimeDisplay.Hour(h) (unavailable)</option>
                                         }
                                         else
                                         {

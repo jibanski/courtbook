@@ -61,11 +61,11 @@ public class BookingService
 
     public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end)
     {
-        // Reject past slots (Philippine Standard Time = UTC+8)
+        // Reject past slots and the 20-minute grace window before a slot starts (PHT = UTC+8)
         var localNow = PhtClock.Now;
         var today    = DateOnly.FromDateTime(localNow);
         if (date < today) return false;
-        if (date == today && start.Hour <= localNow.Hour) return false;
+        if (date == today && (start.Hour * 60 + start.Minute) <= (localNow.Hour * 60 + localNow.Minute + 20)) return false;
 
         // end.Hour==0 means midnight (24:00 wrapped to 00:00); treat as end-of-day
         int endHourInt = end.Hour == 0 ? 24 : end.Hour;

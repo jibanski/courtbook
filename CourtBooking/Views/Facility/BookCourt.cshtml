@@ -11,9 +11,9 @@
     bool  isPastDate = Model.Date < today;
     bool  isToday    = Model.Date == today;
     int   nowHour    = localNow.Hour;
-    // A slot starting at `h` is bookable only if date is future,
-    // OR date is today and we haven't yet reached that hour.
-    bool SlotIsPast(int startHour) => isPastDate || (isToday && startHour <= nowHour);
+    int   nowMinute  = localNow.Minute;
+    // Grey out slots that start within the next 20 minutes (or are already past)
+    bool SlotIsPast(int startHour) => isPastDate || (isToday && (startHour * 60) <= (nowHour * 60 + nowMinute + 20));
 
     string SportDefaultImage(string sport) => sport?.ToLower() switch {
         "tennis"       => "/images/sports/tennis.svg",

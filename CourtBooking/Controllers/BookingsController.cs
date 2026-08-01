@@ -145,8 +145,8 @@ public class BookingsController : Controller
         var todayPht  = DateOnly.FromDateTime(localNow);
         if (vm.BookingDate < todayPht)
             ModelState.AddModelError("BookingDate", "Cannot book a date in the past.");
-        else if (vm.BookingDate == todayPht && vm.StartHour <= localNow.Hour)
-            ModelState.AddModelError("StartHour", "This time slot has already passed. Please choose a future slot.");
+        else if (vm.BookingDate == todayPht && (vm.StartHour * 60) <= (localNow.Hour * 60 + localNow.Minute + 20))
+            ModelState.AddModelError("StartHour", "This time slot is too soon. Please book at least 20 minutes in advance.");
 
         if (vm.StartHour < court.OpeningHour || vm.StartHour >= court.ClosingHour)
             ModelState.AddModelError("StartHour", $"Start hour must be between {TimeDisplay.Hour(court.OpeningHour)} and {TimeDisplay.Hour(court.ClosingHour - 1)}.");

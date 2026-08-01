@@ -9,7 +9,8 @@
     bool isPastDate = selectedDate < today;
     bool isToday    = selectedDate == today;
     int  nowHour    = localNow.Hour;
-    bool SlotIsPast(int startHour) => isPastDate || (isToday && startHour <= nowHour);
+    int  nowMinute  = localNow.Minute;
+    bool SlotIsPast(int startHour) => isPastDate || (isToday && (startHour * 60) <= (nowHour * 60 + nowMinute + 20));
 }
 
 <div class="cb-page-header">
