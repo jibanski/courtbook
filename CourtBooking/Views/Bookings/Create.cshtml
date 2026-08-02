@@ -45,30 +45,35 @@
 
                         <div asp-validation-summary="All" class="alert alert-danger" style="display:@(ViewData.ModelState.IsValid ? "none" : "block")"></div>
 
-                        @if (User.Identity?.IsAuthenticated != true)
-                        {
-                            <div class="border rounded-3 p-3 mb-3" style="background:var(--cb-surface-2, #f8f9fa);">
-                                <h6 class="fw-bold mb-2"><i class="bi bi-person me-1"></i>Your Info</h6>
-                                <p class="small text-muted mb-2">Booking as a guest — no account needed.</p>
-                                <div class="mb-2">
-                                    <label class="form-label small fw-semibold">Full Name</label>
-                                    <input name="GuestName" class="form-control" required />
+                        @{
+                            bool isAuth = User.Identity?.IsAuthenticated == true;
+                        }
+                        <div class="border rounded-3 p-3 mb-3" style="background:var(--cb-surface-2, #f8f9fa);">
+                            <h6 class="fw-bold mb-2"><i class="bi bi-person me-1"></i>Your Info</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Full Name</label>
+                                <input name="GuestName" class="form-control" value="@Model.GuestName"
+                                       placeholder="Enter your full name" required />
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold">Email</label>
+                                    <input type="email" name="GuestEmail" class="form-control" value="@Model.GuestEmail"
+                                           placeholder="Enter your email" required />
                                 </div>
-                                <div class="row g-2">
-                                    <div class="col-sm-6">
-                                        <label class="form-label small fw-semibold">Email</label>
-                                        <input type="email" name="GuestEmail" class="form-control" required />
-                                    </div>
-                                    <div class="col-sm-6">
-                                        <label class="form-label small fw-semibold">Phone</label>
-                                        <input type="tel" name="GuestPhone" class="form-control" required />
-                                    </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold">Phone</label>
+                                    <input type="tel" name="GuestPhone" class="form-control" value="@Model.GuestPhone"
+                                           placeholder="Enter your phone number" required />
                                 </div>
+                            </div>
+                            @if (!isAuth)
+                            {
                                 <p class="small text-muted mt-2 mb-0">
                                     Have an account? <a asp-controller="Account" asp-action="Login" asp-route-returnUrl="@Context.Request.Path + Context.Request.QueryString">Log in</a> to manage all your bookings in one place.
                                 </p>
-                            </div>
-                        }
+                            }
+                        </div>
 
                         <div class="mb-3">
                             <label asp-for="BookingDate" class="form-label fw-semibold">Date</label>
@@ -101,11 +106,11 @@
                                         var today = PhtClock.Today;
                                         var now = PhtClock.Now;
                                         var isToday = Model.BookingDate == today;
-                                        var nowTotalMins = isToday ? now.Hour * 60 + now.Minute + 20 : -1;
+                                        var nowTotalMins = isToday ? now.Hour * 60 + now.Minute : -1;
                                     }
                                     @for (int h = (Model.Court?.OpeningHour ?? 6); h < (Model.Court?.ClosingHour ?? 22); h++)
                                     {
-                                        var isPastTime = isToday && (h * 60) <= nowTotalMins;
+                                        var isPastTime = isToday && (h * 60 + 20) < nowTotalMins;
                                         if (isPastTime)
                                         {
                                             <option value="@h" disabled>@TimeDisplay.Hour(h) (unavailable)</option>
@@ -138,11 +143,30 @@
                                 <div class="border rounded-3 p-2">
                                     @foreach (var item in addOns)
                                     {
-                                        <div class="d-flex justify-content-between align-items-center py-1">
-                                            <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2") each)</span></span>
-                                            <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:80px;"
-                                                   min="0" value="0" data-price="@item.Price" />
-                                        </div>
+                                        @if (item.PricingType == CourtBooking.Models.AddOnPricingType.PerHour)
+                                        {
+                                            <div class="d-flex justify-content-between align-items-center py-1 gap-2">
+                                                <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2")/hr)</span></span>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:70px;"
+                                                           min="0" value="0" placeholder="qty"
+                                                           data-price="@item.Price" data-pricing-type="1" />
+                                                    <span class="text-muted small">×</span>
+                                                    <input type="number" name="addon_hrs_@item.Id" class="form-control addon-hrs" style="width:70px;"
+                                                           min="1" value="@Model.DurationHours" placeholder="hrs"
+                                                           data-price="@item.Price" data-pricing-type="1" />
+                                                    <span class="text-muted small">hrs</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex justify-content-between align-items-center py-1">
+                                                <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2") each)</span></span>
+                                                <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:80px;"
+                                                       min="0" value="0" data-price="@item.Price" data-pricing-type="0" />
+                                            </div>
+                                        }
                                     }
                                 </div>
                             </div>
@@ -181,7 +205,18 @@
     function addOnsTotal() {
         let sum = 0;
         document.querySelectorAll('.addon-qty').forEach(el => {
-            sum += (parseInt(el.value) || 0) * parseFloat(el.dataset.price);
+            const qty = parseInt(el.value) || 0;
+            if (!qty) return;
+            const price = parseFloat(el.dataset.price);
+            const perHour = parseInt(el.dataset.pricingType) === 1;
+            if (perHour) {
+                // find the sibling hrs input in the same parent
+                const hrsEl = el.closest('div').querySelector('.addon-hrs');
+                const hrs = hrsEl ? (parseInt(hrsEl.value) || 1) : 1;
+                sum += qty * price * hrs;
+            } else {
+                sum += qty * price;
+            }
         });
         return sum;
     }
@@ -225,6 +260,6 @@ else
     </text>
 }
 
-    document.querySelectorAll('.addon-qty').forEach(el => el.addEventListener('input', updatePrice));
+    document.querySelectorAll('.addon-qty, .addon-hrs').forEach(el => el.addEventListener('input', updatePrice));
 </script>
 }

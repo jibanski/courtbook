@@ -15,8 +15,10 @@ public class BookingService
 
     public async Task<List<int>> GetBookedHoursAsync(int courtId, DateOnly date)
     {
+        // Only confirmed/completed bookings count as fully "booked"
         var bookings = await _db.Bookings
-            .Where(b => b.CourtId == courtId && b.BookingDate == date && b.Status != BookingStatus.Cancelled)
+            .Where(b => b.CourtId == courtId && b.BookingDate == date
+                     && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed))
             .ToListAsync();
 
         var bookedHours = new List<int>();
@@ -27,6 +29,22 @@ public class BookingService
                 bookedHours.Add(h);
         }
         return bookedHours;
+    }
+
+    public async Task<List<int>> GetPendingHoursAsync(int courtId, DateOnly date)
+    {
+        var bookings = await _db.Bookings
+            .Where(b => b.CourtId == courtId && b.BookingDate == date && b.Status == BookingStatus.Pending)
+            .ToListAsync();
+
+        var pendingHours = new List<int>();
+        foreach (var b in bookings)
+        {
+            int endHour = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
+            for (int h = b.StartTime.Hour; h < endHour; h++)
+                pendingHours.Add(h);
+        }
+        return pendingHours;
     }
 
     /// <summary>
@@ -59,13 +77,30 @@ public class BookingService
         return hours.Distinct().ToList();
     }
 
+    /// <summary>Returns a reason string per blocked hour for CourtBlock range blocks that have a reason set.</summary>
+    public async Task<Dictionary<int, string>> GetBlockReasonsAsync(int courtId, DateOnly date)
+    {
+        var rangeBlocks = await _db.CourtBlocks
+            .Where(b => b.CourtId == courtId && b.StartDate <= date && b.EndDate >= date && b.Reason != null)
+            .ToListAsync();
+
+        var reasons = new Dictionary<int, string>();
+        foreach (var blk in rangeBlocks)
+        {
+            var (from, to) = blk.HoursOn(date);
+            for (int h = from; h < to; h++)
+                reasons.TryAdd(h, blk.Reason!);
+        }
+        return reasons;
+    }
+
     public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end)
     {
         // Reject past slots and the 20-minute grace window before a slot starts (PHT = UTC+8)
         var localNow = PhtClock.Now;
         var today    = DateOnly.FromDateTime(localNow);
         if (date < today) return false;
-        if (date == today && (start.Hour * 60 + start.Minute) <= (localNow.Hour * 60 + localNow.Minute + 20)) return false;
+        if (date == today && (start.Hour * 60 + start.Minute + 20) < (localNow.Hour * 60 + localNow.Minute)) return false;
 
         // end.Hour==0 means midnight (24:00 wrapped to 00:00); treat as end-of-day
         int endHourInt = end.Hour == 0 ? 24 : end.Hour;
@@ -215,7 +250,7 @@ public class BookingService
     /// and returns them along with their combined total. Shared by the customer and staff walk-in
     /// booking flows so add-on handling stays identical between them.
     /// </summary>
-    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveSelectedAddOnsAsync(string ownerId, IFormCollection form)
+    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveSelectedAddOnsAsync(string ownerId, IFormCollection form, int durationHours = 1)
     {
         var items = await GetActiveAddOnsAsync(ownerId);
         var result = new List<BookingAddOn>();
@@ -226,8 +261,19 @@ public class BookingService
             if (!form.TryGetValue($"addon_{item.Id}", out var raw)) continue;
             if (!int.TryParse(raw, out var qty) || qty <= 0) continue;
 
-            result.Add(new BookingAddOn { AddOnItemId = item.Id, Quantity = qty, UnitPrice = item.Price });
-            total += qty * item.Price;
+            if (item.PricingType == AddOnPricingType.PerHour)
+            {
+                // Read manually-entered hours; fall back to booking duration if not provided
+                var hrs = form.TryGetValue($"addon_hrs_{item.Id}", out var hrsRaw) && int.TryParse(hrsRaw, out var h) && h > 0
+                    ? h : durationHours;
+                result.Add(new BookingAddOn { AddOnItemId = item.Id, Quantity = hrs, UnitPrice = item.Price, PricingType = item.PricingType });
+                total += hrs * item.Price;
+            }
+            else
+            {
+                result.Add(new BookingAddOn { AddOnItemId = item.Id, Quantity = qty, UnitPrice = item.Price, PricingType = item.PricingType });
+                total += qty * item.Price;
+            }
         }
 
         return (result, total);

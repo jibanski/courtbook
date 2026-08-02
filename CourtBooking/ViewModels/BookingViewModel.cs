@@ -25,12 +25,9 @@ public class BookingViewModel
 
     public string? Notes { get; set; }
 
-    // Guest checkout only (no account) — required when the visitor isn't logged in.
-    [Required(ErrorMessage = "Full name is required.")]
+    // Contact info — required for guests; pre-filled from account for authenticated users.
     public string? GuestName { get; set; }
-    [Required(ErrorMessage = "Email is required.")]
     public string? GuestEmail { get; set; }
-    [Required(ErrorMessage = "Phone is required.")]
     public string? GuestPhone { get; set; }
 
     // When set (from the GET action), this is the tier-aware total for a fixed-slot booking
@@ -54,9 +51,13 @@ public class CourtAvailabilityViewModel
     public DateOnly Date { get; set; }
     public List<int> AvailableHours { get; set; } = new();
     public List<int> BookedHours { get; set; } = new();
+    public List<int> PendingHours { get; set; } = new();
 
     // Fallback-mode blocked hours (admin-marked unavailable, no booking)
     public List<int> BlockedHours { get; set; } = new();
+
+    // Reason text per blocked hour (only populated for CourtBlock range blocks that have a reason)
+    public Dictionary<int, string> BlockReasons { get; set; } = new();
 
     // Slot-based availability (used when court has defined time slots)
     public List<CourtBooking.Models.CourtTimeSlot> TimeSlots { get; set; } = new();

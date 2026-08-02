@@ -89,7 +89,7 @@ public class OpenPlaySignupsController : Controller
 
         var localNow = PhtClock.Now;
         var todayPht = DateOnly.FromDateTime(localNow);
-        if (date < todayPht || (date == todayPht && (startHour * 60) <= (localNow.Hour * 60 + localNow.Minute + 20)))
+        if (date < todayPht || (date == todayPht && (startHour * 60 + 20) < (localNow.Hour * 60 + localNow.Minute)))
         {
             TempData["Error"] = "This session is too soon. Please sign up at least 20 minutes in advance.";
             return RedirectToAction(nameof(Create), new { courtId, date, startHour, endHour });

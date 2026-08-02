@@ -2018,7 +2018,7 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateAddOn(string name, decimal price)
+    public async Task<IActionResult> CreateAddOn(string name, decimal price, AddOnPricingType pricingType = AddOnPricingType.PerUnit)
     {
         if (string.IsNullOrWhiteSpace(name) || price < 0)
         {
@@ -2026,7 +2026,7 @@ public class AdminController : Controller
             return RedirectToAction(nameof(AddOns));
         }
 
-        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price });
+        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price, PricingType = pricingType });
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Add-on '{name}' created.";
         return RedirectToAction(nameof(AddOns));
