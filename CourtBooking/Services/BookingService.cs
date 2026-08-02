@@ -177,10 +177,14 @@ public class BookingService
         _db.FacilityHolidays.AnyAsync(h => h.OwnerId == ownerId && h.Date == date);
 
     public Task<List<CourtRateTier>> GetRateTiersAsync(int courtId) =>
-        _db.CourtRateTiers.Where(t => t.CourtId == courtId).ToListAsync();
+        _db.CourtRateTiers.Where(t => t.CourtId == courtId)
+            .OrderBy(t => t.StartHour).ThenBy(t => t.EndHour).ThenBy(t => t.DaysOfWeek)
+            .ToListAsync();
 
     public Task<List<CourtScheduleBlock>> GetScheduleBlocksAsync(int courtId) =>
-        _db.CourtScheduleBlocks.Where(b => b.CourtId == courtId).ToListAsync();
+        _db.CourtScheduleBlocks.Where(b => b.CourtId == courtId)
+            .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek)
+            .ToListAsync();
 
     /// <summary>Resolved (BookingType, hourly rate) for every hour in the court's opening window on <paramref name="date"/>.</summary>
     public async Task<Dictionary<int, (BookingType Type, decimal Rate)>> GetHourlyScheduleAsync(Court court, DateOnly date)

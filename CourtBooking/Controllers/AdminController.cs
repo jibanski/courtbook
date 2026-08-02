@@ -849,8 +849,10 @@ public class AdminController : Controller
         if (court is null) return NotFound();
 
         ViewBag.Court          = court;
-        ViewBag.RateTiers      = (await _bookingService.GetRateTiersAsync(id)).OrderBy(t => t.StartHour).ToList();
-        ViewBag.ScheduleBlocks = (await _bookingService.GetScheduleBlocksAsync(id)).OrderBy(b => b.StartHour).ToList();
+        ViewBag.RateTiers      = (await _bookingService.GetRateTiersAsync(id))
+            .OrderBy(t => t.StartHour).ThenBy(t => t.EndHour).ThenBy(t => t.DaysOfWeek).ToList();
+        ViewBag.ScheduleBlocks = (await _bookingService.GetScheduleBlocksAsync(id))
+            .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek).ToList();
         return View();
     }
 
@@ -1295,7 +1297,8 @@ public class AdminController : Controller
         if (bundle is null) return NotFound();
 
         ViewBag.Bundle    = bundle;
-        ViewBag.RateBlocks = (await _bookingService.GetBundleRateBlocksAsync(id)).OrderBy(b => b.StartHour).ToList();
+        ViewBag.RateBlocks = (await _bookingService.GetBundleRateBlocksAsync(id))
+            .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek).ToList();
         return View();
     }
 
