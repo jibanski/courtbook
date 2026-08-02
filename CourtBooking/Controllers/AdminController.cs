@@ -1688,6 +1688,7 @@ public class AdminController : Controller
         // Custom branding — available to all users (CourtBook is free)
         settings.BrandName    = string.IsNullOrWhiteSpace(model.BrandName)    ? null : model.BrandName.Trim();
         settings.BrandTagline = string.IsNullOrWhiteSpace(model.BrandTagline) ? null : model.BrandTagline.Trim();
+        settings.HouseRules   = string.IsNullOrWhiteSpace(model.HouseRules)   ? null : model.HouseRules.Trim();
 
         if (logo is { Length: > 0 })
             settings.BrandLogoUrl = await SaveBrandLogoAsync(logo, settings.BrandLogoUrl);

@@ -112,7 +112,7 @@
                             <span asp-validation-for="Address" class="text-danger small"></span>
                             <div class="form-text">Shown to customers on the booking and payment pages.</div>
                         </div>
-                        <div class="mb-0">
+                        <div class="mb-3">
                             <label asp-for="Slug" class="form-label fw-semibold">
                                 URL Slug
                                 <span class="fw-normal text-muted small">— the <code>/sportshub/your-slug</code> part of your booking link</span>
@@ -125,6 +125,12 @@
                             </div>
                             <span asp-validation-for="Slug" class="text-danger small"></span>
                             <div class="form-text">Lowercase letters, numbers, and hyphens only. Changing this will break existing shared links.</div>
+                        </div>
+                        <div class="mb-0">
+                            <label asp-for="HouseRules" class="form-label fw-semibold">House Rules <span class="text-muted fw-normal small">(optional)</span></label>
+                            <textarea asp-for="HouseRules" class="form-control" rows="6"
+                                      placeholder="e.g.&#10;1. No food or drinks inside the court.&#10;2. Proper sports attire required.&#10;3. No smoking on premises."></textarea>
+                            <div class="form-text">Displayed on your public facility page. Use a numbered list for clarity.</div>
                         </div>
                     </div>
                 </div>

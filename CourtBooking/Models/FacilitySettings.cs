@@ -95,6 +95,9 @@ public class FacilitySettings
     [MaxLength(500)]
     public string? SuspendedReason { get; set; }
 
+    /// <summary>Facility-wide rules shown to customers on the public booking page before they book.</summary>
+    public string? HouseRules { get; set; }
+
     // ── Owner Deactivation (facility owner self-service) ──────────────────────
     /// <summary>
     /// When true, the owner has voluntarily taken their facility offline (e.g. they

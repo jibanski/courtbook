@@ -101,6 +101,32 @@
 
 <div class="container py-4">
 
+    <!-- House Rules -->
+    @if (!string.IsNullOrWhiteSpace(fs?.HouseRules))
+    {
+        <div class="mb-4 cb-fade-up">
+            <div class="card" style="border:1px solid var(--cb-border);">
+                <button class="card-header d-flex align-items-center justify-content-between w-100 border-0 bg-transparent text-start"
+                        type="button" data-bs-toggle="collapse" data-bs-target="#houseRulesBody" aria-expanded="true">
+                    <span style="font-size:1rem;font-weight:700;">
+                        <i class="bi bi-clipboard-check me-2" style="color:var(--cb-lime);"></i>House Rules
+                    </span>
+                    <i class="bi bi-chevron-down" style="color:var(--cb-text-3);transition:transform .2s;transform:rotate(180deg);" id="houseRulesChevron"></i>
+                </button>
+                <div class="collapse show" id="houseRulesBody">
+                    <div class="card-body pt-0" style="white-space:pre-line;color:var(--cb-text-2);font-size:.9rem;line-height:1.7;">@fs.HouseRules</div>
+                </div>
+            </div>
+        </div>
+        <script>
+            document.querySelector('[data-bs-target="#houseRulesBody"]').addEventListener('click', function() {
+                const icon = document.getElementById('houseRulesChevron');
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                icon.style.transform = isExpanded ? '' : 'rotate(180deg)';
+            });
+        </script>
+    }
+
     <!-- Schedule & Pricing -->
     @if (Model.Any())
     {
