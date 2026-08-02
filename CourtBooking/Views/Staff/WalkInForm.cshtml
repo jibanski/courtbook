@@ -57,11 +57,30 @@
                                 <div class="border rounded-3 p-2">
                                     @foreach (var item in addOns)
                                     {
-                                        <div class="d-flex justify-content-between align-items-center py-1">
-                                            <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2") each)</span></span>
-                                            <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:80px;"
-                                                   min="0" value="0" data-price="@item.Price" />
-                                        </div>
+                                        @if (item.PricingType == CourtBooking.Models.AddOnPricingType.PerHour)
+                                        {
+                                            <div class="d-flex justify-content-between align-items-center py-1 gap-2">
+                                                <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2")/hr)</span></span>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:70px;"
+                                                           min="0" value="0" placeholder="qty"
+                                                           data-price="@item.Price" data-pricing-type="1" />
+                                                    <span class="text-muted small">×</span>
+                                                    <input type="number" name="addon_hrs_@item.Id" class="form-control addon-hrs" style="width:70px;"
+                                                           min="1" value="@Model.Court.ClosingHour" placeholder="hrs"
+                                                           data-price="@item.Price" data-pricing-type="1" />
+                                                    <span class="text-muted small">hrs</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex justify-content-between align-items-center py-1">
+                                                <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2") each)</span></span>
+                                                <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:80px;"
+                                                       min="0" value="0" data-price="@item.Price" data-pricing-type="0" />
+                                            </div>
+                                        }
                                     }
                                 </div>
                             </div>

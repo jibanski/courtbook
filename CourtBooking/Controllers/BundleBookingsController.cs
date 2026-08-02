@@ -95,9 +95,9 @@ public class BundleBookingsController : Controller
 
         var localNow = PhtClock.Now;
         var todayPht = DateOnly.FromDateTime(localNow);
-        if (date < todayPht || (date == todayPht && startHour <= localNow.Hour))
+        if (date < todayPht || (date == todayPht && (startHour * 60 + 20) < (localNow.Hour * 60 + localNow.Minute)))
         {
-            TempData["Error"] = "This time slot has already passed. Please choose a future date/time.";
+            TempData["Error"] = "This time slot is too soon. Please book at least 20 minutes in advance.";
             return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
         }
 

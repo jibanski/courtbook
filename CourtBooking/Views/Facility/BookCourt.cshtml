@@ -11,9 +11,9 @@
     bool  isPastDate = Model.Date < today;
     bool  isToday    = Model.Date == today;
     int   nowHour    = localNow.Hour;
-    // A slot starting at `h` is bookable only if date is future,
-    // OR date is today and we haven't yet reached that hour.
-    bool SlotIsPast(int startHour) => isPastDate || (isToday && startHour <= nowHour);
+    int   nowMinute  = localNow.Minute;
+    // Grey out slots that start within the next 20 minutes (or are already past)
+    bool SlotIsPast(int startHour) => isPastDate || (isToday && (startHour * 60 + 20) < (nowHour * 60 + nowMinute));
 
     string SportDefaultImage(string sport) => sport?.ToLower() switch {
         "tennis"       => "/images/sports/tennis.svg",
@@ -263,6 +263,7 @@
                             @for (int h = Model.Court.OpeningHour; h < Model.Court.ClosingHour; h++)
                             {
                                 bool isBooked  = Model.BookedHours.Contains(h);
+                                bool isPending = Model.PendingHours.Contains(h);
                                 bool isBlocked = Model.BlockedHours.Contains(h);
                                 bool isPast    = SlotIsPast(h);
                                 bool isOpenPlay = Model.OpenPlayHours.Contains(h);
@@ -273,7 +274,7 @@
 
                                 @* An open (not booked/blocked/past) bundle-only run is rendered once as a single
                                    full-width block spanning its whole hour range, instead of one tile per hour. *@
-                                if (!isPast && !isBooked && !isBlocked && isBundleOnly)
+                                if (!isPast && !isBooked && !isPending && !isBlocked && isBundleOnly)
                                 {
                                     var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
                                     <div class="col-12">
@@ -311,12 +312,20 @@
                                             <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Booked@(isOpenPlay ? " • Open Play" : "")</div>
                                         </div>
                                     }
+                                    else if (isPending)
+                                    {
+                                        <div class="p-2 text-center rounded-3" style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.4);opacity:.85;cursor:default;">
+                                            <div style="font-size:.8rem;color:#eab308;font-weight:600;">@timeLabel</div>
+                                            <div style="font-size:.7rem;color:#ca8a04;margin-top:2px;"><i class="bi bi-hourglass-split me-1"></i>Pending</div>
+                                        </div>
+                                    }
                                     else if (isBlocked)
                                     {
+                                        var blockReason = Model.BlockReasons.TryGetValue(h, out var _br) ? _br : null;
                                         <div class="p-2 text-center rounded-3"
                                              style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.55;cursor:default;">
                                             <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
-                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Unavailable</div>
+                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@(blockReason ?? "Unavailable")</div>
                                         </div>
                                     }
                                     else if (isOpenPlaySignup && signupMatch.SpotsRemaining > 0)

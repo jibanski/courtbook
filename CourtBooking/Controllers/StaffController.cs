@@ -222,7 +222,9 @@ public class StaffController : Controller
         else
         {
             var bookedHours  = await _bookingService.GetBookedHoursAsync(courtId.Value, selectedDate);
+            var pendingHours = await _bookingService.GetPendingHoursAsync(courtId.Value, selectedDate);
             var blockedHours = await _bookingService.GetBlockedHoursAsync(courtId.Value, selectedDate);
+            var blockReasons = await _bookingService.GetBlockReasonsAsync(courtId.Value, selectedDate);
             var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
 
             var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
@@ -248,7 +250,9 @@ public class StaffController : Controller
             }
 
             vm.BookedHours     = bookedHours;
+            vm.PendingHours    = pendingHours;
             vm.BlockedHours    = blockedHours;
+            vm.BlockReasons    = blockReasons;
             vm.BundleOnlyHours = bundleOnlyHours;
             vm.OpenPlaySignupInfo = openPlaySignupInfo;
             vm.OpenPlayHours   = schedule
@@ -257,7 +261,7 @@ public class StaffController : Controller
             vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
             vm.AvailableHours = Enumerable
                 .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
-                .Where(h => !bookedHours.Contains(h) && !blockedHours.Contains(h)
+                .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
                          && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
                 .ToList();
         }
@@ -366,7 +370,7 @@ public class StaffController : Controller
 
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         var (addOns, addOnsTotal) = employerOwnerId != null
-            ? await _bookingService.ResolveSelectedAddOnsAsync(employerOwnerId, Request.Form)
+            ? await _bookingService.ResolveSelectedAddOnsAsync(employerOwnerId, Request.Form, durationHours)
             : (new List<BookingAddOn>(), 0m);
 
         // Optional proof-of-payment screenshot for GCash/Maya walk-ins — not required (staff has

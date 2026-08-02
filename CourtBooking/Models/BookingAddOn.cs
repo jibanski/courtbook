@@ -18,4 +18,7 @@ public class BookingAddOn
 
     [Column(TypeName = "numeric(10,2)")]
     public decimal UnitPrice { get; set; }
+
+    /// <summary>Snapshotted at booking time so display stays correct if the catalog changes later.</summary>
+    public AddOnPricingType PricingType { get; set; } = AddOnPricingType.PerUnit;
 }

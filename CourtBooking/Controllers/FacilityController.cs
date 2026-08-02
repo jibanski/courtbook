@@ -76,6 +76,13 @@ public class FacilityController : Controller
         ViewBag.Slug                = slug;
         ViewBag.ShowBackToDirectory = showBackToDirectory;
         ViewBag.RateRanges          = await _bookingService.GetRateRangesAsync(courts);
+
+        var courtIds = courts.Select(c => c.Id).ToList();
+        ViewBag.CourtRateTiers = await _db.CourtRateTiers
+            .Where(t => courtIds.Contains(t.CourtId))
+            .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
+            .ToListAsync();
+
         return View(courts);
     }
 
@@ -125,7 +132,9 @@ public class FacilityController : Controller
         else
         {
             var bookedHours  = await _bookingService.GetBookedHoursAsync(courtId, selectedDate);
+            var pendingHours = await _bookingService.GetPendingHoursAsync(courtId, selectedDate);
             var blockedHours = await _bookingService.GetBlockedHoursAsync(courtId, selectedDate);
+            var blockReasons = await _bookingService.GetBlockReasonsAsync(courtId, selectedDate);
             var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
 
             var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
@@ -147,7 +156,9 @@ public class FacilityController : Controller
             }
 
             vm.BookedHours     = bookedHours;
+            vm.PendingHours    = pendingHours;
             vm.BlockedHours    = blockedHours;
+            vm.BlockReasons    = blockReasons;
             vm.BundleOnlyHours = bundleOnlyHours;
             vm.OpenPlaySignupInfo = openPlaySignupInfo;
             vm.OpenPlayHours   = schedule
@@ -156,7 +167,7 @@ public class FacilityController : Controller
             vm.HourlyRates   = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
             vm.AvailableHours = Enumerable
                 .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
-                .Where(h => !bookedHours.Contains(h) && !blockedHours.Contains(h)
+                .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
                          && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
                 .ToList();
         }

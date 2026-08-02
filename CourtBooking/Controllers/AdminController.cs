@@ -48,13 +48,27 @@ public class AdminController : Controller
     {
         var courtIds = await GetMyCourtIdsAsync();
 
-        var totalBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status != BookingStatus.Cancelled);
-        var todayBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == PhtClock.Today && b.Status != BookingStatus.Cancelled)
-                            + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == PhtClock.Today && s.Status != BookingStatus.Cancelled);
-        var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
-        var activeCourts    = await MyCourts.CountAsync(c => c.IsActive);
-        var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
-        var awaitingSignups = await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
+        // Run independent dashboard counters in parallel
+        var totalBookingsTask   = _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status != BookingStatus.Cancelled);
+        var todayBookingsTask   = _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == PhtClock.Today && b.Status != BookingStatus.Cancelled);
+        var todaySignupsTask    = _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == PhtClock.Today && s.Status != BookingStatus.Cancelled);
+        var totalRevenueTask    = _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
+        var activeCourtsTask    = MyCourts.CountAsync(c => c.IsActive);
+        var awaitingPaymentTask = _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
+        var awaitingSignupsTask = _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
+        var settingsTask        = GetMySettingsAsync();
+
+        await Task.WhenAll(totalBookingsTask, todayBookingsTask, todaySignupsTask,
+                           totalRevenueTask, activeCourtsTask, awaitingPaymentTask,
+                           awaitingSignupsTask, settingsTask);
+
+        var totalBookings   = totalBookingsTask.Result;
+        var todayBookings   = todayBookingsTask.Result + todaySignupsTask.Result;
+        var totalRevenue    = totalRevenueTask.Result;
+        var activeCourts    = activeCourtsTask.Result;
+        var awaitingPayment = awaitingPaymentTask.Result;
+        var awaitingSignups = awaitingSignupsTask.Result;
+        var settings        = settingsTask.Result;
 
         ViewBag.TotalBookings   = totalBookings;
         ViewBag.TodayBookings   = todayBookings;
@@ -62,7 +76,6 @@ public class AdminController : Controller
         ViewBag.ActiveCourts    = activeCourts;
         ViewBag.AwaitingPayment = awaitingPayment;
         ViewBag.AwaitingSignups = awaitingSignups;
-        var settings = await GetMySettingsAsync();
         ViewBag.FacilitySettings = settings;
 
         // ── Setup Checklist (shown on dashboard until all required items are done) ──
@@ -836,8 +849,10 @@ public class AdminController : Controller
         if (court is null) return NotFound();
 
         ViewBag.Court          = court;
-        ViewBag.RateTiers      = (await _bookingService.GetRateTiersAsync(id)).OrderBy(t => t.StartHour).ToList();
-        ViewBag.ScheduleBlocks = (await _bookingService.GetScheduleBlocksAsync(id)).OrderBy(b => b.StartHour).ToList();
+        ViewBag.RateTiers      = (await _bookingService.GetRateTiersAsync(id))
+            .OrderBy(t => t.StartHour).ThenBy(t => t.EndHour).ThenBy(t => t.DaysOfWeek).ToList();
+        ViewBag.ScheduleBlocks = (await _bookingService.GetScheduleBlocksAsync(id))
+            .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek).ToList();
         return View();
     }
 
@@ -1282,7 +1297,8 @@ public class AdminController : Controller
         if (bundle is null) return NotFound();
 
         ViewBag.Bundle    = bundle;
-        ViewBag.RateBlocks = (await _bookingService.GetBundleRateBlocksAsync(id)).OrderBy(b => b.StartHour).ToList();
+        ViewBag.RateBlocks = (await _bookingService.GetBundleRateBlocksAsync(id))
+            .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek).ToList();
         return View();
     }
 
@@ -2005,7 +2021,7 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateAddOn(string name, decimal price)
+    public async Task<IActionResult> CreateAddOn(string name, decimal price, AddOnPricingType pricingType = AddOnPricingType.PerUnit)
     {
         if (string.IsNullOrWhiteSpace(name) || price < 0)
         {
@@ -2013,7 +2029,7 @@ public class AdminController : Controller
             return RedirectToAction(nameof(AddOns));
         }
 
-        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price });
+        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price, PricingType = pricingType });
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Add-on '{name}' created.";
         return RedirectToAction(nameof(AddOns));

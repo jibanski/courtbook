@@ -9,7 +9,8 @@
     bool isPastDate = selectedDate < today;
     bool isToday    = selectedDate == today;
     int  nowHour    = localNow.Hour;
-    bool SlotIsPast(int startHour) => isPastDate || (isToday && startHour <= nowHour);
+    int  nowMinute  = localNow.Minute;
+    bool SlotIsPast(int startHour) => isPastDate || (isToday && (startHour * 60 + 20) < (nowHour * 60 + nowMinute));
 }
 
 <div class="cb-page-header">
@@ -69,6 +70,7 @@
                         @for (int h = Model.Court.OpeningHour; h < Model.Court.ClosingHour; h++)
                         {
                             bool isBooked  = Model.BookedHours.Contains(h);
+                            bool isPending = Model.PendingHours.Contains(h);
                             bool isBlocked = Model.BlockedHours.Contains(h);
                             bool isPast    = SlotIsPast(h);
                             bool isOpenPlay = Model.OpenPlayHours.Contains(h);
@@ -76,7 +78,7 @@
                             var rate = Model.HourlyRates.TryGetValue(h, out var r) ? r : Model.Court.PricePerHour;
                             var timeLabel = TimeDisplay.HourRange(h, h + 1);
 
-                            if (!isPast && !isBooked && !isBlocked && isBundleOnly)
+                            if (!isPast && !isBooked && !isPending && !isBlocked && isBundleOnly)
                             {
                                 var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
                                 <div class="col-12">
@@ -90,7 +92,7 @@
                             }
 
                             bool isOpenPlaySignup = Model.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
-                            if (!isPast && !isBooked && !isBlocked && isOpenPlaySignup)
+                            if (!isPast && !isBooked && !isPending && !isBlocked && isOpenPlaySignup)
                             {
                                 var openPlayLabel = TimeDisplay.HourRange(signupMatch.Block.StartHour, signupMatch.Block.EndHour);
                                 bool isUnlimited = signupMatch.SpotsRemaining == int.MaxValue;
@@ -151,11 +153,19 @@
                                         <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Booked@(isOpenPlay ? " • Open Play" : "")</div>
                                     </div>
                                 }
+                                else if (isPending)
+                                {
+                                    <div class="p-2 text-center rounded-3" style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.4);opacity:.85;">
+                                        <div style="font-size:.8rem;color:#eab308;font-weight:600;">@timeLabel</div>
+                                        <div style="font-size:.7rem;color:#ca8a04;margin-top:2px;"><i class="bi bi-hourglass-split me-1"></i>Pending</div>
+                                    </div>
+                                }
                                 else if (isBlocked)
                                 {
+                                    var blockReason = Model.BlockReasons.TryGetValue(h, out var _br) ? _br : null;
                                     <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.55;">
                                         <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
-                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Unavailable</div>
+                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@(blockReason ?? "Unavailable")</div>
                                     </div>
                                 }
                                 else

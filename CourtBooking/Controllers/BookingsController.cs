@@ -98,6 +98,18 @@ public class BookingsController : Controller
             FixedEndHour = endHour
         };
 
+        // Pre-fill contact info from the user's account if logged in
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user != null)
+            {
+                vm.GuestName  = user.FullName;
+                vm.GuestEmail = user.Email;
+                vm.GuestPhone = user.PhoneNumber;
+            }
+        }
+
         // Resolve the tier-aware total up front (for both a fixed owner-defined slot and the
         // regular hourly-grid default) so the confirmation page shows the same rate/price we'll
         // charge on POST — the court's flat PricePerHour alone can be wrong for a tiered hour.
@@ -145,8 +157,8 @@ public class BookingsController : Controller
         var todayPht  = DateOnly.FromDateTime(localNow);
         if (vm.BookingDate < todayPht)
             ModelState.AddModelError("BookingDate", "Cannot book a date in the past.");
-        else if (vm.BookingDate == todayPht && vm.StartHour <= localNow.Hour)
-            ModelState.AddModelError("StartHour", "This time slot has already passed. Please choose a future slot.");
+        else if (vm.BookingDate == todayPht && (vm.StartHour * 60 + 20) < (localNow.Hour * 60 + localNow.Minute))
+            ModelState.AddModelError("StartHour", "This time slot is too soon. Please book at least 20 minutes in advance.");
 
         if (vm.StartHour < court.OpeningHour || vm.StartHour >= court.ClosingHour)
             ModelState.AddModelError("StartHour", $"Start hour must be between {TimeDisplay.Hour(court.OpeningHour)} and {TimeDisplay.Hour(court.ClosingHour - 1)}.");
@@ -217,7 +229,7 @@ public class BookingsController : Controller
             : null;
 
         var (addOns, addOnsTotal) = court.OwnerId != null
-            ? await _bookingService.ResolveSelectedAddOnsAsync(court.OwnerId, Request.Form)
+            ? await _bookingService.ResolveSelectedAddOnsAsync(court.OwnerId, Request.Form, vm.DurationHours)
             : (new List<BookingAddOn>(), 0m);
 
         var booking = new Booking

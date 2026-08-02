@@ -3,6 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CourtBooking.Models;
 
+public enum AddOnPricingType { PerUnit = 0, PerHour = 1 }
+
 /// <summary>A rentable extra a facility offers alongside a court booking (e.g. paddles, shuttlecocks).</summary>
 public class AddOnItem
 {
@@ -18,6 +20,8 @@ public class AddOnItem
     [Column(TypeName = "numeric(10,2)")]
     [Range(0, 100000)]
     public decimal Price { get; set; }
+
+    public AddOnPricingType PricingType { get; set; } = AddOnPricingType.PerUnit;
 
     public bool IsActive { get; set; } = true;
 }
