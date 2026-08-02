@@ -105,36 +105,31 @@ public class BookingService
         // end.Hour==0 means midnight (24:00 wrapped to 00:00); treat as end-of-day
         int endHourInt = end.Hour == 0 ? 24 : end.Hour;
 
-        // Run all three DB lookups in parallel
-        var slotBlockedTask = _db.CourtTimeSlots.AnyAsync(s =>
+        // Sequential awaits — EF Core DbContext is not thread-safe; Task.WhenAll on the same context causes errors
+        var slotBlocked = await _db.CourtTimeSlots.AnyAsync(s =>
             s.CourtId == courtId &&
             s.SlotDate == date &&
             !s.IsActive &&
             s.StartHour < endHourInt &&
             s.EndHour   > start.Hour);
+        if (slotBlocked) return false;
 
-        var rangeBlocksTask = _db.CourtBlocks
+        var rangeBlocks = await _db.CourtBlocks
             .Where(b => b.CourtId == courtId && b.StartDate <= date && b.EndDate >= date)
             .ToListAsync();
 
-        var bookingsTask = _db.Bookings
-            .Where(b =>
-                b.CourtId == courtId &&
-                b.BookingDate == date &&
-                b.Status != BookingStatus.Cancelled)
-            .ToListAsync();
-
-        await Task.WhenAll(slotBlockedTask, rangeBlocksTask, bookingsTask);
-
-        if (slotBlockedTask.Result) return false;
-
-        foreach (var blk in rangeBlocksTask.Result)
+        foreach (var blk in rangeBlocks)
         {
             var (from, to) = blk.HoursOn(date);
             if (from < endHourInt && to > start.Hour) return false;
         }
 
-        var bookings = bookingsTask.Result;
+        var bookings = await _db.Bookings
+            .Where(b =>
+                b.CourtId == courtId &&
+                b.BookingDate == date &&
+                b.Status != BookingStatus.Cancelled)
+            .ToListAsync();
         
         foreach (var b in bookings)
         {
