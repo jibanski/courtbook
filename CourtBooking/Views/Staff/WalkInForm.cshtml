@@ -3,6 +3,7 @@
     var court = ViewBag.Court as CourtBooking.Models.Court;
     DateOnly date = ViewBag.Date;
     int startHour = ViewBag.StartHour;
+    int? fixedEndHour = ViewBag.FixedEndHour as int?;
     decimal totalPrice = ViewBag.TotalPrice;
     var addOns = ViewBag.AddOns as List<CourtBooking.Models.AddOnItem>;
     var paymentMethods = ViewBag.PaymentMethods as List<string> ?? new List<string> { "Cash" };
@@ -32,6 +33,10 @@
                         <input type="hidden" name="courtId" value="@court?.Id" />
                         <input type="hidden" name="date" value="@date.ToString("yyyy-MM-dd")" />
                         <input type="hidden" name="startHour" value="@startHour" />
+                        @if (fixedEndHour.HasValue)
+                        {
+                            <input type="hidden" name="fixedEndHour" value="@fixedEndHour.Value" />
+                        }
 
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Customer Name</label>
@@ -41,15 +46,28 @@
                             <label class="form-label fw-semibold">Customer Phone</label>
                             <input type="tel" name="customerPhone" class="form-control" required />
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Duration</label>
-                            <select name="durationHours" class="form-select" id="durationSelect">
-                                @for (int d = 1; d <= 16 && startHour + d <= court?.ClosingHour; d++)
-                                {
-                                    <option value="@d">@d hour@(d > 1 ? "s" : "")</option>
-                                }
-                            </select>
-                        </div>
+                        @if (fixedEndHour.HasValue)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Duration</label>
+                                <div class="form-control" style="background:var(--cb-surface-2);">
+                                    @TimeDisplay.HourRange(startHour, fixedEndHour.Value)
+                                </div>
+                                <div class="form-text">This slot is fixed by the admin schedule.</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Duration</label>
+                                <select name="durationHours" class="form-select" id="durationSelect">
+                                    @for (int d = 1; d <= 16 && startHour + d <= court?.ClosingHour; d++)
+                                    {
+                                        <option value="@d">@d hour@(d > 1 ? "s" : "")</option>
+                                    }
+                                </select>
+                            </div>
+                        }
                         @if (addOns is not null && addOns.Any())
                         {
                             <div class="mb-3">

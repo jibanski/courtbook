@@ -138,42 +138,21 @@
                 @foreach (var court in Model)
                 {
                     var tiers = rateTiers.Where(t => t.CourtId == court.Id).OrderBy(t => t.StartHour).ToList();
-
-                    // Build one merged list: (StartHour, EndHour, Days, Price, IsTier) sorted ascending
-                    var _allDays = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-                    var _daysWithTier = tiers
-                        .SelectMany(t => t.DaysOfWeek.Split(',', System.StringSplitOptions.RemoveEmptyEntries))
-                        .Select(d => d.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var _baseRows = new List<(string Days, int Start, int End)>();
-                    var _untouchedDays = _allDays.Where(d => !_daysWithTier.Contains(d)).ToList();
-                    if (_untouchedDays.Any())
-                        _baseRows.Add((string.Join(" · ", _untouchedDays), court.OpeningHour, court.ClosingHour));
-                    foreach (var _day in _allDays.Where(d => _daysWithTier.Contains(d)))
-                    {
-                        var _dayTiers = tiers
-                            .Where(t => t.DaysOfWeek.Split(',', System.StringSplitOptions.RemoveEmptyEntries)
-                                          .Any(d => d.Trim().Equals(_day, StringComparison.OrdinalIgnoreCase)))
-                            .OrderBy(t => t.StartHour).ToList();
-                        int _cursor = court.OpeningHour;
-                        foreach (var _dt in _dayTiers) { if (_cursor < _dt.StartHour) _baseRows.Add((_day, _cursor, _dt.StartHour)); _cursor = Math.Max(_cursor, _dt.EndHour); }
-                        if (_cursor < court.ClosingHour) _baseRows.Add((_day, _cursor, court.ClosingHour));
-                    }
-                    var baseRateRows = _baseRows
-                        .GroupBy(r => (r.Start, r.End))
-                        .Select(g => (Days: string.Join(" · ", g.Select(r => r.Days)), g.Key.Start, g.Key.End))
-                        .ToList();
-
-                    // Merge tier rows and base-rate rows into one list sorted by start hour
-                    var allScheduleRows = tiers
+                    // Mirror configured rows directly, while suppressing likely legacy
+                    // base-rate "gap" artifacts that can appear between custom tiers.
+                    var rawScheduleRows = tiers
                         .Select(t => (
                             Start: t.StartHour, End: t.EndHour,
+                            DaysCsv: t.DaysOfWeek,
+                            IncludeHolidays: t.IncludeHolidays,
                             Days: t.IncludeHolidays && string.IsNullOrWhiteSpace(t.DaysOfWeek)
                                 ? "Holidays"
                                 : (t.DaysOfWeek.Replace(",", " · ") + (t.IncludeHolidays ? " · Holidays" : "")),
                             Price: t.PricePerHour, IsTier: true))
-                        .Concat(baseRateRows.Select(r => (Start: r.Start, End: r.End, Days: r.Days, Price: court.PricePerHour, IsTier: false)))
-                        .OrderBy(r => r.Start).ThenBy(r => r.Days)
+                        .ToList();
+
+                    var allScheduleRows = rawScheduleRows
+                        .OrderBy(r => r.Price).ThenBy(r => r.Start).ThenBy(r => r.End).ThenBy(r => r.Days)
                         .ToList();
                     <div class="col-sm-6 col-lg-4">
                         <div class="card h-100" style="border:1px solid var(--cb-border);">

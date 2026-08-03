@@ -7,6 +7,7 @@
     bool awaitingMode        = ViewBag.AwaitingConfirmation == true;
     int  pendingPaymentCount = (int)(ViewBag.PendingPaymentCount ?? 0);
     var rows = ViewBag.Rows as List<CourtBooking.ViewModels.AdminBookingRow>;
+    var awaitingSignups = ViewBag.AwaitingSignups as List<CourtBooking.Models.OpenPlaySignup> ?? new();
 }
 
 <div class="bg-dark text-white py-4 mb-4">
@@ -100,7 +101,7 @@
         </div>
     }
 
-    @if (awaitingMode && !Model.Any())
+    @if (awaitingMode && !Model.Any() && !awaitingSignups.Any())
     {
         <div class="text-center py-5">
             <i class="bi bi-check-circle display-1 text-success opacity-50"></i>
@@ -120,7 +121,7 @@
     {
         <div class="card shadow-sm">
             <div class="card-header bg-white d-flex justify-content-between">
-                <span class="fw-bold">@(awaitingMode ? Model.Count() : rows!.Count) booking(s) found</span>
+                <span class="fw-bold">@(awaitingMode ? Model.Count() + awaitingSignups.Count : rows!.Count) booking(s) found</span>
             </div>
 
             @if (awaitingMode)
@@ -262,6 +263,75 @@
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-danger btn-sm w-100"
                                                         onclick="return confirm('Reject and cancel Booking #@b.Id?')">
+                                                    <i class="bi bi-x-circle me-1"></i>Reject
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @foreach (var s in awaitingSignups)
+                        {
+                            <div class="col-lg-6">
+                                <div class="card border-warning border-2 h-100" style="box-shadow:0 0 0 1px rgba(163,255,18,0.25) inset;">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <div>
+                                                <span class="fw-bold"><i class="bi bi-people me-1"></i>Open Play Sign-up #@s.Id</span>
+                                                <span class="badge bg-warning text-dark ms-2">Pending</span>
+                                            </div>
+                                            <span class="fw-bold text-success">₱@s.TotalPrice.ToString("N0")</span>
+                                        </div>
+                                        <div class="mb-2 small">
+                                            <div><i class="bi bi-person me-1 text-muted"></i><strong>@(s.CustomerNameSnapshot ?? s.User.FullName)</strong> (@s.User.Email)
+                                                @if (s.User.IsGuest) { <span class="badge bg-secondary ms-1">Guest</span> }
+                                            </div>
+                                            <div><i class="bi bi-buildings me-1 text-muted"></i>@s.Court.Name — Open Play</div>
+                                            <div><i class="bi bi-calendar me-1 text-muted"></i>@s.BookingDate.ToString("MMM d, yyyy") @TimeDisplay.HourRange(s.StartHour, s.EndHour)</div>
+                                            <div><i class="bi bi-person-bounding-box me-1 text-muted"></i>@s.SpotCount spot@(s.SpotCount != 1 ? "s" : "")</div>
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(s.PaymentMethod) || !string.IsNullOrWhiteSpace(s.PaymentReference))
+                                        {
+                                            <div class="border rounded p-2 bg-light mb-2 small">
+                                                @if (!string.IsNullOrWhiteSpace(s.PaymentMethod))
+                                                {
+                                                    <div><i class="bi bi-phone me-1"></i><strong>Method:</strong> @s.PaymentMethod</div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(s.PaymentReference))
+                                                {
+                                                    <div><i class="bi bi-hash me-1"></i><strong>Ref:</strong> @s.PaymentReference</div>
+                                                }
+                                                @if (s.PaymentProofSubmittedAt.HasValue)
+                                                {
+                                                    <div class="text-muted"><i class="bi bi-clock me-1"></i>Submitted @s.PaymentProofSubmittedAt.Value.ToLocalTime().ToString("MMM d, h:mm tt")</div>
+                                                }
+                                            </div>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(s.PaymentProofPath))
+                                        {
+                                            <div class="mb-2">
+                                                <a href="@s.PaymentProofPath" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                    <i class="bi bi-image me-1"></i>View Screenshot
+                                                </a>
+                                            </div>
+                                        }
+
+                                        <div class="d-flex gap-2">
+                                            <form asp-action="ConfirmSignupPayment" asp-route-id="@s.Id" method="post" class="flex-fill">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-success btn-sm w-100"
+                                                        onclick="return confirm('Confirm payment for Open Play Sign-up #@s.Id?')">
+                                                    <i class="bi bi-check-circle me-1"></i>Confirm
+                                                </button>
+                                            </form>
+                                            <form asp-action="RejectSignupPayment" asp-route-id="@s.Id" method="post" class="flex-fill">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-danger btn-sm w-100"
+                                                        onclick="return confirm('Reject and cancel Open Play Sign-up #@s.Id?')">
                                                     <i class="bi bi-x-circle me-1"></i>Reject
                                                 </button>
                                             </form>

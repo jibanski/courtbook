@@ -271,16 +271,44 @@ public class StaffController : Controller
 
     // ── Walk-in booking: confirm customer info + duration for a chosen hour ──
 
-    public async Task<IActionResult> WalkInForm(int courtId, DateOnly date, int startHour)
+    public async Task<IActionResult> WalkInForm(int courtId, DateOnly date, int startHour, int? endHour)
     {
         var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
 
+        int? fixedEndHour = null;
+        if (endHour.HasValue)
+        {
+            if (endHour.Value <= startHour || endHour.Value > 24)
+            {
+                TempData["Error"] = "Invalid time slot.";
+                return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+            }
+
+            bool slotExists = await _db.CourtTimeSlots.AnyAsync(s =>
+                s.CourtId == courtId
+                && s.SlotDate == date
+                && s.IsActive
+                && s.StartHour == startHour
+                && s.EndHour == endHour.Value);
+            if (!slotExists)
+            {
+                TempData["Error"] = "This time slot is no longer available.";
+                return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+            }
+
+            fixedEndHour = endHour.Value;
+        }
+
         ViewBag.Court     = court;
         ViewBag.Date      = date;
         ViewBag.StartHour = startHour;
+        ViewBag.FixedEndHour = fixedEndHour;
         ViewBag.TotalPrice = await _bookingService.GetTotalPriceAsync(
-            court, date, new TimeOnly(startHour % 24, 0), new TimeOnly((startHour + 1) % 24, 0));
+            court,
+            date,
+            new TimeOnly(startHour % 24, 0),
+            new TimeOnly((fixedEndHour ?? (startHour + 1)) % 24, 0));
 
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         ViewBag.AddOns = employerOwnerId != null
@@ -326,7 +354,7 @@ public class StaffController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateWalkIn(
         int courtId, DateOnly date, int startHour, int durationHours, string customerName, string customerPhone,
-        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, int? fixedEndHour)
     {
         var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
@@ -334,7 +362,30 @@ public class StaffController : Controller
         if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerPhone))
         {
             TempData["Error"] = "Customer name and phone are required.";
-            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour });
+            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+        }
+
+        if (fixedEndHour.HasValue)
+        {
+            if (fixedEndHour.Value <= startHour || fixedEndHour.Value > 24)
+            {
+                TempData["Error"] = "Invalid time slot.";
+                return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+            }
+
+            bool slotExists = await _db.CourtTimeSlots.AnyAsync(s =>
+                s.CourtId == courtId
+                && s.SlotDate == date
+                && s.IsActive
+                && s.StartHour == startHour
+                && s.EndHour == fixedEndHour.Value);
+            if (!slotExists)
+            {
+                TempData["Error"] = "This time slot is no longer available. Please choose another time.";
+                return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+            }
+
+            durationHours = fixedEndHour.Value - startHour;
         }
         if (durationHours < 1) durationHours = 1;
         if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";

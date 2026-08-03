@@ -4,6 +4,10 @@
     ViewData["Title"] = "Edit Peak Window";
     var bundle = ViewBag.Bundle as CourtBundle;
     var days = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    var selectedDays = (Model.DaysOfWeek ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+        .Select(d => d.Trim())
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
 
 <div class="cb-page-header">
@@ -52,8 +56,8 @@
                                 @foreach (var d in days)
                                 {
                                     <label class="form-check form-check-inline">
-                                        <input type="checkbox" class="form-check-input" name="daysOfWeek" value="@d" 
-                                               @(Model.DaysOfWeek.Contains(d) ? "checked" : "") />
+                                        <input type="checkbox" class="form-check-input" name="days" value="@d" 
+                                               @(selectedDays.Contains(d) ? "checked" : "") />
                                         <span class="form-check-label small">@d</span>
                                     </label>
                                 }
