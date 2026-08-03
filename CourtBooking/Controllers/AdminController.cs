@@ -598,7 +598,7 @@ public class AdminController : Controller
         // and which are sellable only as part of a flat-price multi-court bundle.
         var schedule = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
         var bundleOnlyHours = new Dictionary<int, string>();
-        var openPlaySignupInfo = new Dictionary<int, (int MaxPlayers, int Taken)>();
+        var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int MaxPlayers, int Taken)>();
         for (int h = court.OpeningHour; h < court.ClosingHour; h++)
         {
             var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
@@ -607,10 +607,10 @@ public class AdminController : Controller
             if (schedule.TryGetValue(h, out var s) && s.Type == BookingType.AdminHostedOpenPlay)
             {
                 var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
-                if (block is { AllowPublicSignup: true, MaxPlayers: { } max })
+                    if (block is { AllowPublicSignup: true, MaxPlayers: { } max })
                 {
                     var remaining = await _bookingService.GetOpenPlaySpotsRemainingAsync(block, id, selectedDate);
-                    openPlaySignupInfo[h] = (max, max - remaining);
+                        openPlaySignupInfo[h] = (block, max, max - remaining);
                 }
             }
         }
@@ -999,7 +999,7 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> AddScheduleBlock(
         int courtId, string[] days, bool includeHolidays, int startHour, int endHour, BookingType type,
-        bool allowPublicSignup = false, int? maxPlayers = null, decimal? pricePerHead = null)
+        bool allowPublicSignup = false, int? maxPlayers = null, decimal? pricePerHead = null, string? description = null)
     {
         var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
@@ -1014,7 +1014,7 @@ public class AdminController : Controller
         // Price/Head and Max Players are captured for any Admin-Hosted Open Play block (front-desk
         // staff can charge and cap walk-in registrations there regardless of public sign-up) — but
         // public online sign-up specifically still needs both a capacity and a price to turn on.
-        if (type != BookingType.AdminHostedOpenPlay) { allowPublicSignup = false; maxPlayers = null; pricePerHead = null; }
+        if (type != BookingType.AdminHostedOpenPlay) { allowPublicSignup = false; maxPlayers = null; pricePerHead = null; description = null; }
         if (allowPublicSignup && (!maxPlayers.HasValue || maxPlayers.Value < 1 || !pricePerHead.HasValue || pricePerHead.Value < 0))
         {
             TempData["Error"] = "To enable public sign-up, set a Max Players (at least 1) and a Price/Head.";
@@ -1041,7 +1041,8 @@ public class AdminController : Controller
             Type              = type,
             AllowPublicSignup = allowPublicSignup,
             MaxPlayers        = maxPlayers,
-            PricePerHead      = pricePerHead
+            PricePerHead      = pricePerHead,
+            Description       = string.IsNullOrWhiteSpace(description) ? null : description.Trim()
         });
         await _db.SaveChangesAsync();
         TempData["Success"] = OutOfHoursWarning(court, startHour, endHour) is { } warn
@@ -1087,7 +1088,7 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> EditScheduleBlock(
         int id, int courtId, string[] days, bool includeHolidays, int startHour, int endHour, BookingType type,
-        bool allowPublicSignup = false, int? maxPlayers = null, decimal? pricePerHead = null)
+        bool allowPublicSignup = false, int? maxPlayers = null, decimal? pricePerHead = null, string? description = null)
     {
         var myCourtIds = await GetMyCourtIdsAsync();
         var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
@@ -1109,7 +1110,7 @@ public class AdminController : Controller
             return RedirectToAction(nameof(Schedule), new { id = courtId });
         }
 
-        if (type != BookingType.AdminHostedOpenPlay) { allowPublicSignup = false; maxPlayers = null; pricePerHead = null; }
+        if (type != BookingType.AdminHostedOpenPlay) { allowPublicSignup = false; maxPlayers = null; pricePerHead = null; description = null; }
         if (allowPublicSignup && (!maxPlayers.HasValue || maxPlayers.Value < 1 || !pricePerHead.HasValue || pricePerHead.Value < 0))
         {
             TempData["Error"] = "To enable public sign-up, set a Max Players (at least 1) and a Price/Head.";
@@ -1134,6 +1135,7 @@ public class AdminController : Controller
         block.AllowPublicSignup = allowPublicSignup;
         block.MaxPlayers        = maxPlayers;
         block.PricePerHead      = pricePerHead;
+        block.Description       = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         await _db.SaveChangesAsync();
 
         TempData["Success"] = OutOfHoursWarning(court, startHour, endHour) is { } warn

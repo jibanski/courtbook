@@ -295,6 +295,73 @@
                                     continue;
                                 }
 
+                                if (!isPast && !isBooked && !isPending && !isBlocked && isOpenPlaySignup && h == signupMatch.Block.StartHour)
+                                {
+                                    var runEndHour = signupMatch.Block.EndHour;
+                                    var runSpotsRemaining = signupMatch.SpotsRemaining;
+                                    var runPrice = signupMatch.Block.PricePerHead;
+                                    var runDescription = signupMatch.Block.Description;
+
+                                    while (Model.OpenPlaySignupInfo.TryGetValue(runEndHour, out var nextSignup)
+                                           && nextSignup.Block.StartHour == runEndHour
+                                           && nextSignup.Block.PricePerHead == runPrice
+                                           && nextSignup.Block.Description == runDescription
+                                           && nextSignup.SpotsRemaining == runSpotsRemaining)
+                                    {
+                                        runEndHour = nextSignup.Block.EndHour;
+                                    }
+
+                                    var openPlayLabel = TimeDisplay.HourRange(signupMatch.Block.StartHour, runEndHour);
+                                    bool isUnlimited = runSpotsRemaining == int.MaxValue;
+                                    <div class="col-12">
+                                        @if (isUnlimited || runSpotsRemaining > 0)
+                                        {
+                                            <a asp-controller="OpenPlaySignups" asp-action="Create"
+                                               asp-route-courtId="@Model.Court.Id"
+                                               asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                               asp-route-startHour="@signupMatch.Block.StartHour"
+                                               asp-route-endHour="@runEndHour"
+                                               class="p-2 text-center rounded-3 d-block text-decoration-none"
+                                               style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
+                                                <div style="font-size:.8rem;color:var(--cb-text-1);font-weight:600;">@openPlayLabel</div>
+                                                <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
+                                                    <i class="bi bi-people me-1"></i>Open Play
+                                                    @if (runPrice.HasValue)
+                                                    {
+                                                        <text>&middot; ₱@runPrice.Value.ToString("N0")/head</text>
+                                                    }
+                                                    @if (!isUnlimited)
+                                                    {
+                                                        <text>&middot; @runSpotsRemaining spot@(runSpotsRemaining != 1 ? "s" : "") left</text>
+                                                    }
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(runDescription))
+                                                {
+                                                    <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@runDescription</div>
+                                                }
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.75;">
+                                                <div style="font-size:.8rem;color:var(--cb-text-2);font-weight:600;">@openPlayLabel</div>
+                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Open Play — Full</div>
+                                                @if (!string.IsNullOrWhiteSpace(runDescription))
+                                                {
+                                                    <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@runDescription</div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                    h = runEndHour - 1;
+                                    continue;
+                                }
+
+                                if (!isPast && !isBooked && !isPending && !isBlocked && isOpenPlaySignup)
+                                {
+                                    continue;
+                                }
+
                                 <div class="col-6 col-sm-4 col-md-3">
                                     @if (isPast)
                                     {
@@ -342,6 +409,10 @@
                                             <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
                                                 <i class="bi bi-people me-1"></i>@signupMatch.SpotsRemaining spot@(signupMatch.SpotsRemaining != 1 ? "s" : "") left
                                             </div>
+                                            @if (!string.IsNullOrWhiteSpace(signupMatch.Block.Description))
+                                            {
+                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@signupMatch.Block.Description</div>
+                                            }
                                         </a>
                                     }
                                     else if (isOpenPlaySignup)
@@ -352,6 +423,10 @@
                                             <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">
                                                 <i class="bi bi-people-fill me-1"></i>Full
                                             </div>
+                                            @if (!string.IsNullOrWhiteSpace(signupMatch.Block.Description))
+                                            {
+                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@signupMatch.Block.Description</div>
+                                            }
                                         </div>
                                     }
                                     else if (isOpenPlay)

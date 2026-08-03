@@ -33,6 +33,10 @@
                             <text>&bull; no spot limit set</text>
                         }
                     </small>
+                    @if (!string.IsNullOrWhiteSpace(block?.Description))
+                    {
+                        <div class="small text-muted mt-1">@block.Description</div>
+                    }
                 </div>
                 <div class="card-body">
                     @if (TempData["Error"] != null)

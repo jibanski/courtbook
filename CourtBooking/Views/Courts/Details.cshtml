@@ -195,6 +195,72 @@
                                     continue;
                                 }
 
+                                if (!isBooked && isOpenPlaySignup && h == signupMatch.Block.StartHour)
+                                {
+                                    var runEndHour = signupMatch.Block.EndHour;
+                                    var runSpotsRemaining = signupMatch.SpotsRemaining;
+                                    var runPrice = signupMatch.Block.PricePerHead;
+                                    var runDescription = signupMatch.Block.Description;
+
+                                    while (Model.OpenPlaySignupInfo.TryGetValue(runEndHour, out var nextSignup)
+                                           && nextSignup.Block.StartHour == runEndHour
+                                           && nextSignup.Block.PricePerHead == runPrice
+                                           && nextSignup.Block.Description == runDescription
+                                           && nextSignup.SpotsRemaining == runSpotsRemaining)
+                                    {
+                                        runEndHour = nextSignup.Block.EndHour;
+                                    }
+
+                                    var openPlayLabel = TimeDisplay.HourRange(signupMatch.Block.StartHour, runEndHour);
+                                    bool isUnlimited = runSpotsRemaining == int.MaxValue;
+                                    <div class="col-12">
+                                        @if (isUnlimited || runSpotsRemaining > 0)
+                                        {
+                                            <a asp-controller="OpenPlaySignups" asp-action="Create"
+                                               asp-route-courtId="@Model.Court.Id"
+                                               asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                               asp-route-startHour="@signupMatch.Block.StartHour"
+                                               asp-route-endHour="@runEndHour"
+                                               class="btn btn-outline-secondary w-100 small text-decoration-none">
+                                                <i class="bi bi-people me-1"></i>@openPlayLabel &bull; Open Play
+                                                @if (runPrice.HasValue)
+                                                {
+                                                    <text>&middot; ₱@runPrice.Value.ToString("N0")/head</text>
+                                                }
+                                                @if (!isUnlimited)
+                                                {
+                                                    <text>&middot; @runSpotsRemaining spot@(runSpotsRemaining != 1 ? "s" : "") left</text>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(runDescription))
+                                                {
+                                                    <div class="small text-muted mt-1">@runDescription</div>
+                                                }
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <div class="btn btn-secondary w-100 disabled opacity-75 small">
+                                                <i class="bi bi-people-fill me-1"></i>@openPlayLabel &bull; Full
+                                                @if (runPrice.HasValue)
+                                                {
+                                                    <text>&middot; ₱@runPrice.Value.ToString("N0")/head</text>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(runDescription))
+                                                {
+                                                    <div class="small text-muted mt-1">@runDescription</div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                    h = runEndHour - 1;
+                                    continue;
+                                }
+
+                                if (!isBooked && isOpenPlaySignup)
+                                {
+                                    continue;
+                                }
+
                                 <div class="col-6 col-sm-4 col-md-3">
                                     @if (isBooked)
                                     {
@@ -215,12 +281,20 @@
                                            asp-route-endHour="@signupMatch.Block.EndHour"
                                            class="btn btn-outline-secondary w-100 small text-decoration-none">
                                             <i class="bi bi-people me-1"></i>@timeLabel &bull; @signupMatch.SpotsRemaining spot@(signupMatch.SpotsRemaining != 1 ? "s" : "") left
+                                            @if (!string.IsNullOrWhiteSpace(signupMatch.Block.Description))
+                                            {
+                                                <div class="small text-muted mt-1">@signupMatch.Block.Description</div>
+                                            }
                                         </a>
                                     }
                                     else if (isOpenPlaySignup)
                                     {
                                         <div class="btn btn-secondary w-100 disabled opacity-75 small">
                                             <i class="bi bi-people-fill me-1"></i>@timeLabel &bull; Full
+                                            @if (!string.IsNullOrWhiteSpace(signupMatch.Block.Description))
+                                            {
+                                                <div class="small text-muted mt-1">@signupMatch.Block.Description</div>
+                                            }
                                         </div>
                                     }
                                     else if (isOpenPlay)

@@ -197,6 +197,10 @@
                                                     <text>&middot; @signupMatch.SpotsRemaining spot@(signupMatch.SpotsRemaining != 1 ? "s" : "") left</text>
                                                 }
                                             </div>
+                                            @if (!string.IsNullOrWhiteSpace(signupMatch.Block.Description))
+                                            {
+                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@signupMatch.Block.Description</div>
+                                            }
                                         </a>
                                     }
                                     else
@@ -210,6 +214,10 @@
                                                     <text>&middot; ₱@signupMatch.Block.PricePerHead.Value.ToString("N0")/head</text>
                                                 }
                                             </div>
+                                            @if (!string.IsNullOrWhiteSpace(signupMatch.Block.Description))
+                                            {
+                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@signupMatch.Block.Description</div>
+                                            }
                                         </div>
                                     }
                                 </div>

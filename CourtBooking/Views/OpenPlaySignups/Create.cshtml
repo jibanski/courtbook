@@ -39,6 +39,11 @@
                         <div class="col-6 fw-semibold">@TimeDisplay.HourRange(block!.StartHour, block.EndHour)</div>
                         <div class="col-6 text-muted small">Price</div>
                         <div class="col-6 fw-semibold">₱@block.PricePerHead?.ToString("N0") / head</div>
+                        @if (!string.IsNullOrWhiteSpace(block.Description))
+                        {
+                            <div class="col-6 text-muted small">Description</div>
+                            <div class="col-6 fw-semibold">@block.Description</div>
+                        }
                         <div class="col-6 text-muted small">Spots Left</div>
                         <div class="col-6 fw-bold @(remaining > 0 ? "text-success" : "text-danger")">
                             @(remaining > 0 ? $"{remaining} of {block.MaxPlayers}" : "Full")
