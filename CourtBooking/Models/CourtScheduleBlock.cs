@@ -42,4 +42,8 @@ public class CourtScheduleBlock
     /// front-desk staff registering a walk-in, regardless of <see cref="AllowPublicSignup"/>.</summary>
     [Range(0, 100000)]
     public decimal? PricePerHead { get; set; }
+
+    /// <summary>Optional note shown to players on the availability grid, e.g. session format or roster reminder.</summary>
+    [MaxLength(200)]
+    public string? Description { get; set; }
 }

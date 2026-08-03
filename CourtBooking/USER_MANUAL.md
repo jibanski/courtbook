@@ -398,7 +398,10 @@ A: Yes, but old shared links will stop working. Make sure to re-share the new li
 A: No. Anyone can book a court, join Open Play, or buy a bundle as a guest — just fill in name, email, and phone on the booking form. They manage the booking afterward via a private link emailed to them instead of logging in. See [6.6 Booking Without an Account](#66-booking-without-an-account-guest-checkout).
 
 **Q: What is Open Play, and how is it different from a normal booking?**
-A: Open Play is an hour range you host and open to the public — individual players sign up for a spot (not the whole court) at a price per head, up to a max headcount you set. Configure it under a court's [Default Schedule & Rates](#default-schedule--rates), and review sign-ups (including payment screenshots) under **Admin → Courts → Open Play Sign-ups**.
+A: Open Play is an hour range you host and open to the public — individual players sign up for a spot (not the whole court) at a price per head, up to a max headcount you set. Configure it under a court's [Default Schedule & Rates](#default-schedule--rates), and review sign-ups (including payment screenshots) under **Admin → Courts → Open Play Sign-ups**. You can also add an optional description to the session, and that note appears on the booking tiles so customers know what the session is for.
+
+**Q: Why do some Open Play tiles span multiple hours instead of showing one card per hour?**
+A: CourtBook now groups consecutive Open Play hours that belong to the same session into one joined tile. That makes the schedule easier to read, keeps the grid compact, and avoids repeating the same session details across multiple hours.
 
 **Q: Where do I see my Open Play sign-ups once they're confirmed?**
 A: They now appear in **Admin → Bookings ("All Bookings")** alongside regular and bundle bookings, tagged with an "Open Play" badge — no need to check a separate page once they're no longer pending.
@@ -408,6 +411,9 @@ A: This was a bug where a facility's very first-ever Settings save could silentl
 
 **Q: Why do times now show like "6:00 PM" instead of "18:00"?**
 A: All times across the app (booking grids, schedules, admin pages, emails) now display in 12-hour format with AM/PM for readability. Nothing about how bookings work has changed — just how the time is displayed.
+
+**Q: What can I do to keep the booking pages fast and responsive?**
+A: Keep schedules simple where possible. Fewer overlapping bundle windows, fewer repeated rate tiers, and fewer separate Open Play blocks on the same court all help the booking page stay quick. CourtBook now caches recurring schedule lookups per request and groups consecutive Open Play hours, but the cleanest schedules still render the fastest.
 
 ---
 

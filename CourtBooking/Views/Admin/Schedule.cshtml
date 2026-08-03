@@ -313,6 +313,10 @@
                                                     {
                                                         <div class="small text-muted">Max @b.MaxPlayers</div>
                                                     }
+                                                    @if (!string.IsNullOrWhiteSpace(b.Description))
+                                                    {
+                                                        <div class="small text-muted">@b.Description</div>
+                                                    }
                                                 }
                                                 else
                                                 {
@@ -461,6 +465,10 @@
                                                             <input type="number" name="maxPlayers" min="1" class="form-control form-control-sm" value="@b.MaxPlayers" />
                                                         </div>
                                                     </div>
+                                                    <div class="mt-3">
+                                                        <label class="form-label small fw-semibold">Description <span class="text-muted fw-normal">(optional)</span></label>
+                                                        <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="e.g. Warm-up + rotation game">@b.Description</textarea>
+                                                    </div>
                                                     <label class="form-check mt-3 mb-0">
                                                         <input type="checkbox" class="form-check-input" name="allowPublicSignup" value="true"
                                                                @(b.AllowPublicSignup ? "checked" : "") />
@@ -551,6 +559,10 @@
                                         <input type="number" name="pricePerHead" step="0.01" min="0" class="form-control form-control-sm" />
                                     </div>
                                 </div>
+                                    <div class="mt-3">
+                                        <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">Description <span class="text-muted fw-normal">(optional)</span></label>
+                                        <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="e.g. Open play roster / rotation note"></textarea>
+                                    </div>
                                 <label class="form-check mt-3 mb-0">
                                     <input type="checkbox" class="form-check-input" name="allowPublicSignup" value="true" id="allowPublicSignupCheck" />
                                     <span class="form-check-label small fw-semibold">Enable public sign-up — customers can reserve a spot directly</span>

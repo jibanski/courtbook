@@ -321,12 +321,15 @@ using (var scope = app.Services.CreateScope())
                     ""EndHour""         integer                 NOT NULL,
                     ""Type""            integer                 NOT NULL DEFAULT 0,
                     ""IsActive""        boolean                 NOT NULL DEFAULT TRUE,
+                    ""Description""     character varying(200)  NULL,
                     CONSTRAINT ""FK_CourtScheduleBlocks_Courts_CourtId""
                         FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
                 )
             ");
             await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN IF NOT EXISTS \"IsActive\" boolean NOT NULL DEFAULT TRUE");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN IF NOT EXISTS \"Description\" character varying(200) NULL");
             await db.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS ""FacilityHolidays"" (
                     ""Id""      serial                  PRIMARY KEY,
@@ -360,10 +363,12 @@ using (var scope = app.Services.CreateScope())
                     ""EndHour""         INTEGER  NOT NULL,
                     ""Type""            INTEGER  NOT NULL DEFAULT 0,
                     ""IsActive""        INTEGER  NOT NULL DEFAULT 1,
+                    ""Description""     TEXT     NULL,
                     FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
                 )
             ");
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN \"IsActive\" INTEGER NOT NULL DEFAULT 1"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN \"Description\" TEXT NULL"); } catch { }
             await db.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS ""FacilityHolidays"" (
                     ""Id""      INTEGER  PRIMARY KEY AUTOINCREMENT,

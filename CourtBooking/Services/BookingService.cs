@@ -4,12 +4,18 @@ using CourtBooking.Models;
 using CourtBooking.ViewModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 
 namespace CourtBooking.Services;
 
 public class BookingService
 {
     private readonly ApplicationDbContext _db;
+    private readonly ConcurrentDictionary<string, Task<bool>> _holidayCache = new();
+    private readonly ConcurrentDictionary<int, Task<List<CourtRateTier>>> _rateTiersCache = new();
+    private readonly ConcurrentDictionary<int, Task<List<CourtScheduleBlock>>> _scheduleBlocksCache = new();
+    private readonly ConcurrentDictionary<int, Task<List<CourtBundle>>> _bundlesCache = new();
+    private readonly ConcurrentDictionary<int, Task<List<CourtBundleRateBlock>>> _bundleRateBlocksCache = new();
 
     public BookingService(ApplicationDbContext db) => _db = db;
 
@@ -19,6 +25,7 @@ public class BookingService
         var bookings = await _db.Bookings
             .Where(b => b.CourtId == courtId && b.BookingDate == date
                      && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed))
+            .AsNoTracking()
             .ToListAsync();
 
         var bookedHours = new List<int>();
@@ -35,6 +42,7 @@ public class BookingService
     {
         var bookings = await _db.Bookings
             .Where(b => b.CourtId == courtId && b.BookingDate == date && b.Status == BookingStatus.Pending)
+            .AsNoTracking()
             .ToListAsync();
 
         var pendingHours = new List<int>();
@@ -57,6 +65,7 @@ public class BookingService
         // Hour-level blocks (inactive time-slot markers)
         var slotBlocked = await _db.CourtTimeSlots
             .Where(s => s.CourtId == courtId && s.SlotDate == date && !s.IsActive)
+            .AsNoTracking()
             .ToListAsync();
 
         var hours = slotBlocked
@@ -66,6 +75,7 @@ public class BookingService
         // Date/time range blocks that overlap this date
         var rangeBlocks = await _db.CourtBlocks
             .Where(b => b.CourtId == courtId && b.StartDate <= date && b.EndDate >= date)
+            .AsNoTracking()
             .ToListAsync();
 
         foreach (var blk in rangeBlocks)
@@ -82,6 +92,7 @@ public class BookingService
     {
         var rangeBlocks = await _db.CourtBlocks
             .Where(b => b.CourtId == courtId && b.StartDate <= date && b.EndDate >= date && b.Reason != null)
+            .AsNoTracking()
             .ToListAsync();
 
         var reasons = new Dictionary<int, string>();
@@ -168,18 +179,22 @@ public class BookingService
 
     // ── Recurring weekly schedule & tiered rates ────────────────────────────────
 
-    public Task<bool> IsHolidayAsync(string ownerId, DateOnly date) =>
-        _db.FacilityHolidays.AnyAsync(h => h.OwnerId == ownerId && h.Date == date);
+    public Task<bool> IsHolidayAsync(string ownerId, DateOnly date)
+    {
+        var cacheKey = $"{ownerId}:{date:yyyyMMdd}";
+        return _holidayCache.GetOrAdd(cacheKey, _ =>
+            _db.FacilityHolidays.AsNoTracking().AnyAsync(h => h.OwnerId == ownerId && h.Date == date));
+    }
 
     public Task<List<CourtRateTier>> GetRateTiersAsync(int courtId) =>
-        _db.CourtRateTiers.Where(t => t.CourtId == courtId)
+        _rateTiersCache.GetOrAdd(courtId, _ => _db.CourtRateTiers.AsNoTracking().Where(t => t.CourtId == courtId)
             .OrderBy(t => t.StartHour).ThenBy(t => t.EndHour).ThenBy(t => t.DaysOfWeek)
-            .ToListAsync();
+            .ToListAsync());
 
     public Task<List<CourtScheduleBlock>> GetScheduleBlocksAsync(int courtId) =>
-        _db.CourtScheduleBlocks.Where(b => b.CourtId == courtId)
+        _scheduleBlocksCache.GetOrAdd(courtId, _ => _db.CourtScheduleBlocks.AsNoTracking().Where(b => b.CourtId == courtId)
             .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek)
-            .ToListAsync();
+            .ToListAsync());
 
     /// <summary>Resolved (BookingType, hourly rate) for every hour in the court's opening window on <paramref name="date"/>.</summary>
     public async Task<Dictionary<int, (BookingType Type, decimal Rate)>> GetHourlyScheduleAsync(Court court, DateOnly date)
@@ -223,6 +238,7 @@ public class BookingService
                      && b.CourtBundleId == null
                      && b.PaymentStatus == PaymentStatus.Unpaid
                      && b.Status != BookingStatus.Cancelled)
+            .AsNoTracking()
             .Include(b => b.AddOns)
             .ToListAsync();
 
@@ -241,7 +257,7 @@ public class BookingService
 
     /// <summary>Active add-on items in this facility owner's catalog, selectable when booking any of their courts.</summary>
     public Task<List<AddOnItem>> GetActiveAddOnsAsync(string ownerId) =>
-        _db.AddOnItems.Where(a => a.OwnerId == ownerId && a.IsActive).OrderBy(a => a.Name).ToListAsync();
+        _db.AddOnItems.AsNoTracking().Where(a => a.OwnerId == ownerId && a.IsActive).OrderBy(a => a.Name).ToListAsync();
 
     /// <summary>
     /// Reads quantity form fields named <c>addon_{Id}</c> for each of the owner's active add-ons,
@@ -322,14 +338,14 @@ public class BookingService
 
     /// <summary>Active bundles this court is a member of (a court may belong to more than one).</summary>
     public Task<List<CourtBundle>> GetBundlesForCourtAsync(int courtId) =>
-        _db.CourtBundles
+        _bundlesCache.GetOrAdd(courtId, _ => _db.CourtBundles.AsNoTracking()
             .Where(b => b.IsActive && b.Courts.Any(c => c.CourtId == courtId))
             .Include(b => b.Courts).ThenInclude(c => c.Court)
-            .ToListAsync();
+            .ToListAsync());
 
     /// <summary>All rate blocks for a bundle, including paused ones (for the admin management page).</summary>
     public Task<List<CourtBundleRateBlock>> GetBundleRateBlocksAsync(int bundleId) =>
-        _db.CourtBundleRateBlocks.Where(b => b.CourtBundleId == bundleId).ToListAsync();
+        _bundleRateBlocksCache.GetOrAdd(bundleId, _ => _db.CourtBundleRateBlocks.AsNoTracking().Where(b => b.CourtBundleId == bundleId).ToListAsync());
 
     /// <summary>
     /// If this court/date/hour falls inside an active bundle's active rate block, returns that
