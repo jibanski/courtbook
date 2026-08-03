@@ -281,6 +281,8 @@ Some courts reserve certain hours for **Open Play** — a shared session you joi
 
 If a facility offers a **bundle** (e.g. two courts together at a flat price for weekday evenings), you'll be offered the bundle option when booking any of its member courts during that window. Confirming it books every member court together as one linked purchase — you'll see all of them together on your Payment and My Bookings pages.
 
+While payment is pending, the reserved hours stay blocked and the booking grid shows that bundle as one pending blocked range so other customers cannot book part of it.
+
 ---
 
 ## 7. Payments

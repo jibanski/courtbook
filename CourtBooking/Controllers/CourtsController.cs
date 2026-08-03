@@ -158,6 +158,7 @@ public class CourtsController : Controller
         else
         {
             var bookedHours = await _bookingService.GetBookedHoursAsync(id, selectedDate);
+            var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(id, selectedDate);
             var schedule = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
 
             var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
@@ -179,6 +180,7 @@ public class CourtsController : Controller
             }
 
             vm.BookedHours     = bookedHours;
+            vm.PendingBundleWindows = pendingBundleWindows;
             vm.BundleOnlyHours = bundleOnlyHours;
             vm.OpenPlaySignupInfo = openPlaySignupInfo;
             vm.OpenPlayHours   = schedule

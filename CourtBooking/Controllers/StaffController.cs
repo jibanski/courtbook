@@ -223,6 +223,7 @@ public class StaffController : Controller
         {
             var bookedHours  = await _bookingService.GetBookedHoursAsync(courtId.Value, selectedDate);
             var pendingHours = await _bookingService.GetPendingHoursAsync(courtId.Value, selectedDate);
+            var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(courtId.Value, selectedDate);
             var blockedHours = await _bookingService.GetBlockedHoursAsync(courtId.Value, selectedDate);
             var blockReasons = await _bookingService.GetBlockReasonsAsync(courtId.Value, selectedDate);
             var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
@@ -251,6 +252,7 @@ public class StaffController : Controller
 
             vm.BookedHours     = bookedHours;
             vm.PendingHours    = pendingHours;
+            vm.PendingBundleWindows = pendingBundleWindows;
             vm.BlockedHours    = blockedHours;
             vm.BlockReasons    = blockReasons;
             vm.BundleOnlyHours = bundleOnlyHours;
