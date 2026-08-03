@@ -280,6 +280,7 @@
                                     <div class="col-12">
                                         <a asp-controller="BundleBookings" asp-action="Create"
                                            asp-route-bundleId="@bundleMatch.Bundle.Id"
+                                                         asp-route-courtId="@Model.Court.Id"
                                            asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
                                            asp-route-startHour="@bundleMatch.Block.StartHour"
                                            asp-route-endHour="@bundleMatch.Block.EndHour"

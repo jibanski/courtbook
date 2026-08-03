@@ -313,6 +313,7 @@ public class AdminController : Controller
     public async Task<IActionResult> Bookings(string? status, DateOnly? date, bool? awaitingConfirmation, string? search)
     {
         var courtIds = await GetMyCourtIdsAsync();
+        List<OpenPlaySignup> awaitingSignups = new();
         var query = _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId))
             .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle)
@@ -328,6 +329,19 @@ public class AdminController : Controller
             query = query.Where(b => b.BookingDate == date.Value);
 
         var bookings = await query.OrderByDescending(b => b.PaymentProofSubmittedAt ?? b.CreatedAt).ToListAsync();
+
+        if (awaitingConfirmation == true)
+        {
+            awaitingSignups = await _db.OpenPlaySignups
+                .Where(sg => courtIds.Contains(sg.CourtId)
+                          && sg.Status == BookingStatus.Pending
+                          && sg.PaymentStatus == PaymentStatus.Unpaid
+                          && sg.PaymentProofSubmittedAt != null)
+                .Include(sg => sg.Court)
+                .Include(sg => sg.User)
+                .OrderByDescending(sg => sg.PaymentProofSubmittedAt ?? sg.CreatedAt)
+                .ToListAsync();
+        }
 
         // The "All Bookings" table (not the awaiting-confirmation card list, which has its
         // own dedicated flow on the Open Play Sign-ups page) also lists Open Play sign-ups
@@ -365,7 +379,17 @@ public class AdminController : Controller
         ViewBag.SelectedDate         = date;
         ViewBag.Search               = search;
         ViewBag.AwaitingConfirmation = awaitingConfirmation;
-        ViewBag.PendingPaymentCount  = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
+        var pendingBookingCount = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId)
+                                                                  && b.Status == BookingStatus.Pending
+                                                                  && b.PaymentStatus == PaymentStatus.Unpaid
+                                                                  && b.PaymentProofSubmittedAt != null);
+        var pendingSignupCount = await _db.OpenPlaySignups.CountAsync(sg => courtIds.Contains(sg.CourtId)
+                                                                    && sg.Status == BookingStatus.Pending
+                                                                    && sg.PaymentStatus == PaymentStatus.Unpaid
+                                                                    && sg.PaymentProofSubmittedAt != null);
+        ViewBag.PendingPaymentCount  = pendingBookingCount + pendingSignupCount;
+        ViewBag.AwaitingSignups      = awaitingSignups;
+        ViewBag.PendingSignupCount   = pendingSignupCount;
         return View(bookings);
     }
 
@@ -1033,7 +1057,13 @@ public class AdminController : Controller
     {
         var myCourtIds = await GetMyCourtIdsAsync();
         var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
-        if (block is null) return NotFound();
+        if (block is null)
+        {
+            TempData["Error"] = "Schedule block not found or you no longer have access to it.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        courtId = block.CourtId;
 
         if (block.Type != BookingType.AdminHostedOpenPlay)
         {
@@ -1061,7 +1091,13 @@ public class AdminController : Controller
     {
         var myCourtIds = await GetMyCourtIdsAsync();
         var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
-        if (block is null) return NotFound();
+        if (block is null)
+        {
+            TempData["Error"] = "Schedule block not found or you no longer have access to it.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        courtId = block.CourtId;
 
         var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
@@ -1111,12 +1147,16 @@ public class AdminController : Controller
     {
         var myCourtIds = await GetMyCourtIdsAsync();
         var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
-        if (block is not null)
+        if (block is null)
         {
-            _db.CourtScheduleBlocks.Remove(block);
-            await _db.SaveChangesAsync();
-            TempData["Success"] = "Schedule block removed.";
+            TempData["Error"] = "Schedule block not found or it may have already been removed.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
         }
+
+        _db.CourtScheduleBlocks.Remove(block);
+        await _db.SaveChangesAsync();
+        TempData["Success"] = "Schedule block removed.";
+        courtId = block.CourtId;
         return RedirectToAction(nameof(Schedule), new { id = courtId });
     }
 
@@ -1125,12 +1165,16 @@ public class AdminController : Controller
     {
         var myCourtIds = await GetMyCourtIdsAsync();
         var block = await _db.CourtScheduleBlocks.FirstOrDefaultAsync(b => b.Id == id && myCourtIds.Contains(b.CourtId));
-        if (block is not null)
+        if (block is null)
         {
-            block.IsActive = !block.IsActive;
-            await _db.SaveChangesAsync();
-            TempData["Success"] = block.IsActive ? "Schedule block enabled." : "Schedule block paused.";
+            TempData["Error"] = "Schedule block not found or you no longer have access to it.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
         }
+
+        block.IsActive = !block.IsActive;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = block.IsActive ? "Schedule block enabled." : "Schedule block paused.";
+        courtId = block.CourtId;
         return RedirectToAction(nameof(Schedule), new { id = courtId });
     }
 
@@ -1382,7 +1426,7 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditBundleRateBlock(int id, int bundleId, string daysOfWeek, int startHour, int endHour, decimal flatPrice, bool includeHolidays)
+    public async Task<IActionResult> EditBundleRateBlock(int id, int bundleId, string[] days, int startHour, int endHour, decimal flatPrice, bool includeHolidays)
     {
         var bundle = await _db.CourtBundles
             .FirstOrDefaultAsync(b => b.Id == bundleId && b.OwnerId == CurrentUserId);
@@ -1392,13 +1436,25 @@ public class AdminController : Controller
             .FirstOrDefaultAsync(b => b.Id == id && b.CourtBundleId == bundleId);
         if (block is null) return NotFound();
 
-        if (string.IsNullOrWhiteSpace(daysOfWeek) || startHour >= endHour || flatPrice <= 0)
+        var daysCsv = NormalizeDays(days);
+        if ((daysCsv.Length == 0 && !includeHolidays) || startHour >= endHour || startHour < 0 || endHour > 24 || flatPrice <= 0)
         {
-            TempData["Error"] = "Select at least one day, set valid hours, and enter a price > 0.";
+            TempData["Error"] = "Pick at least one day (or include holidays), valid hours, and a price > 0.";
             return RedirectToAction(nameof(EditBundleRateBlock), new { id, bundleId });
         }
 
-        block.DaysOfWeek = daysOfWeek.Trim();
+        var existing = await _bookingService.GetBundleRateBlocksAsync(bundleId);
+        bool overlaps = existing.Any(b =>
+            b.Id != id &&
+            startHour < b.EndHour && endHour > b.StartHour &&
+            DaysOverlap(b.DaysOfWeek, b.IncludeHolidays, daysCsv, includeHolidays));
+        if (overlaps)
+        {
+            TempData["Error"] = "This window overlaps an existing bundle window on one of the selected days.";
+            return RedirectToAction(nameof(EditBundleRateBlock), new { id, bundleId });
+        }
+
+        block.DaysOfWeek = daysCsv;
         block.StartHour = startHour;
         block.EndHour = endHour;
         block.FlatPrice = flatPrice;
@@ -1688,6 +1744,7 @@ public class AdminController : Controller
         // Custom branding — available to all users (CourtBook is free)
         settings.BrandName    = string.IsNullOrWhiteSpace(model.BrandName)    ? null : model.BrandName.Trim();
         settings.BrandTagline = string.IsNullOrWhiteSpace(model.BrandTagline) ? null : model.BrandTagline.Trim();
+        settings.HouseRules   = string.IsNullOrWhiteSpace(model.HouseRules)   ? null : model.HouseRules.Trim();
 
         if (logo is { Length: > 0 })
             settings.BrandLogoUrl = await SaveBrandLogoAsync(logo, settings.BrandLogoUrl);

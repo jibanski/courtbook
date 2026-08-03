@@ -10,11 +10,10 @@ using Microsoft.EntityFrameworkCore;
 namespace CourtBooking.Controllers;
 
 /// <summary>
-/// Customer-facing flow for booking a <see cref="CourtBundle"/> — a flat-price package
-/// covering every member court at once during one of the bundle's recurring peak windows.
-/// Mirrors <see cref="BookingsController"/>'s manual GCash/Maya payment flow, but every
-/// action operates on the whole group of per-court <see cref="Booking"/> rows created
-/// together (linked by <see cref="Booking.BundleGroupId"/>) instead of a single row.
+/// Customer-facing flow for booking a <see cref="CourtBundle"/> on a specific court during
+/// one of the bundle's recurring peak windows.
+/// Mirrors <see cref="BookingsController"/>'s manual GCash/Maya payment flow while keeping
+/// bundle windows independent per court.
 /// PayMongo instant checkout is intentionally not supported for bundles yet.
 /// </summary>
 [Authorize]
@@ -47,12 +46,17 @@ public class BundleBookingsController : Controller
     }
 
     [AllowAnonymous]
-    public async Task<IActionResult> Create(int bundleId, DateOnly date, int startHour, int endHour)
+    public async Task<IActionResult> Create(int bundleId, DateOnly date, int startHour, int endHour, int? courtId)
     {
         var bundle = await _db.CourtBundles
             .Include(b => b.Courts).ThenInclude(c => c.Court)
             .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive);
         if (bundle is null) return NotFound();
+
+        var selectedCourt = bundle.Courts
+            .Select(c => c.Court)
+            .FirstOrDefault(c => !courtId.HasValue || c.Id == courtId.Value);
+        if (selectedCourt is null) return NotFound();
 
         var block = await _db.CourtBundleRateBlocks.FirstOrDefaultAsync(b =>
             b.CourtBundleId == bundleId && b.IsActive && b.StartHour == startHour && b.EndHour == endHour);
@@ -61,23 +65,27 @@ public class BundleBookingsController : Controller
         ViewBag.Bundle    = bundle;
         ViewBag.Block     = block;
         ViewBag.Date      = date;
+        ViewBag.SelectedCourt = selectedCourt;
         // EndHour can be 24 (representing midnight/12am for an overnight block, e.g. 8pm-12am) —
         // TimeOnly only accepts 0-23, so wrap with % 24 the same way TimeDisplay.Hour does.
-        ViewBag.Available = await _bookingService.IsBundleWindowFullyAvailableAsync(
-            bundle, date, new TimeOnly(startHour % 24, 0), new TimeOnly(endHour % 24, 0));
+        var start = new TimeOnly(startHour % 24, 0);
+        var end   = new TimeOnly(endHour % 24, 0);
+        ViewBag.Available =
+            startHour >= selectedCourt.OpeningHour && endHour <= selectedCourt.ClosingHour &&
+            await _bookingService.IsSlotAvailableAsync(selectedCourt.Id, date, start, end);
         return View();
     }
 
     [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]
     public async Task<IActionResult> Create(
-        int bundleId, DateOnly date, int startHour, int endHour, string? notes,
+        int bundleId, DateOnly date, int startHour, int endHour, int? courtId, string? notes,
         string? guestName, string? guestEmail, string? guestPhone)
     {
         bool isGuest = User.Identity?.IsAuthenticated != true;
         if (isGuest && (string.IsNullOrWhiteSpace(guestName) || string.IsNullOrWhiteSpace(guestEmail) || string.IsNullOrWhiteSpace(guestPhone)))
         {
             TempData["Error"] = "Please enter your name, email, and phone number.";
-            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
+            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
         }
 
         var bundle = await _db.CourtBundles
@@ -85,12 +93,17 @@ public class BundleBookingsController : Controller
             .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive);
         if (bundle is null) return NotFound();
 
+        var selectedCourt = bundle.Courts
+            .Select(c => c.Court)
+            .FirstOrDefault(c => !courtId.HasValue || c.Id == courtId.Value);
+        if (selectedCourt is null) return NotFound();
+
         var block = await _db.CourtBundleRateBlocks.FirstOrDefaultAsync(b =>
             b.CourtBundleId == bundleId && b.IsActive && b.StartHour == startHour && b.EndHour == endHour);
         if (block is null)
         {
             TempData["Error"] = "This bundle window is no longer available.";
-            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
+            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
         }
 
         var localNow = PhtClock.Now;
@@ -98,7 +111,7 @@ public class BundleBookingsController : Controller
         if (date < todayPht || (date == todayPht && (startHour * 60 + 20) < (localNow.Hour * 60 + localNow.Minute)))
         {
             TempData["Error"] = "This time slot is too soon. Please book at least 20 minutes in advance.";
-            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
+            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
         }
 
         // EndHour can be 24 (midnight/12am for an overnight block, e.g. 8pm-12am) — TimeOnly only
@@ -106,17 +119,16 @@ public class BundleBookingsController : Controller
         var start = new TimeOnly(startHour % 24, 0);
         var end   = new TimeOnly(endHour % 24, 0);
 
-        var memberCourts = bundle.Courts.Select(c => c.Court).ToList();
-        if (memberCourts.Any(c => startHour < c.OpeningHour || endHour > c.ClosingHour))
+        if (startHour < selectedCourt.OpeningHour || endHour > selectedCourt.ClosingHour)
         {
-            TempData["Error"] = "This window falls outside one of the bundle's courts' operating hours.";
-            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
+            TempData["Error"] = $"This window falls outside {selectedCourt.Name}'s operating hours.";
+            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
         }
 
-        if (!await _bookingService.IsBundleWindowFullyAvailableAsync(bundle, date, start, end))
+        if (!await _bookingService.IsSlotAvailableAsync(selectedCourt.Id, date, start, end))
         {
-            TempData["Error"] = "One or more courts in this bundle are no longer free for this window.";
-            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
+            TempData["Error"] = $"{selectedCourt.Name} is no longer free for this window.";
+            return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
         }
 
         string userId;
@@ -130,7 +142,7 @@ public class BundleBookingsController : Controller
             catch (GuestEmailConflictException ex)
             {
                 TempData["Error"] = ex.Message;
-                return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour });
+                return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
             }
         }
         else
@@ -140,36 +152,38 @@ public class BundleBookingsController : Controller
 
         var groupId      = Guid.NewGuid();
         var guestToken   = isGuest ? Guid.NewGuid() : (Guid?)null;
-        var share        = Math.Round(block.FlatPrice / memberCourts.Count, 2);
         var facilityName = await _db.FacilitySettings
             .Where(s => s.OwnerId == bundle.OwnerId)
             .Select(s => s.FacilityName)
             .FirstOrDefaultAsync();
 
-        var bookings = memberCourts.Select(c => new Booking
+        var bookings = new List<Booking>
         {
-            CourtId       = c.Id,
-            FacilityName  = facilityName,
-            UserId        = userId,
-            BookingDate   = date,
-            StartTime     = start,
-            EndTime       = end,
-            TotalPrice    = share,
-            Notes         = notes,
-            Status        = BookingStatus.Pending,
-            PaymentStatus = PaymentStatus.Unpaid,
-            CourtBundleId = bundle.Id,
-            BundleGroupId = groupId,
-            GuestAccessToken = guestToken,
-            ReservedUntil = DateTime.UtcNow.AddMinutes(15)
-        }).ToList();
+            new Booking
+            {
+                CourtId       = selectedCourt.Id,
+                FacilityName  = facilityName,
+                UserId        = userId,
+                BookingDate   = date,
+                StartTime     = start,
+                EndTime       = end,
+                TotalPrice    = block.FlatPrice,
+                Notes         = notes,
+                Status        = BookingStatus.Pending,
+                PaymentStatus = PaymentStatus.Unpaid,
+                CourtBundleId = bundle.Id,
+                BundleGroupId = groupId,
+                GuestAccessToken = guestToken,
+                ReservedUntil = DateTime.UtcNow.AddMinutes(15)
+            }
+        };
 
         _db.Bookings.AddRange(bookings);
         await _db.SaveChangesAsync();
 
         var customer = await _userManager.FindByIdAsync(userId);
         var owner    = await _userManager.FindByIdAsync(bundle.OwnerId);
-        await SendNewBundleBookingNotificationAsync(bookings, bundle, memberCourts, customer, owner);
+        await SendNewBundleBookingNotificationAsync(bookings, bundle, new List<Court> { selectedCourt }, customer, owner);
 
         if (isGuest)
         {

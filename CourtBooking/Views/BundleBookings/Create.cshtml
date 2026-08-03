@@ -3,8 +3,23 @@
     ViewData["Title"] = "Book Bundle";
     var bundle    = ViewBag.Bundle as CourtBundle;
     var block     = ViewBag.Block as CourtBundleRateBlock;
+    var selectedCourt = ViewBag.SelectedCourt as Court;
     var date      = (DateOnly)ViewBag.Date;
     var available = (bool)ViewBag.Available;
+    var courtNames = (selectedCourt is not null
+            ? new List<string> { selectedCourt.Name }
+            : bundle?.Courts
+                .Select(c => c.Court.Name)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .ToList())
+        ?? new List<string>();
+    var bundledCourtsLabel = courtNames.Count switch
+    {
+        0 => "selected court(s)",
+        1 => courtNames[0],
+        _ => string.Join(", ", courtNames)
+    };
+    var courtLabels = courtNames.Any() ? courtNames : new List<string> { "selected court" };
 }
 
 <div class="cb-page-header">
@@ -12,7 +27,7 @@
         <h1 class="mb-1" style="font-size:1.75rem;">
             <i class="bi bi-box-seam me-2" style="color:var(--cb-lime);"></i>@bundle!.Name
         </h1>
-        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Bundled booking — all courts together, one flat price</p>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Bundled booking — Court: @bundledCourtsLabel, one flat price</p>
     </div>
 </div>
 
@@ -31,8 +46,11 @@
                 </div>
                 <div class="card-body">
                     <div class="row g-2">
-                        <div class="col-6 text-muted small">Courts</div>
-                        <div class="col-6 fw-semibold">@string.Join(", ", bundle.Courts.Select(c => c.Court.Name))</div>
+                        @for (int i = 0; i < courtLabels.Count; i++)
+                        {
+                            <div class="col-6 text-muted small">Court @(i + 1)</div>
+                            <div class="col-6 fw-semibold">@courtLabels[i]</div>
+                        }
                         <div class="col-6 text-muted small">Date</div>
                         <div class="col-6 fw-semibold">@date.ToString("MMMM d, yyyy")</div>
                         <div class="col-6 text-muted small">Time</div>
@@ -48,7 +66,7 @@
             {
                 <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle me-2"></i>
-                    One or more courts in this bundle are already booked for this window. Please pick another date.
+                    This court is unavailable for this window (booked, pending, or blocked). Please pick another date.
                 </div>
             }
             else
@@ -56,6 +74,7 @@
                 <form asp-action="Create" method="post">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="bundleId" value="@bundle.Id" />
+                    <input type="hidden" name="courtId" value="@selectedCourt?.Id" />
                     <input type="hidden" name="date" value="@date.ToString("yyyy-MM-dd")" />
                     <input type="hidden" name="startHour" value="@block.StartHour" />
                     <input type="hidden" name="endHour" value="@block.EndHour" />
