@@ -56,6 +56,26 @@ public class BookingService
     }
 
     /// <summary>
+    /// Pending bundle bookings for a court/date, keyed by their start hour so availability views
+    /// can render each reservation as one blocked range instead of separate hourly tiles.
+    /// </summary>
+    public async Task<Dictionary<int, Booking>> GetPendingBundleWindowsAsync(int courtId, DateOnly date)
+    {
+        var bookings = await _db.Bookings
+            .Where(b => b.CourtId == courtId
+                     && b.BookingDate == date
+                     && b.Status == BookingStatus.Pending
+                     && b.CourtBundleId != null)
+            .Include(b => b.CourtBundle)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return bookings
+            .GroupBy(b => b.StartTime.Hour)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(b => b.CreatedAt).First());
+    }
+
+    /// <summary>
     /// Returns hours blocked on <paramref name="date"/> by either:
     /// • inactive CourtTimeSlot records (hourly grid blocks), or
     /// • CourtBlock date/time range records.

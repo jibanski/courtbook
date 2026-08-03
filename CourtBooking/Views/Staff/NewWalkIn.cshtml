@@ -145,9 +145,27 @@
                             bool isPast    = SlotIsPast(h);
                             bool isOpenPlay = Model.OpenPlayHours.Contains(h);
                             bool isBundleOnly = Model.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
+                                bool isPendingBundle = Model.PendingBundleWindows.TryGetValue(h, out var pendingBundle);
                             var rate = Model.HourlyRates.TryGetValue(h, out var r) ? r : Model.Court.PricePerHour;
                             var timeLabel = TimeDisplay.HourRange(h, h + 1);
 
+                                if (!isPast && !isBooked && !isBlocked && isPendingBundle)
+                                {
+                                    var bundleEndHour = pendingBundle.EndTime == TimeOnly.MinValue ? 24 : pendingBundle.EndTime.Hour;
+                                    var pendingLabel = TimeDisplay.HourRange(pendingBundle.StartTime.Hour, bundleEndHour);
+                                    <div class="col-12">
+                                        <div class="p-2 text-center rounded-3" style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.4);opacity:.85;cursor:default;">
+                                            <div style="font-size:.85rem;color:#eab308;font-weight:700;">@pendingLabel</div>
+                                            <div style="font-size:.7rem;color:#ca8a04;margin-top:2px;"><i class="bi bi-box-seam me-1"></i>Bundle Pending</div>
+                                            @if (pendingBundle.CourtBundle is not null)
+                                            {
+                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@pendingBundle.CourtBundle.Name</div>
+                                            }
+                                        </div>
+                                    </div>
+                                    h = bundleEndHour - 1;
+                                    continue;
+                                }
                             if (!isPast && !isBooked && !isPending && !isBlocked && isBundleOnly)
                             {
                                 var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);

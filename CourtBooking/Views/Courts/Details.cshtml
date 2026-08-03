@@ -169,15 +169,35 @@
                             @for (int h = Model.Court.OpeningHour; h < Model.Court.ClosingHour; h++)
                             {
                                 bool isBooked = Model.BookedHours.Contains(h);
+                                bool isPending = Model.PendingHours.Contains(h);
                                 bool isOpenPlay = Model.OpenPlayHours.Contains(h);
                                 bool isBundleOnly = Model.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
+                                bool isPendingBundle = Model.PendingBundleWindows.TryGetValue(h, out var pendingBundle);
                                 bool isOpenPlaySignup = Model.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
                                 var rate = Model.HourlyRates.TryGetValue(h, out var r) ? r : Model.Court.PricePerHour;
                                 var timeLabel = TimeDisplay.HourRange(h, h + 1);
 
+                                if (!isBooked && isPendingBundle)
+                                {
+                                    var bundleEndHour = pendingBundle.EndTime == TimeOnly.MinValue ? 24 : pendingBundle.EndTime.Hour;
+                                    var pendingLabel = TimeDisplay.HourRange(pendingBundle.StartTime.Hour, bundleEndHour);
+                                    <div class="col-12">
+                                        <div class="p-2 text-center rounded-3" style="opacity:.85;background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.4);">
+                                            <div style="font-size:.8rem;color:#eab308;font-weight:600;">@pendingLabel</div>
+                                            <div style="font-size:.7rem;color:#ca8a04;margin-top:2px;"><i class="bi bi-box-seam me-1"></i>Bundle Pending</div>
+                                            @if (pendingBundle.CourtBundle is not null)
+                                            {
+                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@pendingBundle.CourtBundle.Name</div>
+                                            }
+                                        </div>
+                                    </div>
+                                    h = bundleEndHour - 1;
+                                    continue;
+                                }
+
                                 @* An open (not booked) bundle-only run is rendered once as a single full-width
                                    block spanning its whole hour range, instead of one tile per hour. *@
-                                if (!isBooked && isBundleOnly)
+                                if (!isBooked && !isPending && isBundleOnly)
                                 {
                                     var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
                                     <div class="col-12">
@@ -195,7 +215,7 @@
                                     continue;
                                 }
 
-                                if (!isBooked && isOpenPlaySignup && h == signupMatch.Block.StartHour)
+                                if (!isBooked && !isPending && !isPendingBundle && isOpenPlaySignup && h == signupMatch.Block.StartHour)
                                 {
                                     var runEndHour = signupMatch.Block.EndHour;
                                     var runSpotsRemaining = signupMatch.SpotsRemaining;
@@ -256,7 +276,7 @@
                                     continue;
                                 }
 
-                                if (!isBooked && isOpenPlaySignup)
+                                if (!isBooked && !isPending && !isPendingBundle && isOpenPlaySignup)
                                 {
                                     continue;
                                 }
