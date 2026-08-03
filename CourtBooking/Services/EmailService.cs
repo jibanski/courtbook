@@ -255,4 +255,77 @@ public class EmailService
             _logger.LogError(ex, "[EmailService] Failed to send confirmation email for booking #{Id}", bookingId);
         }
     }
+
+        /// <summary>
+        /// Sends a "payment received — open play signup confirmed" email to the customer.
+        /// Safe to fire-and-forget; never throws.
+        /// </summary>
+        public async Task SendOpenPlayConfirmedToCustomerAsync(
+                string toEmail,
+                string? customerFirstName,
+                int signupId,
+                string courtName,
+                DateOnly bookingDate,
+                int startHour,
+                int endHour,
+                int spotCount,
+                decimal totalPrice,
+                string? paymentMethod,
+                string? paymentReference,
+                string baseUrl,
+                bool isGuest = false)
+        {
+                try
+                {
+                        if (string.IsNullOrWhiteSpace(toEmail)) return;
+
+                        var greeting    = string.IsNullOrWhiteSpace(customerFirstName) ? "Hi there" : $"Hi {customerFirstName}";
+                        var dateLabel   = bookingDate.ToString("dddd, MMMM d, yyyy");
+                        var timeLabel   = $"{new TimeOnly(startHour % 24, 0):hh\\:mm tt} – {new TimeOnly(endHour % 24, 0):hh\\:mm tt}";
+                        var amount      = totalPrice.ToString("N0");
+                        var method      = string.IsNullOrWhiteSpace(paymentMethod) ? "Online payment" : paymentMethod;
+                        var refLine     = string.IsNullOrWhiteSpace(paymentReference) ? "" :
+                                                            $"<tr><td style='color:#6c757d;padding:5px 0;'>Reference</td><td style='padding:5px 0;font-family:monospace;font-size:13px;'>{paymentReference}</td></tr>";
+                        var myBookings  = $"{baseUrl.TrimEnd('/')}/Bookings/My";
+                        var myBookingsButton = isGuest ? "" : $@"
+            <p style='margin:20px 0 0;text-align:center;'>
+                <a href='{myBookings}' style='display:inline-block;background:#198754;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>View My Bookings</a>
+            </p>";
+
+                        var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+    <div style='max-width:540px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+        <div style='background:#198754;color:#fff;padding:18px 24px;'>
+            <div style='font-size:13px;opacity:.9;letter-spacing:.5px;text-transform:uppercase;'>Open Play Confirmed</div>
+            <div style='font-size:20px;font-weight:700;margin-top:4px;'>✅ Payment Received</div>
+        </div>
+        <div style='padding:24px;font-size:15px;line-height:1.6;'>
+            <p style='margin:0 0 16px;'>{greeting}, your payment has been received and your Open Play signup is now <strong style='color:#198754;'>confirmed</strong>.</p>
+            <table style='width:100%;border-collapse:collapse;font-size:14px;'>
+                <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Court</td>       <td style='font-weight:600;padding:5px 0;'>{courtName}</td></tr>
+                <tr><td style='color:#6c757d;padding:5px 0;'>Date</td>        <td style='font-weight:600;padding:5px 0;'>{dateLabel}</td></tr>
+                <tr><td style='color:#6c757d;padding:5px 0;'>Time</td>        <td style='padding:5px 0;'>{timeLabel}</td></tr>
+                <tr><td style='color:#6c757d;padding:5px 0;'>Spots</td>       <td style='padding:5px 0;'>{spotCount}</td></tr>
+                <tr><td style='color:#6c757d;padding:5px 0;'>Amount</td>      <td style='padding:5px 0;font-weight:600;color:#198754;'>₱{amount}</td></tr>
+                <tr><td style='color:#6c757d;padding:5px 0;'>Method</td>      <td style='padding:5px 0;'>{method}</td></tr>
+                {refLine}
+                <tr><td style='color:#6c757d;padding:5px 0;'>Open Play #</td> <td style='padding:5px 0;'>#{signupId}</td></tr>
+            </table>{myBookingsButton}
+        </div>
+        <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
+            Automated confirmation · Open Play #{signupId}
+        </div>
+    </div>
+</body></html>";
+
+                        var plain = $"Payment Received — Open Play #{signupId} Confirmed\n\n{greeting},\n\nYour Open Play signup for {courtName} on {dateLabel} ({timeLabel}) for {spotCount} spot(s) totaling ₱{amount} via {method} has been received and confirmed."
+                                            + (isGuest ? "" : $"\n\nView your bookings: {myBookings}");
+
+                        await SendAsync(toEmail, $"✅ Open Play Confirmed — {courtName} on {dateLabel}", html, plain);
+                }
+                catch (Exception ex)
+                {
+                        _logger.LogError(ex, "[EmailService] Failed to send confirmation email for open play signup #{Id}", signupId);
+                }
+        }
 }

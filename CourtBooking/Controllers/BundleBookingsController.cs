@@ -58,8 +58,13 @@ public class BundleBookingsController : Controller
             .FirstOrDefault(c => !courtId.HasValue || c.Id == courtId.Value);
         if (selectedCourt is null) return NotFound();
 
-        var block = await _db.CourtBundleRateBlocks.FirstOrDefaultAsync(b =>
-            b.CourtBundleId == bundleId && b.IsActive && b.StartHour == startHour && b.EndHour == endHour);
+        var resolved = await _bookingService.ResolveBundleForHourAsync(selectedCourt, date, startHour);
+        var block = resolved is not null
+            && resolved.Value.Bundle.Id == bundleId
+            && resolved.Value.Block.StartHour == startHour
+            && resolved.Value.Block.EndHour == endHour
+            ? resolved.Value.Block
+            : null;
         if (block is null) return NotFound();
 
         ViewBag.Bundle    = bundle;
@@ -98,8 +103,13 @@ public class BundleBookingsController : Controller
             .FirstOrDefault(c => !courtId.HasValue || c.Id == courtId.Value);
         if (selectedCourt is null) return NotFound();
 
-        var block = await _db.CourtBundleRateBlocks.FirstOrDefaultAsync(b =>
-            b.CourtBundleId == bundleId && b.IsActive && b.StartHour == startHour && b.EndHour == endHour);
+        var resolved = await _bookingService.ResolveBundleForHourAsync(selectedCourt, date, startHour);
+        var block = resolved is not null
+            && resolved.Value.Bundle.Id == bundleId
+            && resolved.Value.Block.StartHour == startHour
+            && resolved.Value.Block.EndHour == endHour
+            ? resolved.Value.Block
+            : null;
         if (block is null)
         {
             TempData["Error"] = "This bundle window is no longer available.";

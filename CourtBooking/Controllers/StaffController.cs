@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace CourtBooking.Controllers;
 
@@ -22,17 +23,20 @@ public class StaffController : Controller
     private readonly ApplicationDbContext _db;
     private readonly BookingService _bookingService;
     private readonly GuestCheckoutService _guestCheckout;
+    private readonly EmailService _email;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public StaffController(
         ApplicationDbContext db,
         BookingService bookingService,
         GuestCheckoutService guestCheckout,
+        EmailService email,
         UserManager<ApplicationUser> userManager)
     {
         _db             = db;
         _bookingService = bookingService;
         _guestCheckout  = guestCheckout;
+        _email          = email;
         _userManager    = userManager;
     }
 
@@ -355,15 +359,20 @@ public class StaffController : Controller
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateWalkIn(
-        int courtId, DateOnly date, int startHour, int durationHours, string customerName, string customerPhone,
+        int courtId, DateOnly date, int startHour, int durationHours, string customerName, string customerEmail, string customerPhone,
         string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, int? fixedEndHour)
     {
         var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
 
-        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerPhone))
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
         {
-            TempData["Error"] = "Customer name and phone are required.";
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
             return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
         }
 
@@ -412,12 +421,16 @@ public class StaffController : Controller
             return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
         }
 
-        // Synthesize a stable, collision-free identity for the walk-in customer from their phone
-        // number — GuestCheckoutService keys on email, and a real customer's email never matches
-        // this pattern, so repeat walk-ins by the same phone reuse the same shadow account.
-        var digitsOnly = new string(customerPhone.Where(char.IsDigit).ToArray());
-        var syntheticEmail = $"walkin+{digitsOnly}@walkin.courtbook.local";
-        var customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, syntheticEmail, customerPhone);
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (GuestEmailConflictException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+        }
 
         var totalPrice = await _bookingService.GetTotalPriceAsync(court, date, startTime, endTime);
 
@@ -461,6 +474,26 @@ public class StaffController : Controller
         };
         await _bookingService.CreateBookingAsync(booking);
 
+        // Staff walk-ins are immediately confirmed/paid, so send the same customer-facing
+        // confirmation right away (including for advance bookings).
+        if (!string.IsNullOrWhiteSpace(customer.Email))
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            _ = _email.SendBookingConfirmedToCustomerAsync(
+                customer.Email,
+                customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                booking.Id,
+                court.Name,
+                booking.BookingDate,
+                booking.StartTime,
+                booking.EndTime,
+                booking.TotalPrice,
+                booking.PaymentMethod,
+                booking.PaymentReference,
+                baseUrl,
+                isGuest: customer.IsGuest);
+        }
+
         TempData["Success"] = $"Booked {court.Name} for {customerName} ({TimeDisplay.HourRange(startHour, startHour + durationHours)}) — ₱{booking.TotalPrice:N0} via {paymentMethod} logged.";
         return RedirectToAction(nameof(Index));
     }
@@ -490,15 +523,20 @@ public class StaffController : Controller
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateOpenPlaySignup(
-        int courtId, DateOnly date, int startHour, int endHour, int spotCount, string customerName, string customerPhone,
+        int courtId, DateOnly date, int startHour, int endHour, int spotCount, string customerName, string customerEmail, string customerPhone,
         string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? playerNames, string? notes)
     {
         var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
 
-        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerPhone))
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
         {
-            TempData["Error"] = "Customer name and phone are required.";
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
             return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
         }
 
@@ -518,9 +556,16 @@ public class StaffController : Controller
         }
         if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
 
-        var digitsOnly = new string(customerPhone.Where(char.IsDigit).ToArray());
-        var syntheticEmail = $"walkin+{digitsOnly}@walkin.courtbook.local";
-        var customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, syntheticEmail, customerPhone);
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (GuestEmailConflictException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
+        }
 
         string? proofPath;
         try
@@ -559,6 +604,25 @@ public class StaffController : Controller
         };
         _db.OpenPlaySignups.Add(signup);
         await _db.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(customer.Email))
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            _ = _email.SendOpenPlayConfirmedToCustomerAsync(
+                customer.Email,
+                customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                signup.Id,
+                court.Name,
+                signup.BookingDate,
+                signup.StartHour,
+                signup.EndHour,
+                signup.SpotCount,
+                signup.TotalPrice,
+                signup.PaymentMethod,
+                signup.PaymentReference,
+                baseUrl,
+                isGuest: customer.IsGuest);
+        }
 
         TempData["Success"] = $"Signed up {customerName} for Open Play ({TimeDisplay.HourRange(startHour, endHour)}, {spotCount} spot{(spotCount != 1 ? "s" : "")}) — ₱{signup.TotalPrice:N0} via {paymentMethod} logged.";
         return RedirectToAction(nameof(Index));
