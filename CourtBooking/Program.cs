@@ -177,6 +177,12 @@ using (var scope = app.Services.CreateScope())
             await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"MayaQrCodePath\" character varying(300) NULL");
             await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"GoTymeNumber\" character varying(20) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"GoTymeName\" character varying(100) NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"GoTymeQrCodePath\" character varying(300) NULL");
+            await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"PlatformConfig\" ADD COLUMN IF NOT EXISTS \"LogoData\" bytea NULL");
             await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"PlatformConfig\" ADD COLUMN IF NOT EXISTS \"LogoContentType\" character varying(50) NULL");
@@ -214,6 +220,9 @@ using (var scope = app.Services.CreateScope())
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"PayMongoMethods\" TEXT NULL DEFAULT 'qrph'"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"GCashQrCodePath\" TEXT NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"MayaQrCodePath\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"GoTymeNumber\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"GoTymeName\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"GoTymeQrCodePath\" TEXT NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"PlatformConfig\" ADD COLUMN \"LogoData\" BLOB NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"PlatformConfig\" ADD COLUMN \"LogoContentType\" TEXT NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN \"FacilityName\" TEXT NULL"); } catch { }

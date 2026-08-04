@@ -183,7 +183,7 @@
                                         <span class="badge bg-secondary" style="font-size:.65rem;">Optional</span>
                                     </div>
                                     <p class="small mb-3" style="color:var(--cb-text-3);">
-                                        Customers can pay you directly via GCash or Maya. You can also add these later in Settings.
+                                        Customers can pay you directly via GCash, Maya, or GoTyme. You can also add these later in Settings.
                                     </p>
                                     <div class="row g-2">
                                         <div class="col-7">
@@ -205,6 +205,16 @@
                                             <label asp-for="MayaName" class="form-label small mb-1">Account Name</label>
                                             <input asp-for="MayaName" class="form-control form-control-sm" placeholder="Juan D." />
                                             <span asp-validation-for="MayaName" class="text-danger small"></span>
+                                        </div>
+                                        <div class="col-7">
+                                            <label asp-for="GoTymeNumber" class="form-label small mb-1">GoTyme Number</label>
+                                            <input asp-for="GoTymeNumber" class="form-control form-control-sm" placeholder="09XX XXX XXXX" />
+                                            <span asp-validation-for="GoTymeNumber" class="text-danger small"></span>
+                                        </div>
+                                        <div class="col-5">
+                                            <label asp-for="GoTymeName" class="form-label small mb-1">Account Name</label>
+                                            <input asp-for="GoTymeName" class="form-control form-control-sm" placeholder="Juan D." />
+                                            <span asp-validation-for="GoTymeName" class="text-danger small"></span>
                                         </div>
                                     </div>
                                 </div>

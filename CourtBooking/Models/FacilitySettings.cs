@@ -41,6 +41,16 @@ public class FacilitySettings
     [MaxLength(300)]
     public string? MayaQrCodePath { get; set; }
 
+    [MaxLength(20)]
+    public string? GoTymeNumber { get; set; }
+
+    [MaxLength(100)]
+    public string? GoTymeName { get; set; }
+
+    /// <summary>Path to the uploaded GoTyme QR code image (e.g. /uploads/qr/gotyme_xxx.png).</summary>
+    [MaxLength(300)]
+    public string? GoTymeQrCodePath { get; set; }
+
     [MaxLength(500)]
     public string? PaymentInstructions { get; set; }
 

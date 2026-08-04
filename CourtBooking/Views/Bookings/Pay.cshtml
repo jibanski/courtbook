@@ -4,12 +4,14 @@
     var settings    = ViewBag.Settings as CourtBooking.Models.FacilitySettings ?? new CourtBooking.Models.FacilitySettings();
     bool hasGCash      = !string.IsNullOrWhiteSpace(settings.GCashNumber);
     bool hasMaya       = !string.IsNullOrWhiteSpace(settings.MayaNumber);
+    bool hasGoTyme     = !string.IsNullOrWhiteSpace(settings.GoTymeNumber);
     bool hasGCashQr    = !string.IsNullOrWhiteSpace(settings.GCashQrCodePath);
     bool hasMayaQr     = !string.IsNullOrWhiteSpace(settings.MayaQrCodePath);
+    bool hasGoTymeQr   = !string.IsNullOrWhiteSpace(settings.GoTymeQrCodePath);
     bool hasInstantPay = ViewBag.HasCardPay is true; // PayMongo configured
     // Manual e-wallet section is only shown as a fallback when the facility has
     // no instant gateway configured (per platform policy).
-    bool showManualPay = !hasInstantPay && (hasGCash || hasMaya);
+    bool showManualPay = !hasInstantPay && (hasGCash || hasMaya || hasGoTyme);
 
     var enabledMethods = settings.EnabledPayMongoMethods;
     bool m(string k) => enabledMethods.Contains(k);
@@ -199,7 +201,7 @@
                 </div>
             }
 
-            @if (!isConfirmed && !isAwaitingConfirm && !hasInstantPay && !hasGCash && !hasMaya)
+            @if (!isConfirmed && !isAwaitingConfirm && !hasInstantPay && !hasGCash && !hasMaya && !hasGoTyme)
             {
                 <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle me-2"></i>
@@ -278,6 +280,34 @@
                                     </div>
                                 </div>
                             }
+                            @if (hasGoTyme)
+                            {
+                                <div class="col-sm-6">
+                                    <div class="border rounded p-3 text-center bg-light h-100">
+                                        <div class="fw-bold text-info mb-2">
+                                            <i class="bi bi-phone me-1"></i>GoTyme
+                                        </div>
+                                        @if (hasGoTymeQr)
+                                        {
+                                            <img src="@settings.GoTymeQrCodePath" alt="GoTyme QR Code"
+                                                 style="max-width:200px;width:100%;border-radius:8px;margin-bottom:.5rem;" />
+                                        }
+                                        <div class="fs-5 fw-bold">@settings.GoTymeNumber</div>
+                                        @if (!string.IsNullOrWhiteSpace(settings.GoTymeName))
+                                        {
+                                            <div class="text-muted small">@settings.GoTymeName</div>
+                                        }
+                                        @if (hasGoTymeQr)
+                                        {
+                                            <div class="mt-2">
+                                                <a href="@settings.GoTymeQrCodePath" download class="btn btn-sm btn-outline-info">
+                                                    <i class="bi bi-download me-1"></i>Save QR Code
+                                                </a>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
                         </div>
                         <div class="alert alert-warning mt-3 py-2 mb-0 small">
                             <i class="bi bi-exclamation-triangle me-1"></i>
@@ -308,6 +338,7 @@
                                 <select name="method" class="form-select" required>
                                     @if (hasGCash) { <option value="GCash">GCash</option> }
                                     @if (hasMaya)  { <option value="Maya">Maya</option> }
+                                    @if (hasGoTyme) { <option value="GoTyme">GoTyme</option> }
                                 </select>
                             </div>
 

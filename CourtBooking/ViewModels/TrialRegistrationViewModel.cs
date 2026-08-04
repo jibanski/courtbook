@@ -43,6 +43,14 @@ public class TrialRegistrationViewModel
     [Display(Name = "Maya Account Name")]
     public string? MayaName { get; set; }
 
+    [MaxLength(20)]
+    [Display(Name = "GoTyme Number")]
+    public string? GoTymeNumber { get; set; }
+
+    [MaxLength(100)]
+    [Display(Name = "GoTyme Account Name")]
+    public string? GoTymeName { get; set; }
+
 [Required, MaxLength(50)]
     [Display(Name = "First Name")]
     public string FirstName { get; set; } = string.Empty;
