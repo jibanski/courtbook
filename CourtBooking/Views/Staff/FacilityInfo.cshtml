@@ -1,0 +1,166 @@
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Facility Info";
+    var settings   = ViewBag.Settings as FacilitySettings;
+    var courtInfo  = ViewBag.CourtInfo as List<CourtBooking.Controllers.StaffController.StaffCourtInfo> ?? new();
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">Facility Info</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">House rules, weekly schedule, and pricing — reference only.</p>
+    </div>
+</div>
+
+<div class="container py-4">
+
+    @* ── House Rules ── *@
+    <div class="card mb-4">
+        <div class="card-header">
+            <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
+                <i class="bi bi-clipboard-check me-2" style="color:var(--cb-lime);"></i>House Rules
+            </h6>
+        </div>
+        <div class="card-body">
+            @if (!string.IsNullOrWhiteSpace(settings?.HouseRules))
+            {
+                <p class="mb-0" style="white-space:pre-wrap;">@settings.HouseRules</p>
+            }
+            else
+            {
+                <p class="mb-0 text-muted small">No house rules have been set up yet.</p>
+            }
+        </div>
+    </div>
+
+    @if (!courtInfo.Any())
+    {
+        <div class="alert alert-warning">No active courts are set up yet.</div>
+    }
+
+    @foreach (var info in courtInfo)
+    {
+        var court  = info.Court;
+        var tiers  = info.RateTiers;
+        var blocks = info.ScheduleBlocks;
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
+                    <i class="bi bi-geo-alt me-2" style="color:var(--cb-lime);"></i>@court.Name
+                    <span class="text-muted fw-normal">&middot; @court.SportType</span>
+                </h6>
+                <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                    Open @TimeDisplay.HourRange(court.OpeningHour, court.ClosingHour) &middot;
+                    Base rate ₱@court.PricePerHour.ToString("N0")/hr
+                </p>
+            </div>
+            <div class="card-body p-4">
+
+                <h6 class="fw-semibold" style="font-size:.8rem;color:var(--cb-text-2);">
+                    <i class="bi bi-tag me-1"></i>Rate Tiers
+                </h6>
+                @if (tiers.Any())
+                {
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr><th>Days</th><th>Hours</th><th>Rate</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in tiers)
+                                {
+                                    <tr>
+                                        <td>
+                                            @t.DaysOfWeek
+                                            @if (t.IncludeHolidays)
+                                            {
+                                                <span class="badge bg-secondary ms-1">+ Holidays</span>
+                                            }
+                                        </td>
+                                        <td>@TimeDisplay.HourRange(t.StartHour, t.EndHour)</td>
+                                        <td>₱@t.PricePerHour.ToString("N0")/hr</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="mb-4 small text-muted">
+                        No rate tiers set — every hour uses the base rate of ₱@court.PricePerHour.ToString("N0")/hr.
+                    </p>
+                }
+
+                <h6 class="fw-semibold" style="font-size:.8rem;color:var(--cb-text-2);">
+                    <i class="bi bi-people me-1"></i>Recurring Booking Type
+                </h6>
+                @if (blocks.Any(b => b.IsActive))
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr><th>Days</th><th>Hours</th><th>Type</th><th>Price/Head</th><th>Sign-up</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var b in blocks.Where(b => b.IsActive))
+                                {
+                                    <tr>
+                                        <td>
+                                            @b.DaysOfWeek
+                                            @if (b.IncludeHolidays)
+                                            {
+                                                <span class="badge bg-secondary ms-1">+ Holidays</span>
+                                            }
+                                        </td>
+                                        <td>@TimeDisplay.HourRange(b.StartHour, b.EndHour)</td>
+                                        <td>
+                                            @if (b.Type == BookingType.AdminHostedOpenPlay)
+                                            {
+                                                <span class="badge bg-secondary">Admin-Hosted Open Play</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-success">Hourly Rental</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (b.Type == BookingType.AdminHostedOpenPlay && b.PricePerHead.HasValue)
+                                            {
+                                                <text>₱@b.PricePerHead.Value.ToString("N0")/head</text>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (b.Type == BookingType.AdminHostedOpenPlay)
+                                            {
+                                                @if (b.AllowPublicSignup)
+                                                {
+                                                    <span class="badge" style="background:var(--cb-lime);color:#000;">Public</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small">Staff only</span>
+                                                }
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="mb-0 small text-muted">No schedule blocks — every hour defaults to Hourly Rental.</p>
+                }
+
+            </div>
+        </div>
+    }
+
+</div>
