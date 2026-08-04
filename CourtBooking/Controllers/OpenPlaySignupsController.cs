@@ -236,6 +236,7 @@ public class OpenPlaySignupsController : Controller
         signup.PaymentProofSubmittedAt = DateTime.UtcNow;
         signup.Status                  = BookingStatus.Pending;
         signup.PaymentStatus           = PaymentStatus.Unpaid;
+        signup.ReservedUntil           = null;
         await _db.SaveChangesAsync();
 
         var customer = await _userManager.FindByIdAsync(userId);
@@ -338,6 +339,7 @@ public class OpenPlaySignupsController : Controller
         signup.PaymentProofSubmittedAt = DateTime.UtcNow;
         signup.Status                  = BookingStatus.Pending;
         signup.PaymentStatus           = PaymentStatus.Unpaid;
+        signup.ReservedUntil           = null;
         await _db.SaveChangesAsync();
 
         var customer = await _userManager.FindByIdAsync(signup.UserId);

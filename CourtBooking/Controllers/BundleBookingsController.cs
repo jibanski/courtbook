@@ -288,6 +288,7 @@ public class BundleBookingsController : Controller
             booking.PaymentProofSubmittedAt = DateTime.UtcNow;
             booking.Status                  = BookingStatus.Pending;
             booking.PaymentStatus           = PaymentStatus.Unpaid;
+            booking.ReservedUntil           = null;
         }
         await _db.SaveChangesAsync();
 
@@ -411,6 +412,7 @@ public class BundleBookingsController : Controller
             booking.PaymentProofSubmittedAt = DateTime.UtcNow;
             booking.Status                  = BookingStatus.Pending;
             booking.PaymentStatus           = PaymentStatus.Unpaid;
+            booking.ReservedUntil           = null;
         }
         await _db.SaveChangesAsync();
 
