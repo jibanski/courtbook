@@ -62,7 +62,7 @@ A guest isn't tied to a facility at all — each booking is self-contained and r
    - Facility Name
    - Address
    - URL Slug (e.g. `greenfield-sports`)
-   - GCash and/or Maya payment details
+  - GCash, Maya, and/or GoTyme payment details
    - Payment Instructions (optional)
    - (Optional) Your PayMongo secret key and the instant payment methods you want to offer
 5. **Add courts** — Admin → Courts → *Add Court*. Set name, sport, hours, price per hour, indoor/outdoor.
@@ -82,7 +82,7 @@ That's it. Customers can now visit your link and book — with or without creati
 3. **Pick a date and time slot**.
 4. **Sign up, log in, or continue as a guest** — no account is required; see [6.6 Booking Without an Account (Guest Checkout)](#66-booking-without-an-account-guest-checkout).
 5. **Confirm the booking** and you'll be sent to the **Payment** page.
-6. **Pay instantly by card/e-wallet** (if the facility has it enabled) or **send payment** via GCash or Maya to the number shown.
+6. **Pay instantly by card/e-wallet** (if the facility has it enabled) or **send payment** via GCash, Maya, or GoTyme to the number shown.
 7. **Submit your proof** (manual payment only) — enter the reference number (and optionally upload a screenshot).
 8. **Wait for confirmation** — the facility admin will verify your payment, usually within a few hours (instant payments confirm automatically).
 9. **Check My Bookings** to see the status — guests use the link emailed to them instead.
@@ -112,13 +112,14 @@ Navigate to **Admin** from the top navigation. The dashboard shows:
 
 #### Payment Methods
 
-**Manual (GCash / Maya transfer + screenshot proof):**
+**Manual (GCash / Maya / GoTyme transfer + screenshot proof):**
 
 - **GCash Number / Name** — the number customers will send money to.
 - **Maya Number / Name** — alternative payment method.
+- **GoTyme Number / Name** — another manual payment option customers can use.
 - **Payment Instructions** — free-form text shown on the payment page (e.g. *"Send the exact amount and include your booking ID in the notes."*).
 
-You can fill in either GCash, Maya, or both. If neither is filled in — and you haven't set up instant payment either — customers see a warning to contact you directly.
+You can fill in any one (or multiple) of GCash, Maya, and GoTyme. If none are filled in — and you haven't set up instant payment either — customers see a warning to contact you directly.
 
 **Instant (PayMongo — card, e-wallets, online banking):**
 
@@ -213,8 +214,8 @@ For each booking you can:
 ### 5.7 Payment Verification Workflow
 
 1. Customer submits a booking → status `Pending Payment`.
-2. Customer pays via GCash/Maya (or instantly by card/e-wallet if you've enabled PayMongo) → submits reference + screenshot → status `Awaiting Verification` (instant payments confirm automatically, skipping this step).
-3. **You** check your GCash/Maya app for the matching reference number.
+2. Customer pays via GCash/Maya/GoTyme (or instantly by card/e-wallet if you've enabled PayMongo) → submits reference + screenshot → status `Awaiting Verification` (instant payments confirm automatically, skipping this step).
+3. **You** check your GCash/Maya/GoTyme app for the matching reference number.
 4. If valid → click **Confirm Payment**. Booking is now `Confirmed`.
 5. If invalid or duplicate → click **Reject Payment**. Customer is notified and can resubmit.
 
@@ -274,7 +275,7 @@ Some courts reserve certain hours for **Open Play** — a shared session you joi
 
 1. On the court's availability grid, an Open Play hour shows the price per head and remaining spots instead of the usual "Book" state.
 2. Click it, choose how many spots you need, and submit (with or without an account — see [6.6](#66-booking-without-an-account-guest-checkout)).
-3. Pay the same way as a regular booking — manual GCash/Maya proof or instant card/e-wallet, depending on what the facility offers.
+3. Pay the same way as a regular booking — manual GCash/Maya/GoTyme proof or instant card/e-wallet, depending on what the facility offers.
 4. If the session fills up, the remaining-spots count reaches zero and it's no longer joinable.
 
 ### 6.8 Booking a Bundle
@@ -291,7 +292,7 @@ While payment is pending, the reserved hours stay blocked and the booking grid s
 
 Two flows are supported, and a facility can offer either or both at once:
 
-- **Manual** — CourtBook doesn't process the money itself. It tells customers where to send GCash/Maya payment, and gives the facility owner a way to verify the transfer against an uploaded screenshot.
+- **Manual** — CourtBook doesn't process the money itself. It tells customers where to send GCash/Maya/GoTyme payment, and gives the facility owner a way to verify the transfer against an uploaded screenshot.
 - **Instant** — if the facility has connected a PayMongo account, customers pay by card or e-wallet through a secure checkout and the booking confirms automatically the moment payment succeeds — no manual review needed.
 
 ### 7.2 For Customers
@@ -303,13 +304,13 @@ After confirming a booking, you'll see the **Complete Payment** page.
 **Otherwise, for manual payment**, you'll see:
 
 - Booking summary (court, date, time, total)
-- The facility's GCash and/or Maya number (with QR code, if provided)
+- The facility's GCash, Maya, and/or GoTyme number (with QR code, if provided)
 - Payment instructions
 - A form to submit your reference number and optional screenshot
 
 **Steps:**
 
-1. Open your GCash or Maya app.
+1. Open your GCash, Maya, or GoTyme app.
 2. Send the **exact amount** shown.
 3. Copy the transaction/reference number.
 4. Paste it into the form on the payment page.
@@ -318,7 +319,7 @@ After confirming a booking, you'll see the **Complete Payment** page.
 
 ### 7.3 For Facility Owners
 
-When a manual payment is submitted, the booking appears in **Admin → Bookings** with status *Awaiting Verification*. Check your GCash/Maya inbox for the matching reference, open the submitted screenshot via **View Screenshot**, and click **Confirm Payment** or **Reject Payment** as appropriate. Instant (PayMongo) payments skip this step entirely — they confirm themselves.
+When a manual payment is submitted, the booking appears in **Admin → Bookings** with status *Awaiting Verification*. Check your GCash/Maya/GoTyme inbox for the matching reference, open the submitted screenshot via **View Screenshot**, and click **Confirm Payment** or **Reject Payment** as appropriate. Instant (PayMongo) payments skip this step entirely — they confirm themselves.
 
 ---
 
@@ -391,7 +392,7 @@ A: No. Your data is kept — but customer-facing features are restricted until y
 A: It's safer to deactivate. Hard delete is only available if the court has no bookings.
 
 **Q: Does CourtBook take a percentage of my bookings?**
-A: No. All money goes directly from your customer to your GCash/Maya. CourtBook only charges the subscription fee.
+A: No. All money goes directly from your customer to your configured payment account (GCash/Maya/GoTyme for manual flows, or your connected PayMongo checkout for instant flows). CourtBook only charges the subscription fee.
 
 **Q: Can I change my URL slug later?**
 A: Yes, but old shared links will stop working. Make sure to re-share the new link.
