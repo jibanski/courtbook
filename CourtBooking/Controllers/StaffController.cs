@@ -334,10 +334,11 @@ public class StaffController : Controller
         var methods = new List<string> { "Cash" };
         if (!string.IsNullOrWhiteSpace(settings?.GCashNumber)) methods.Add("GCash");
         if (!string.IsNullOrWhiteSpace(settings?.MayaNumber)) methods.Add("Maya");
+        if (!string.IsNullOrWhiteSpace(settings?.GoTymeNumber)) methods.Add("GoTyme");
         return methods;
     }
 
-    /// <summary>Saves an optional payment-proof screenshot (JPG/PNG/WebP) for a GCash/Maya walk-in or
+    /// <summary>Saves an optional payment-proof screenshot (JPG/PNG/WebP) for a GCash/Maya/GoTyme walk-in or
     /// Open Play sign-up. Returns the stored relative path, or null if no file was provided. Throws
     /// <see cref="InvalidOperationException"/> (caught by the caller) if the file type isn't allowed.</summary>
     private async Task<string?> SavePaymentProofAsync(IFormFile? paymentProof, string prefix)

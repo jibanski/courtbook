@@ -99,6 +99,8 @@ public class TrialController : Controller
                 GCashName           = string.IsNullOrWhiteSpace(model.GCashName)   ? null : model.GCashName.Trim(),
                 MayaNumber          = string.IsNullOrWhiteSpace(model.MayaNumber)  ? null : model.MayaNumber.Trim(),
                 MayaName            = string.IsNullOrWhiteSpace(model.MayaName)    ? null : model.MayaName.Trim(),
+                GoTymeNumber        = string.IsNullOrWhiteSpace(model.GoTymeNumber) ? null : model.GoTymeNumber.Trim(),
+                GoTymeName          = string.IsNullOrWhiteSpace(model.GoTymeName)   ? null : model.GoTymeName.Trim(),
                 PaymentInstructions = "Please send the exact amount and include your booking reference in the notes."
             };
             _db.FacilitySettings.Add(settings);

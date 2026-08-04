@@ -70,6 +70,7 @@ public class AdminController : Controller
         var hasCourt   = activeCourts > 0;
         var hasPayment = !string.IsNullOrWhiteSpace(settings?.GCashNumber)
                          || !string.IsNullOrWhiteSpace(settings?.MayaNumber)
+                         || !string.IsNullOrWhiteSpace(settings?.GoTymeNumber)
                          || !string.IsNullOrWhiteSpace(settings?.PayMongoSecretKey);
         var hasAddress = !string.IsNullOrWhiteSpace(settings?.Address);
         var hasLogo    = !string.IsNullOrWhiteSpace(settings?.BrandLogoUrl);
@@ -1705,7 +1706,7 @@ public class AdminController : Controller
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Settings(FacilitySettings model, IFormFile? logo,
-        IFormFile? gcashQr, IFormFile? mayaQr, string[]? paymentMethods)
+        IFormFile? gcashQr, IFormFile? mayaQr, IFormFile? gotymeQr, string[]? paymentMethods)
     {
         // These properties are not part of the settings form — remove any binding
         // errors caused by nullable-reference-type implicit [Required] checks.
@@ -1735,11 +1736,15 @@ public class AdminController : Controller
         settings.GCashName           = model.GCashName;
         settings.MayaNumber          = model.MayaNumber;
         settings.MayaName            = model.MayaName;
+        settings.GoTymeNumber        = model.GoTymeNumber;
+        settings.GoTymeName          = model.GoTymeName;
 
         if (gcashQr is { Length: > 0 })
             settings.GCashQrCodePath = await SaveQrCodeAsync(gcashQr, "gcash", settings.GCashQrCodePath);
         if (mayaQr is { Length: > 0 })
             settings.MayaQrCodePath  = await SaveQrCodeAsync(mayaQr,  "maya",  settings.MayaQrCodePath);
+        if (gotymeQr is { Length: > 0 })
+            settings.GoTymeQrCodePath = await SaveQrCodeAsync(gotymeQr, "gotyme", settings.GoTymeQrCodePath);
         settings.PaymentInstructions = model.PaymentInstructions;
         settings.PayMongoSecretKey   = string.IsNullOrWhiteSpace(model.PayMongoSecretKey)
                                        ? null : model.PayMongoSecretKey.Trim();
