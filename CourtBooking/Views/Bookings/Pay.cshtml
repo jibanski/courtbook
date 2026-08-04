@@ -158,6 +158,16 @@
                     <i class="bi bi-hourglass-split fs-4"></i>
                     <div><strong>Payment submitted</strong> — your slot is reserved while the facility reviews it. You'll get an email once it's confirmed.</div>
                 </div>
+
+                @* Payment options aren't rendered once proof is in, so show the admin's
+                   instructions here too — otherwise they'd vanish for the rest of the review wait. *@
+                @if (!string.IsNullOrWhiteSpace(settings.PaymentInstructions))
+                {
+                    <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
+                        <i class="bi bi-info-circle-fill mt-1"></i>
+                        <div>@settings.PaymentInstructions</div>
+                    </div>
+                }
             }
 
             @* ── Instant Payment (PayMongo: Card / GCash / Maya / GrabPay / QRPh / Online Banking) ── *@
@@ -216,13 +226,6 @@
                         <i class="bi bi-send me-2 text-success"></i>Send Payment To
                     </div>
                     <div class="card-body">
-                        @if (!string.IsNullOrWhiteSpace(settings.PaymentInstructions))
-                        {
-                            <div class="alert alert-info py-2 mb-3">
-                                <i class="bi bi-info-circle me-1"></i>@settings.PaymentInstructions
-                            </div>
-                        }
-
                         <div class="row g-3">
                             @if (hasGCash)
                             {
@@ -309,10 +312,12 @@
                                 </div>
                             }
                         </div>
-                        <div class="alert alert-warning mt-3 py-2 mb-0 small">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            Send exactly <strong>₱@Model.TotalPrice.ToString("N0")</strong> and include your booking reference in the notes/remarks.
-                        </div>
+                        @if (!string.IsNullOrWhiteSpace(settings.PaymentInstructions))
+                        {
+                            <div class="alert alert-info mt-3 py-2 mb-0 small">
+                                <i class="bi bi-info-circle me-1"></i>@settings.PaymentInstructions
+                            </div>
+                        }
                     </div>
                 </div>
 

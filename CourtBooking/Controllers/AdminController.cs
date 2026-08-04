@@ -371,8 +371,7 @@ public class AdminController : Controller
             }
 
             ViewBag.Rows = rows
-                .OrderByDescending(r => r.BookingDate)
-                .ThenByDescending(r => r.StartTime)
+                .OrderByDescending(r => r.CreatedAt)
                 .ToList();
         }
 

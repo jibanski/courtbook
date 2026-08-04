@@ -352,6 +352,12 @@ public class BookingsController : Controller
         booking.Status        = BookingStatus.Pending;
         booking.PaymentStatus = PaymentStatus.Unpaid;
 
+        // Clear the 15-minute hold now that proof is in — ReservationExpiryCleanupService
+        // and ConfirmPayment's own expiry check only look at ReservedUntil, so leaving it
+        // set meant a submitted-but-not-yet-reviewed booking could get auto-cancelled out
+        // from under the customer before an admin ever saw it.
+        booking.ReservedUntil = null;
+
         await _db.SaveChangesAsync();
 
         // Notify the facility owner that proof was submitted and needs confirming.
@@ -564,6 +570,7 @@ public class BookingsController : Controller
         booking.PaymentProofSubmittedAt = DateTime.UtcNow;
         booking.Status                  = BookingStatus.Pending;
         booking.PaymentStatus           = PaymentStatus.Unpaid;
+        booking.ReservedUntil           = null;
         await _db.SaveChangesAsync();
 
         if (booking.Court is null)
