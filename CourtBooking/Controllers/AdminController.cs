@@ -874,6 +874,31 @@ public class AdminController : Controller
             .Where(d => d.Length > 0)
             .Distinct());
 
+    private static int DaysSortKey(string daysCsv)
+    {
+        var order = daysCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(DaySortIndex)
+            .DefaultIfEmpty(7);
+        return order.Min();
+    }
+
+    private static string NormalizeDaysForSort(string daysCsv) =>
+        string.Join(",", daysCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .OrderBy(DaySortIndex)
+            .ThenBy(d => d, StringComparer.OrdinalIgnoreCase));
+
+    private static int DaySortIndex(string day) => day.ToUpperInvariant() switch
+    {
+        "MON" => 0,
+        "TUE" => 1,
+        "WED" => 2,
+        "THU" => 3,
+        "FRI" => 4,
+        "SAT" => 5,
+        "SUN" => 6,
+        _ => 7
+    };
+
     private static bool DaysOverlap(string daysA, bool includeHolidaysA, string daysB, bool includeHolidaysB)
     {
         if (includeHolidaysA && includeHolidaysB) return true;
@@ -1332,7 +1357,8 @@ public class AdminController : Controller
 
         ViewBag.Bundle    = bundle;
         ViewBag.RateBlocks = (await _bookingService.GetBundleRateBlocksAsync(id))
-            .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek).ToList();
+            .OrderBy(b => DaysSortKey(b.DaysOfWeek)).ThenBy(b => NormalizeDaysForSort(b.DaysOfWeek))
+            .ThenBy(b => b.StartHour).ThenBy(b => b.EndHour).ToList();
         return View();
     }
 
@@ -1523,7 +1549,6 @@ public class AdminController : Controller
         return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> RejectBundlePayment(Guid groupId)
     {
         var courtIds = await GetMyCourtIdsAsync();
