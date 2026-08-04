@@ -70,6 +70,36 @@ public class StaffController : Controller
         return View();
     }
 
+    // ── Facility info (read-only) — house rules, weekly schedule, and pricing ──
+    // for the employer's courts, so front-desk staff can answer customer questions
+    // without needing Admin access. Mirrors AdminController.Schedule's data but
+    // strips every edit/add/delete action — staff can look, not touch.
+
+    public async Task<IActionResult> FacilityInfo()
+    {
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        var settings = employerOwnerId != null
+            ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == employerOwnerId)
+            : null;
+        ViewBag.Settings = settings;
+
+        var courts = await (await MyCourtsAsync()).Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
+        var courtInfo = new List<StaffCourtInfo>();
+        foreach (var court in courts)
+        {
+            var tiers = (await _bookingService.GetRateTiersAsync(court.Id))
+                .OrderBy(t => t.StartHour).ThenBy(t => t.EndHour).ThenBy(t => t.DaysOfWeek).ToList();
+            var blocks = (await _bookingService.GetScheduleBlocksAsync(court.Id))
+                .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek).ToList();
+            courtInfo.Add(new StaffCourtInfo(court, tiers, blocks));
+        }
+        ViewBag.CourtInfo = courtInfo;
+
+        return View();
+    }
+
+    public record StaffCourtInfo(Court Court, List<CourtRateTier> RateTiers, List<CourtScheduleBlock> ScheduleBlocks);
+
     // ── All bookings (read-only) — lets front-desk staff verify a booking went ──
     // through, or look up a customer's booking, without needing Admin access.
 
@@ -88,7 +118,7 @@ public class StaffController : Controller
                        .ToList();
         }
 
-        ViewBag.Rows = rows.OrderByDescending(r => r.BookingDate).ThenByDescending(r => r.StartTime).ToList();
+        ViewBag.Rows = rows.OrderByDescending(r => r.CreatedAt).ToList();
         ViewBag.SelectedStatus = status;
         ViewBag.SelectedDate   = date;
         ViewBag.Search         = search;
@@ -188,6 +218,20 @@ public class StaffController : Controller
     {
         var myCourts = await (await MyCourtsAsync()).Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
         ViewBag.Courts = myCourts;
+
+        // Same house-rules / schedule-and-pricing reference customers see on the public
+        // facility page, so staff have full context on this page instead of a bare court
+        // dropdown — front desk shouldn't need a second tab open to answer a pricing question.
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        ViewBag.Settings = employerOwnerId != null
+            ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == employerOwnerId)
+            : null;
+        ViewBag.RateRanges = await _bookingService.GetRateRangesAsync(myCourts);
+        var myCourtIds = myCourts.Select(c => c.Id).ToList();
+        ViewBag.CourtRateTiers = await _db.CourtRateTiers
+            .Where(t => myCourtIds.Contains(t.CourtId))
+            .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
+            .ToListAsync();
 
         // "Today" must resolve to Philippine time regardless of the server's own OS timezone
         // (e.g. a UTC-hosted server) — otherwise, during PH midnight-8am, defaulting to the
