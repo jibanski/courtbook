@@ -476,11 +476,12 @@ public class StaffController : Controller
 
         // Staff walk-ins are immediately confirmed/paid, so send the same customer-facing
         // confirmation right away (including for advance bookings).
-        if (!string.IsNullOrWhiteSpace(customer.Email))
+        var customerEmailToNotify = customerEmail.Trim();
+        if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
         {
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            _ = _email.SendBookingConfirmedToCustomerAsync(
-                customer.Email,
+            await _email.SendBookingConfirmedToCustomerAsync(
+                customerEmailToNotify,
                 customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
                 booking.Id,
                 court.Name,
@@ -605,11 +606,12 @@ public class StaffController : Controller
         _db.OpenPlaySignups.Add(signup);
         await _db.SaveChangesAsync();
 
-        if (!string.IsNullOrWhiteSpace(customer.Email))
+        var customerEmailToNotify = customerEmail.Trim();
+        if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
         {
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            _ = _email.SendOpenPlayConfirmedToCustomerAsync(
-                customer.Email,
+            await _email.SendOpenPlayConfirmedToCustomerAsync(
+                customerEmailToNotify,
                 customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
                 signup.Id,
                 court.Name,
