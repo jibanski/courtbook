@@ -170,7 +170,7 @@
                             {
                                 var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
                                 <div class="col-12">
-                                    <a asp-controller="BundleBookings" asp-action="Create"
+                                    <a asp-action="WalkInBundleForm"
                                        asp-route-bundleId="@bundleMatch.Bundle.Id"
                                                     asp-route-courtId="@Model.Court.Id"
                                        asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"

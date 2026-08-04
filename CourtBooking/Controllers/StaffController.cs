@@ -500,6 +500,167 @@ public class StaffController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    // ── Walk-in bundle booking ────────────────────────────────────────────────
+    // A bundle sells one of its member courts at a flat price during a recurring
+    // peak window (see BundleBookingsController for the customer-facing version).
+    // Mirrors WalkInForm/CreateWalkIn above, but priced from the CourtBundleRateBlock
+    // instead of the court's normal hourly rate, and with no duration picker since
+    // the window is fixed by the bundle's own schedule.
+
+    public async Task<IActionResult> WalkInBundleForm(int bundleId, int courtId, DateOnly date, int startHour, int endHour)
+    {
+        var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        var bundle = await _db.CourtBundles
+            .Include(b => b.Courts).ThenInclude(c => c.Court)
+            .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive && b.Courts.Any(c => c.CourtId == courtId));
+        if (bundle is null) return NotFound();
+
+        var block = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
+        if (block is null)
+        {
+            TempData["Error"] = "This bundle window is no longer available.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+
+        ViewBag.Bundle     = bundle;
+        ViewBag.Court      = court;
+        ViewBag.Date       = date;
+        ViewBag.StartHour  = startHour;
+        ViewBag.EndHour    = endHour;
+        ViewBag.TotalPrice = block.FlatPrice;
+
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(employerOwnerId);
+
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateWalkInBundle(
+        int bundleId, int courtId, DateOnly date, int startHour, int endHour,
+        string customerName, string customerEmail, string customerPhone,
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+    {
+        var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
+        {
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
+            return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+        }
+
+        var bundle = await _db.CourtBundles
+            .Include(b => b.Courts).ThenInclude(c => c.Court)
+            .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive && b.Courts.Any(c => c.CourtId == courtId));
+        if (bundle is null) return NotFound();
+
+        var block = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
+        if (block is null)
+        {
+            TempData["Error"] = "This bundle window is no longer available.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+
+        if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
+
+        // EndHour can be 24 (midnight for an overnight window) — TimeOnly only accepts
+        // 0-23, so wrap the same way BundleBookingsController does.
+        var start = new TimeOnly(startHour % 24, 0);
+        var end   = new TimeOnly(endHour % 24, 0);
+
+        if (!await _bookingService.IsSlotAvailableAsync(courtId, date, start, end))
+        {
+            TempData["Error"] = "This time slot is no longer available. Please choose another time.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (GuestEmailConflictException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+        }
+
+        string? proofPath;
+        try
+        {
+            proofPath = await SavePaymentProofAsync(paymentProof, "walkin_bundle");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = $"{ex.Message} — booking was not created.";
+            return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+        }
+
+        var booking = new Booking
+        {
+            CourtId              = courtId,
+            UserId               = customer.Id,
+            FacilityName         = court.FacilityName,
+            BookingDate          = date,
+            StartTime            = start,
+            EndTime              = end,
+            TotalPrice           = block.FlatPrice,
+            Notes                = notes,
+            Status               = BookingStatus.Confirmed,
+            PaymentStatus        = PaymentStatus.Paid,
+            PaymentMethod        = paymentMethod,
+            PaymentReference     = paymentReference,
+            PaymentProofPath     = proofPath,
+            PaidAt               = DateTime.UtcNow,
+            LoggedByStaffId      = CurrentStaffId,
+            CustomerNameSnapshot = customerName,
+            CourtBundleId        = bundle.Id,
+            BundleGroupId        = Guid.NewGuid()
+        };
+        await _bookingService.CreateBookingAsync(booking);
+
+        var customerEmailToNotify = customerEmail.Trim();
+        if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            await _email.SendBookingConfirmedToCustomerAsync(
+                customerEmailToNotify,
+                customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                booking.Id,
+                court.Name,
+                booking.BookingDate,
+                booking.StartTime,
+                booking.EndTime,
+                booking.TotalPrice,
+                booking.PaymentMethod,
+                booking.PaymentReference,
+                baseUrl,
+                isGuest: customer.IsGuest);
+        }
+
+        TempData["Success"] = $"Booked {court.Name} ({bundle.Name}) for {customerName} ({TimeDisplay.HourRange(startHour, endHour)}) — ₱{booking.TotalPrice:N0} via {paymentMethod} logged.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    private async Task<CourtBundleRateBlock?> ResolveWalkInBundleBlockAsync(Court court, int bundleId, DateOnly date, int startHour, int endHour)
+    {
+        var resolved = await _bookingService.ResolveBundleForHourAsync(court, date, startHour);
+        return resolved is not null
+            && resolved.Value.Bundle.Id == bundleId
+            && resolved.Value.Block.StartHour == startHour
+            && resolved.Value.Block.EndHour == endHour
+            ? resolved.Value.Block
+            : null;
+    }
+
     // ── Walk-in Open Play sign-up ────────────────────────────────────────────
 
     public async Task<IActionResult> OpenPlayForm(int courtId, DateOnly date, int startHour, int endHour)

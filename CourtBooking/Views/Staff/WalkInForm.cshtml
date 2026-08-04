@@ -7,6 +7,7 @@
     decimal totalPrice = ViewBag.TotalPrice;
     var addOns = ViewBag.AddOns as List<CourtBooking.Models.AddOnItem>;
     var paymentMethods = ViewBag.PaymentMethods as List<string> ?? new List<string> { "Cash" };
+    int defaultDurationHours = fixedEndHour.HasValue ? (fixedEndHour.Value - startHour) : 1;
 }
 
 <div class="cb-page-header">
@@ -89,7 +90,7 @@
                                                            data-price="@item.Price" data-pricing-type="1" />
                                                     <span class="text-muted small">×</span>
                                                     <input type="number" name="addon_hrs_@item.Id" class="form-control addon-hrs" style="width:70px;"
-                                                           min="1" value="@Model.Court.ClosingHour" placeholder="hrs"
+                                                           min="1" value="@defaultDurationHours" placeholder="hrs"
                                                            data-price="@item.Price" data-pricing-type="1" />
                                                     <span class="text-muted small">hrs</span>
                                                 </div>
