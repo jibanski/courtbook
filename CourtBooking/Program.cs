@@ -161,6 +161,21 @@ using (var scope = app.Services.CreateScope())
 
     db.Database.Migrate();
 
+    // Migrate() should leave nothing pending. If it doesn't, the manual fallback
+    // block below is silently carrying columns that Migrate() failed to apply —
+    // log loudly so that gap shows up in Railway logs at deploy time instead of
+    // as a live 500 once code starts depending on a column no fallback covers.
+    var pendingMigrations = db.Database.GetPendingMigrations().ToList();
+    if (pendingMigrations.Count > 0)
+    {
+        var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        startupLogger.LogError(
+            "{Count} EF migration(s) were NOT applied by Database.Migrate(): {Migrations}. " +
+            "Schema is out of sync with the code model — add a manual fallback ALTER TABLE below " +
+            "for any new columns, or this will 500 on the pages that use them.",
+            pendingMigrations.Count, string.Join(", ", pendingMigrations));
+    }
+
     // ── Ensure new columns exist (fallback when migrations aren't discovered) ─
     try
     {
