@@ -194,6 +194,8 @@ using (var scope = app.Services.CreateScope())
                 "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"IsDeactivated\" boolean NOT NULL DEFAULT FALSE");
             await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"DeactivatedAt\" timestamp with time zone NULL");
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"FacilitySettings\" ADD COLUMN IF NOT EXISTS \"HouseRules\" text NULL");
 
             // Bump any rows that still have the old multi-method default to QRPh-only.
             await db.Database.ExecuteSqlRawAsync(
@@ -229,6 +231,7 @@ using (var scope = app.Services.CreateScope())
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Courts\" ADD COLUMN \"FacilityName\" TEXT NULL"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"IsDeactivated\" INTEGER NOT NULL DEFAULT 0"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"DeactivatedAt\" TEXT NULL"); } catch { }
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FacilitySettings\" ADD COLUMN \"HouseRules\" TEXT NULL"); } catch { }
 
             // Bump any rows that still have the old multi-method default to QRPh-only.
             try {
