@@ -97,7 +97,7 @@
                             bar.style.width = Math.max(0, (s / total) * 100) + '%';
                             if (s <= 0) {
                                 disp.style.color = '#dc3545'; card.style.borderLeftColor = '#dc3545'; bar.className = 'progress-bar bg-danger';
-                                setTimeout(() => location.reload(), 2000);
+                                setTimeout(() => { window.location.href = '@Url.Action("Index", "Home")'; }, 2000);
                             } else if (s <= 180) {
                                 disp.style.color = '#dc3545'; card.style.borderLeftColor = '#dc3545'; bar.className = 'progress-bar bg-danger';
                             } else if (s <= 300) {
