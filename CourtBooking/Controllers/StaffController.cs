@@ -26,6 +26,7 @@ public class StaffController : Controller
     private readonly EmailService _email;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<StaffController> _logger;
+    private readonly ImageCompressionService _imageCompression;
 
     public StaffController(
         ApplicationDbContext db,
@@ -33,7 +34,8 @@ public class StaffController : Controller
         GuestCheckoutService guestCheckout,
         EmailService email,
         UserManager<ApplicationUser> userManager,
-        ILogger<StaffController> logger)
+        ILogger<StaffController> logger,
+        ImageCompressionService imageCompression)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -41,6 +43,7 @@ public class StaffController : Controller
         _email          = email;
         _logger         = logger;
         _userManager    = userManager;
+        _imageCompression = imageCompression;
     }
 
     // ── Employer scoping ─────────────────────────────────────────────────────
@@ -398,10 +401,19 @@ public class StaffController : Controller
 
         var uploadsDir = Path.Combine(UploadsRoot, "uploads", "proofs");
         Directory.CreateDirectory(uploadsDir);
-        var fileName = $"{prefix}_{Guid.NewGuid():N}{ext}";
+        var fileName = $"{prefix}_{Guid.NewGuid():N}.jpg";
         var fullPath = Path.Combine(uploadsDir, fileName);
-        using (var stream = System.IO.File.Create(fullPath))
-            await paymentProof.CopyToAsync(stream);
+        byte[] compressed;
+        try
+        {
+            await using var source = paymentProof.OpenReadStream();
+            compressed = await _imageCompression.CompressAsync(source);
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            throw new InvalidOperationException("That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.");
+        }
+        await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
         return $"/uploads/proofs/{fileName}";
     }
 

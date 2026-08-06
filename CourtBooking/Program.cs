@@ -3,6 +3,7 @@ using CourtBooking.Models;
 using CourtBooking.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.FileProviders;
@@ -89,6 +90,7 @@ builder.Services.AddScoped<PayMongoService>();
 builder.Services.AddScoped<KeyGeneratorService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<GuestCheckoutService>();
+builder.Services.AddSingleton<ImageCompressionService>();
 builder.Services.AddHttpClient();                                 // for EmailService (Brevo HTTP API)
 builder.Services.AddHostedService<SubscriptionReminderHostedService>();
 builder.Services.AddHostedService<ReservationExpiryCleanupService>();
@@ -129,12 +131,21 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseStaticFiles();   // serves wwwroot (CSS, JS, bundled assets)
+// Uploaded images (proofs, court photos) get a fresh GUID filename on every save, so a
+// given URL's content never changes — safe to tell browsers to cache it for a year
+// instead of re-downloading it on every page view.
+static void CacheUploadsLongTerm(StaticFileResponseContext ctx)
+{
+    if (ctx.Context.Request.Path.StartsWithSegments("/uploads"))
+        ctx.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+}
+
+app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = CacheUploadsLongTerm });   // serves wwwroot (CSS, JS, bundled assets)
 
 // On Railway, uploaded files (court photos, logos, payment proofs) live on a
 // persistent volume mounted at UPLOADS_ROOT (e.g. /data).
 // Locally they stay inside wwwroot/uploads as before.
-var uploadsEnvRoot = Environment.GetEnvironmentVariable("UPLOADS_ROOT");
+ var uploadsEnvRoot = Environment.GetEnvironmentVariable("UPLOADS_ROOT");
 if (!string.IsNullOrEmpty(uploadsEnvRoot))
 {
     var uploadsPhysPath = Path.Combine(uploadsEnvRoot, "uploads");
@@ -142,7 +153,8 @@ if (!string.IsNullOrEmpty(uploadsEnvRoot))
     app.UseStaticFiles(new StaticFileOptions
     {
         FileProvider = new PhysicalFileProvider(uploadsPhysPath),
-        RequestPath  = "/uploads"
+        RequestPath  = "/uploads",
+        OnPrepareResponse = CacheUploadsLongTerm
     });
 }
 

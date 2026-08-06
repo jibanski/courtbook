@@ -22,6 +22,7 @@ public class AdminController : Controller
     private readonly IConfiguration _config;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<AdminController> _logger;
+    private readonly ImageCompressionService _imageCompression;
 
     public AdminController(
         ApplicationDbContext db,
@@ -29,7 +30,8 @@ public class AdminController : Controller
         EmailService email,
         IConfiguration config,
         UserManager<ApplicationUser> userManager,
-        ILogger<AdminController> logger)
+        ILogger<AdminController> logger,
+        ImageCompressionService imageCompression)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -37,6 +39,7 @@ public class AdminController : Controller
         _config         = config;
         _userManager    = userManager;
         _logger         = logger;
+        _imageCompression = imageCompression;
     }
 
     // ── Current-owner helpers ─────────────────────────────────────────────────
@@ -1961,10 +1964,19 @@ public class AdminController : Controller
 
         var dir = Path.Combine(UploadsRoot, "uploads", "courts");
         Directory.CreateDirectory(dir);
-        var fileName = $"court_{courtId}_{Guid.NewGuid():N}{ext}";
+        var fileName = $"court_{courtId}_{Guid.NewGuid():N}.jpg";
         var fullPath = Path.Combine(dir, fileName);
-        using var stream = System.IO.File.Create(fullPath);
-        await photo.CopyToAsync(stream);
+        byte[] compressed;
+        try
+        {
+            await using var source = photo.OpenReadStream();
+            compressed = await _imageCompression.CompressAsync(source);
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            return existing;
+        }
+        await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
         return $"/uploads/courts/{fileName}";
     }
 
