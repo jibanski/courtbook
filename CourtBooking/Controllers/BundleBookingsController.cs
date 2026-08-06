@@ -255,7 +255,7 @@ public class BundleBookingsController : Controller
                 row.Status = BookingStatus.Cancelled;
             }
             await _db.SaveChangesAsync();
-            TempData["Error"] = "One or more slots in this bundle have expired (15-minute payment window elapsed). The bundle has been released. Please book again.";
+            TempData["Error"] = "One or more slots in this booking have expired (15-minute payment window elapsed). The reservation has been released. Please book again.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -297,7 +297,7 @@ public class BundleBookingsController : Controller
         var owner    = first.Court?.OwnerId is { } ownerId ? await _userManager.FindByIdAsync(ownerId) : null;
         await SendBundleProofSubmittedNotificationAsync(rows, customer, owner);
 
-        TempData["Success"] = "Payment submitted! Your bundle is reserved while the facility reviews your payment. "
+        TempData["Success"] = "Payment submitted! Your booking is reserved while the facility reviews your payment. "
                             + "You'll get a confirmation email once it's approved.";
         return RedirectToAction("My", "Bookings");
     }
@@ -321,7 +321,7 @@ public class BundleBookingsController : Controller
             booking.Status = BookingStatus.Cancelled;
         await _db.SaveChangesAsync();
 
-        TempData["Success"] = "Bundle booking cancelled successfully.";
+        TempData["Success"] = "Booking cancelled successfully.";
         return RedirectToAction("My", "Bookings");
     }
 
@@ -379,7 +379,7 @@ public class BundleBookingsController : Controller
                 row.Status = BookingStatus.Cancelled;
             }
             await _db.SaveChangesAsync();
-            TempData["Error"] = "One or more slots in this bundle have expired (15-minute payment window elapsed). The bundle has been released. Please book again.";
+            TempData["Error"] = "One or more slots in this booking have expired (15-minute payment window elapsed). The reservation has been released. Please book again.";
             return RedirectToAction(nameof(GuestPay), new { token });
         }
 
@@ -421,7 +421,7 @@ public class BundleBookingsController : Controller
         var owner    = first.Court?.OwnerId is { } ownerId ? await _userManager.FindByIdAsync(ownerId) : null;
         await SendBundleProofSubmittedNotificationAsync(rows, customer, owner);
 
-        TempData["Success"] = "Payment submitted! Your bundle is reserved while the facility reviews your payment. "
+        TempData["Success"] = "Payment submitted! Your booking is reserved while the facility reviews your payment. "
                             + "You'll get a confirmation email once it's approved.";
         return RedirectToAction(nameof(GuestPay), new { token });
     }
@@ -442,7 +442,7 @@ public class BundleBookingsController : Controller
             booking.Status = BookingStatus.Cancelled;
         await _db.SaveChangesAsync();
 
-        TempData["Success"] = "Bundle booking cancelled successfully.";
+        TempData["Success"] = "Booking cancelled successfully.";
         return RedirectToAction(nameof(GuestPay), new { token });
     }
 
@@ -570,10 +570,10 @@ public class BundleBookingsController : Controller
   <div style='max-width:540px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
     <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
       <div style='font-size:13px;opacity:.85;letter-spacing:.5px;text-transform:uppercase;'>CourtBook</div>
-      <div style='font-size:20px;font-weight:700;margin-top:4px;'>🔔 Bundle Payment Proof Submitted</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>🔔 Payment Proof Submitted</div>
     </div>
     <div style='padding:24px;font-size:15px;line-height:1.6;'>
-      <p style='margin:0 0 16px;'>A customer submitted payment proof for a bundle booking. Please <strong style='color:#0d6efd;'>review and confirm</strong> it:</p>
+      <p style='margin:0 0 16px;'>A customer submitted payment proof for a booking. Please <strong style='color:#0d6efd;'>review and confirm</strong> it:</p>
       <table style='width:100%;border-collapse:collapse;font-size:14px;'>
         <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Courts</td>  <td style='padding:5px 0;'>{courtNames}</td></tr>
         <tr><td style='color:#6c757d;padding:5px 0;'>Date</td>       <td style='padding:5px 0;'>{dateLabel}</td></tr>
@@ -589,8 +589,8 @@ public class BundleBookingsController : Controller
   </div>
 </body></html>";
 
-            var plain = $"Bundle Payment Proof Submitted\n\nCourts: {courtNames}\nDate: {dateLabel}\nTime: {timeLabel}\nAmount: ₱{amount}\nMethod: {method}\nReference: {reference}\n\nReview and confirm: {bookingsUrl}";
-            await _email.SendAsync(owner.Email, "🔔 Bundle booking — Payment proof submitted, please confirm", html, plain);
+            var plain = $"Payment Proof Submitted\n\nCourts: {courtNames}\nDate: {dateLabel}\nTime: {timeLabel}\nAmount: ₱{amount}\nMethod: {method}\nReference: {reference}\n\nReview and confirm: {bookingsUrl}";
+            await _email.SendAsync(owner.Email, "🔔 Booking — Payment proof submitted, please confirm", html, plain);
         }
         catch (Exception ex)
         {

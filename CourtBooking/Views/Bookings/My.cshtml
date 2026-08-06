@@ -63,7 +63,7 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <div>
-                                        <h6 class="fw-bold mb-0"><i class="bi bi-box-seam me-1"></i>Bundle: @groupCourtNames</h6>
+                                        <h6 class="fw-bold mb-0"><i class="bi bi-box-seam me-1"></i>@groupCourtNames</h6>
                                         <div class="text-muted" style="font-size:.75rem;">All @groupRows.Count courts, one reservation</div>
                                     </div>
                                     <span class="badge @groupBadgeClass">@groupRows[0].Status</span>
@@ -99,7 +99,7 @@
                             {
                                 <div class="card-footer bg-white border-top-0">
                                     <form asp-controller="BundleBookings" asp-action="Cancel" asp-route-groupId="@gid" method="post"
-                                          onsubmit="return confirm('Cancel this bundle booking?')">
+                                          onsubmit="return confirm('Cancel this booking?')">
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="btn btn-outline-danger btn-sm w-100">
                                             <i class="bi bi-x-circle me-1"></i>Cancel Booking

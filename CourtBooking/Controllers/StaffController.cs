@@ -544,6 +544,205 @@ public class StaffController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    // ── Walk-in cart: log several slots (any of the employer's courts) as one paid transaction ──
+    // The cart itself is client-side (localStorage, wwwroot/js/cart.js) — same mechanism the
+    // customer-facing multi-court cart uses (see CartController). Unlike that flow, a staff
+    // walk-in is confirmed and marked paid immediately (cash/GCash/Maya taken in person), so
+    // there's no separate "Pay" screen — this form collects customer info + one payment method
+    // for the whole batch and creates every booking already Confirmed/Paid in one submit.
+
+    private const int MaxWalkInCartItems = 20;
+
+    public async Task<IActionResult> WalkInCartForm()
+    {
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        ViewBag.AddOns = employerOwnerId != null
+            ? await _bookingService.GetActiveAddOnsAsync(employerOwnerId)
+            : new List<AddOnItem>();
+        ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(employerOwnerId);
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateWalkInCart(
+        string cartJson, string customerName, string customerEmail, string customerPhone,
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+    {
+        List<CartController.CartItemRequest>? items;
+        try
+        {
+            items = System.Text.Json.JsonSerializer.Deserialize<List<CartController.CartItemRequest>>(cartJson ?? "[]",
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            items = null;
+        }
+
+        if (items is null || items.Count == 0)
+        {
+            TempData["Error"] = "The cart is empty.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+        if (items.Count > MaxWalkInCartItems)
+        {
+            TempData["Error"] = $"A cart can hold at most {MaxWalkInCartItems} slots. Please log in smaller batches.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
+        {
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+        if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
+
+        var myCourts = await (await MyCourtsAsync()).ToListAsync();
+        var courtIds = items.Select(i => i.CourtId).Distinct().ToList();
+        var courtsById = myCourts.Where(c => courtIds.Contains(c.Id)).ToDictionary(c => c.Id);
+
+        var errors = new List<string>();
+        foreach (var item in items)
+        {
+            if (!courtsById.ContainsKey(item.CourtId))
+                errors.Add($"Court #{item.CourtId} does not belong to your facility.");
+        }
+        if (errors.Count > 0)
+        {
+            TempData["Error"] = string.Join(" ", errors);
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+
+        // Re-validate availability & recompute price server-side for every item — same guards
+        // as CreateWalkIn, just looped. Abort without creating anything if any single item fails.
+        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice)>();
+        foreach (var item in items)
+        {
+            var court = courtsById[item.CourtId];
+            var start = new TimeOnly(item.StartHour % 24, 0);
+            var end   = new TimeOnly(item.EndHour % 24, 0);
+
+            if (item.EndHour <= item.StartHour || item.StartHour < court.OpeningHour || item.EndHour > court.ClosingHour)
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d} falls outside operating hours.");
+                continue;
+            }
+            if (!await _bookingService.IsSlotAvailableAsync(court.Id, item.Date, start, end))
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is no longer available.");
+                continue;
+            }
+            if (await _bookingService.HasOpenPlayHoursAsync(court, item.Date, start, end))
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is reserved for Admin-Hosted Open Play.");
+                continue;
+            }
+            if (await _bookingService.HasBundleOnlyHoursAsync(court, item.Date, start, end))
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is only available as part of a bundle.");
+                continue;
+            }
+
+            var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
+            resolved.Add((item, court, start, end, price));
+        }
+
+        if (errors.Count > 0)
+        {
+            TempData["Error"] = "Some slots are no longer available — please remove them and try again: " + string.Join(" ", errors);
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (GuestEmailConflictException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+
+        string? proofPath;
+        try
+        {
+            proofPath = await SavePaymentProofAsync(paymentProof, "walkincart");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = $"{ex.Message} — booking was not created.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        var groupId = Guid.NewGuid();
+        var bookings = new List<Booking>();
+
+        foreach (var (item, court, start, end, slotPrice) in resolved)
+        {
+            var (addOns, addOnsTotal) = employerOwnerId != null
+                ? await _bookingService.ResolveAddOnsAsync(
+                    employerOwnerId,
+                    (item.AddOns ?? new List<CartController.CartAddOnRequest>())
+                        .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
+                    item.EndHour - item.StartHour)
+                : (new List<BookingAddOn>(), 0m);
+
+            bookings.Add(new Booking
+            {
+                CourtId              = court.Id,
+                UserId               = customer.Id,
+                FacilityName         = court.FacilityName,
+                BookingDate          = item.Date,
+                StartTime            = start,
+                EndTime              = end,
+                TotalPrice           = slotPrice + addOnsTotal,
+                Notes                = notes,
+                Status               = BookingStatus.Confirmed,
+                PaymentStatus        = PaymentStatus.Paid,
+                PaymentMethod        = paymentMethod,
+                PaymentReference     = paymentReference,
+                PaymentProofPath     = proofPath,
+                PaidAt               = DateTime.UtcNow,
+                LoggedByStaffId      = CurrentStaffId,
+                BundleGroupId        = groupId,
+                CustomerNameSnapshot = customerName,
+                AddOns               = addOns
+            });
+        }
+
+        _db.Bookings.AddRange(bookings);
+        await _db.SaveChangesAsync();
+
+        // Staff walk-ins are immediately confirmed/paid — send one confirmation per booking,
+        // reusing the same per-booking template the single-slot walk-in already sends.
+        var customerEmailToNotify = customerEmail.Trim();
+        if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            foreach (var booking in bookings)
+            {
+                var court = courtsById[booking.CourtId];
+                await _email.SendBookingConfirmedToCustomerAsync(
+                    customerEmailToNotify,
+                    customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                    booking.Id, court.Name, booking.BookingDate, booking.StartTime, booking.EndTime,
+                    booking.TotalPrice, booking.PaymentMethod, booking.PaymentReference, baseUrl,
+                    isGuest: customer.IsGuest);
+            }
+        }
+
+        var grandTotal = bookings.Sum(b => b.TotalPrice);
+        TempData["Success"] = $"Logged {bookings.Count} slot{(bookings.Count == 1 ? "" : "s")} for {customerName} — ₱{grandTotal:N0} via {paymentMethod}.";
+        TempData["ClearCart"] = true;
+        return RedirectToAction(nameof(Index));
+    }
+
     // ── Walk-in bundle booking ────────────────────────────────────────────────
     // A bundle sells one of its member courts at a flat price during a recurring
     // peak window (see BundleBookingsController for the customer-facing version).

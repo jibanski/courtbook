@@ -311,6 +311,8 @@
     }
 </div>
 
+@await Html.PartialAsync("_CartWidget", (string?)null)
+
 @functions {
     static string SportIcon(string sport) => sport?.ToLower() switch
     {

@@ -288,31 +288,64 @@ public class BookingService
     public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveSelectedAddOnsAsync(string ownerId, IFormCollection form, int durationHours = 1)
     {
         var items = await GetActiveAddOnsAsync(ownerId);
-        var result = new List<BookingAddOn>();
-        decimal total = 0;
+        var selections = new List<AddOnSelection>();
 
         foreach (var item in items)
         {
             if (!form.TryGetValue($"addon_{item.Id}", out var raw)) continue;
             if (!int.TryParse(raw, out var qty) || qty <= 0) continue;
 
+            int? hrs = null;
+            if (item.PricingType == AddOnPricingType.PerHour)
+                hrs = form.TryGetValue($"addon_hrs_{item.Id}", out var hrsRaw) && int.TryParse(hrsRaw, out var h) && h > 0
+                    ? h : durationHours;
+
+            selections.Add(new AddOnSelection(item.Id, qty, hrs));
+        }
+
+        return ResolveAddOnsCore(items, selections, durationHours);
+    }
+
+    /// <summary>
+    /// Same resolution/pricing logic as <see cref="ResolveSelectedAddOnsAsync"/>, but for callers whose
+    /// selections don't come from an <see cref="IFormCollection"/> (e.g. a JSON-sourced multi-item cart
+    /// checkout). Both funnel through <see cref="ResolveAddOnsCore"/> so pricing/validation can't diverge.
+    /// </summary>
+    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveAddOnsAsync(string ownerId, IEnumerable<AddOnSelection> selections, int durationHours = 1)
+    {
+        var items = await GetActiveAddOnsAsync(ownerId);
+        return ResolveAddOnsCore(items, selections, durationHours);
+    }
+
+    private static (List<BookingAddOn> AddOns, decimal Total) ResolveAddOnsCore(
+        List<AddOnItem> catalog, IEnumerable<AddOnSelection> selections, int durationHours)
+    {
+        var result = new List<BookingAddOn>();
+        decimal total = 0;
+
+        foreach (var selection in selections)
+        {
+            var item = catalog.FirstOrDefault(i => i.Id == selection.AddOnItemId);
+            if (item is null || selection.Quantity <= 0) continue;
+
             if (item.PricingType == AddOnPricingType.PerHour)
             {
-                // Read manually-entered hours; fall back to booking duration if not provided
-                var hrs = form.TryGetValue($"addon_hrs_{item.Id}", out var hrsRaw) && int.TryParse(hrsRaw, out var h) && h > 0
-                    ? h : durationHours;
+                var hrs = selection.Hours is > 0 ? selection.Hours.Value : durationHours;
                 result.Add(new BookingAddOn { AddOnItemId = item.Id, Quantity = hrs, UnitPrice = item.Price, PricingType = item.PricingType });
                 total += hrs * item.Price;
             }
             else
             {
-                result.Add(new BookingAddOn { AddOnItemId = item.Id, Quantity = qty, UnitPrice = item.Price, PricingType = item.PricingType });
-                total += qty * item.Price;
+                result.Add(new BookingAddOn { AddOnItemId = item.Id, Quantity = selection.Quantity, UnitPrice = item.Price, PricingType = item.PricingType });
+                total += selection.Quantity * item.Price;
             }
         }
 
         return (result, total);
     }
+
+    /// <summary>One requested add-on line from a non-form source (e.g. a cart-checkout JSON payload).</summary>
+    public record AddOnSelection(int AddOnItemId, int Quantity, int? Hours);
 
     /// <summary>The min and max hourly rate a court can charge across its base rate and any rate tiers —
     /// a display-only range for customer-facing pages; actual charging still resolves a single rate per hour.</summary>

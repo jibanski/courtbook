@@ -286,6 +286,12 @@
                 </div>
             </div>
         }
+        @if (TempData["ClearCart"] is true)
+        {
+            @* A multi-court cart checkout (customer or staff walk-in) just landed here —
+               the browser's cart (localStorage, see wwwroot/js/cart.js) is no longer needed. *@
+            <script>localStorage.removeItem('cb-cart');</script>
+        }
         @RenderBody()
     </main>
 

@@ -27,7 +27,7 @@
             <h1 class="mb-1" style="font-size:1.75rem;">
                 <i class="bi bi-credit-card me-2" style="color:var(--cb-lime);"></i>Complete Your Payment
             </h1>
-            <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Bundle booking — @courtNames</p>
+            <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Booking — @courtNames</p>
         </div>
     </div>
 </div>
@@ -128,14 +128,14 @@
             {
                 <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
                     <i class="bi bi-check-circle-fill fs-4"></i>
-                    <div><strong>Payment confirmed!</strong> Your bundle booking is all set.</div>
+                    <div><strong>Payment confirmed!</strong> Your booking is all set.</div>
                 </div>
             }
             else if (isAwaitingConfirm)
             {
                 <div class="alert alert-info d-flex align-items-center gap-2 mb-4">
                     <i class="bi bi-hourglass-split fs-4"></i>
-                    <div><strong>Payment submitted</strong> — your bundle is reserved while the facility reviews it. You'll get an email once it's confirmed.</div>
+                    <div><strong>Payment submitted</strong> — your booking is reserved while the facility reviews it. You'll get an email once it's confirmed.</div>
                 </div>
             }
 
@@ -266,7 +266,7 @@
             {
                 @if (!isConfirmed && Model.BookingDate > PhtClock.Today)
                 {
-                    <form asp-action="GuestCancel" method="post" onsubmit="return confirm('Cancel this bundle booking?')" class="mb-3">
+                    <form asp-action="GuestCancel" method="post" onsubmit="return confirm('Cancel this booking?')" class="mb-3">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="token" value="@guestToken" />
                         <button type="submit" class="btn btn-outline-danger btn-sm w-100">

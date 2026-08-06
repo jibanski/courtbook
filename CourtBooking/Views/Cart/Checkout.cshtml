@@ -1,0 +1,208 @@
+@{
+    ViewData["Title"] = "Cart Checkout";
+    var settings = ViewBag.Settings as CourtBooking.Models.FacilitySettings ?? new CourtBooking.Models.FacilitySettings();
+    var addOns   = ViewBag.AddOns as List<CourtBooking.Models.AddOnItem> ?? new List<CourtBooking.Models.AddOnItem>();
+    string slug  = ViewBag.Slug;
+    bool isGuest = User.Identity?.IsAuthenticated != true;
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <div class="cb-fade-up">
+            <h1 class="mb-1" style="font-size:1.75rem;">
+                <i class="bi bi-cart3 me-2" style="color:var(--cb-lime);"></i>Cart Checkout
+            </h1>
+            <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">@settings.FacilityName</p>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            @if (TempData["Error"] is string err)
+            {
+                <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
+                    <i class="bi bi-exclamation-triangle-fill"></i> @err
+                </div>
+            }
+
+            <div id="cbEmptyCart" class="card shadow-sm mb-4 text-center py-5" style="display:none;">
+                <div class="card-body">
+                    <i class="bi bi-cart-x display-4 d-block mb-3" style="color:var(--cb-text-3);"></i>
+                    <p class="mb-3" style="color:var(--cb-text-2);">Your cart is empty.</p>
+                    <a href="/sportshub/@slug" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left me-1"></i>Browse Courts
+                    </a>
+                </div>
+            </div>
+
+            <div id="cbCartContent" style="display:none;">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-receipt me-2 text-primary"></i>Selected Slots
+                    </div>
+                    <div class="card-body">
+                        <div id="cbCartItems"></div>
+                        <hr class="my-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Total Amount</span>
+                            <span class="fw-bold text-success fs-5" id="cbCartGrandTotal">₱0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <form method="post" asp-action="Checkout" asp-controller="Cart" id="cbCheckoutForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="slug" value="@slug" />
+                    <input type="hidden" name="cartJson" id="cbCartJson" />
+
+                    @if (isGuest)
+                    {
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-white fw-bold">
+                                <i class="bi bi-person me-2 text-primary"></i>Your Info
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Full Name</label>
+                                    <input name="guestName" class="form-control" placeholder="Enter your full name" required />
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <label class="form-label fw-semibold">Email</label>
+                                        <input type="email" name="guestEmail" class="form-control" placeholder="Enter your email" required />
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label fw-semibold">Phone</label>
+                                        <input type="tel" name="guestPhone" class="form-control" placeholder="Enter your phone number" required />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100">
+                        <i class="bi bi-check-circle me-1"></i>Continue to Payment
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="cbAddOnsData">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(addOns.Select(a => new { id = a.Id, name = a.Name, price = a.Price, pricingType = a.PricingType.ToString() })))</script>
+
+<script src="~/js/cart.js" asp-append-version="true"></script>
+<script>
+    (function () {
+        var addOnCatalog = JSON.parse(document.getElementById('cbAddOnsData').textContent || '[]');
+
+        function fmtDate(iso) {
+            var d = new Date(iso + 'T00:00:00');
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+        function fmtHour(h) {
+            var d = new Date(); d.setHours(h % 24, 0, 0, 0);
+            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+        function money(n) { return '₱' + Number(n || 0).toLocaleString(); }
+
+        function addOnLineTotal(item) {
+            return (item.addOns || []).reduce(function (sum, sel) {
+                var catalogItem = addOnCatalog.find(function (a) { return a.id === sel.addOnItemId; });
+                if (!catalogItem) return sum;
+                var qty = catalogItem.pricingType === 'PerHour' ? (sel.hours || (item.endHour - item.startHour)) : sel.quantity;
+                return sum + qty * catalogItem.price;
+            }, 0);
+        }
+
+        function render() {
+            var cart = window.CBCart.getCart();
+            var emptyEl = document.getElementById('cbEmptyCart');
+            var contentEl = document.getElementById('cbCartContent');
+
+            if (!cart.items.length) {
+                emptyEl.style.display = '';
+                contentEl.style.display = 'none';
+                return;
+            }
+            emptyEl.style.display = 'none';
+            contentEl.style.display = '';
+
+            var container = document.getElementById('cbCartItems');
+            container.innerHTML = '';
+            var grandTotal = 0;
+
+            cart.items.forEach(function (item, index) {
+                var lineTotal = (item.price || 0) + addOnLineTotal(item);
+                grandTotal += lineTotal;
+
+                var row = document.createElement('div');
+                row.className = 'd-flex justify-content-between align-items-start py-2';
+                if (index > 0) row.style.borderTop = '1px solid var(--cb-border)';
+
+                var left = document.createElement('div');
+                left.innerHTML = '<div class="fw-semibold">' + item.courtName + '</div>' +
+                    '<div class="small text-muted">' + fmtDate(item.date) + ' &bull; ' + fmtHour(item.startHour) + ' – ' + fmtHour(item.endHour) + '</div>';
+
+                if (addOnCatalog.length) {
+                    var addOnWrap = document.createElement('div');
+                    addOnWrap.className = 'mt-2';
+                    addOnCatalog.forEach(function (a) {
+                        var existing = (item.addOns || []).find(function (s) { return s.addOnItemId === a.id; });
+                        var qtyId = 'addon_' + index + '_' + a.id;
+                        var wrap = document.createElement('div');
+                        wrap.className = 'd-flex align-items-center gap-2 small mb-1';
+                        wrap.innerHTML =
+                            '<label class="text-muted" style="min-width:140px;" for="' + qtyId + '">' + a.name + ' (₱' + a.price + (a.pricingType === 'PerHour' ? '/hr' : '/unit') + ')</label>' +
+                            '<input type="number" min="0" class="form-control form-control-sm" style="width:70px;" id="' + qtyId + '" value="' + (existing ? existing.quantity : 0) + '" data-item-index="' + index + '" data-addon-id="' + a.id + '" />';
+                        addOnWrap.appendChild(wrap);
+                    });
+                    left.appendChild(addOnWrap);
+                }
+
+                var right = document.createElement('div');
+                right.className = 'text-end';
+                right.innerHTML = '<div class="fw-semibold">' + money(lineTotal) + '</div>' +
+                    '<button type="button" class="btn btn-sm btn-link text-danger p-0 cb-remove-item" data-index="' + index + '">Remove</button>';
+
+                row.appendChild(left);
+                row.appendChild(right);
+                container.appendChild(row);
+            });
+
+            document.getElementById('cbCartGrandTotal').textContent = money(grandTotal);
+        }
+
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.cb-remove-item');
+            if (!btn) return;
+            window.CBCart.removeItem(parseInt(btn.dataset.index, 10));
+            render();
+        });
+
+        document.addEventListener('input', function (e) {
+            if (!e.target.matches('[data-item-index][data-addon-id]')) return;
+            var cart = window.CBCart.getCart();
+            var index = parseInt(e.target.dataset.itemIndex, 10);
+            var addOnId = parseInt(e.target.dataset.addonId, 10);
+            var qty = Math.max(0, parseInt(e.target.value, 10) || 0);
+            var item = cart.items[index];
+            if (!item) return;
+
+            item.addOns = (item.addOns || []).filter(function (s) { return s.addOnItemId !== addOnId; });
+            if (qty > 0) item.addOns.push({ addOnItemId: addOnId, quantity: qty, hours: null });
+
+            localStorage.setItem('cb-cart', JSON.stringify(cart));
+            render();
+        });
+
+        document.getElementById('cbCheckoutForm').addEventListener('submit', function () {
+            document.getElementById('cbCartJson').value = JSON.stringify(window.CBCart.getCart().items);
+        });
+
+        render();
+    })();
+</script>

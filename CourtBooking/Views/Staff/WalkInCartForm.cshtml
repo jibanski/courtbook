@@ -1,0 +1,231 @@
+@{
+    ViewData["Title"] = "Confirm Walk-in Cart";
+    var addOns = ViewBag.AddOns as List<CourtBooking.Models.AddOnItem> ?? new List<CourtBooking.Models.AddOnItem>();
+    var paymentMethods = ViewBag.PaymentMethods as List<string> ?? new List<string> { "Cash" };
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">Confirm Walk-in Cart</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Log several slots for one customer as a single paid transaction.</p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            @if (TempData["Error"] is string err)
+            {
+                <div class="alert alert-danger">@err</div>
+            }
+
+            <div id="cbEmptyCart" class="card text-center py-5 mb-4" style="display:none;">
+                <div class="card-body">
+                    <i class="bi bi-cart-x display-4 d-block mb-3" style="color:var(--cb-text-3);"></i>
+                    <p class="mb-3" style="color:var(--cb-text-2);">The cart is empty.</p>
+                    <a asp-action="NewWalkIn" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Schedule
+                    </a>
+                </div>
+            </div>
+
+            <div id="cbCartContent" style="display:none;">
+                <div class="card mb-4">
+                    <div class="card-header fw-bold">
+                        <i class="bi bi-receipt me-2"></i>Selected Slots
+                    </div>
+                    <div class="card-body">
+                        <div id="cbCartItems"></div>
+                        <hr class="my-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Amount Due</span>
+                            <span class="fw-bold fs-5" id="cbCartGrandTotal">₱0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <form asp-action="CreateWalkInCart" method="post" enctype="multipart/form-data" id="cbWalkInCartForm">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="cartJson" id="cbCartJson" />
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Customer Name</label>
+                                <input name="customerName" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Customer Email</label>
+                                <input type="email" name="customerEmail" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Customer Phone</label>
+                                <input type="tel" name="customerPhone" class="form-control" required />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Payment Method</label>
+                                <select name="paymentMethod" class="form-select" id="paymentMethodSelect">
+                                    @foreach (var method in paymentMethods)
+                                    {
+                                        <option value="@method">@method</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="mb-3" id="referenceField" style="display:none;">
+                                <label class="form-label fw-semibold">Reference Number <span class="text-muted fw-normal">(optional)</span></label>
+                                <input name="paymentReference" class="form-control" placeholder="e.g. GCash/Maya reference number" />
+                            </div>
+                            <div class="mb-3" id="proofField" style="display:none;">
+                                <label class="form-label fw-semibold">Proof of Payment <span class="text-muted fw-normal">(optional)</span></label>
+                                <input type="file" name="paymentProof" class="form-control" accept="image/jpeg,image/png,image/webp" />
+                                <div class="form-text">Screenshot of the GCash/Maya payment confirmation, for your records.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(optional)</span></label>
+                                <textarea name="notes" class="form-control" rows="2"></textarea>
+                            </div>
+
+                            <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
+                                <a asp-action="NewWalkIn" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left me-1"></i>Back
+                                </a>
+                                <button type="submit" class="btn btn-primary px-4">
+                                    <i class="bi bi-check-circle me-1"></i>Confirm Payment
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="cbAddOnsData">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(addOns.Select(a => new { id = a.Id, name = a.Name, price = a.Price, pricingType = a.PricingType.ToString() })))</script>
+
+<script src="~/js/cart.js" asp-append-version="true"></script>
+<script>
+    (function () {
+        var addOnCatalog = JSON.parse(document.getElementById('cbAddOnsData').textContent || '[]');
+
+        function fmtDate(iso) {
+            var d = new Date(iso + 'T00:00:00');
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+        function fmtHour(h) {
+            var d = new Date(); d.setHours(h % 24, 0, 0, 0);
+            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+        function money(n) { return '₱' + Number(n || 0).toLocaleString(); }
+
+        function addOnLineTotal(item) {
+            return (item.addOns || []).reduce(function (sum, sel) {
+                var catalogItem = addOnCatalog.find(function (a) { return a.id === sel.addOnItemId; });
+                if (!catalogItem) return sum;
+                var qty = catalogItem.pricingType === 'PerHour' ? (sel.hours || (item.endHour - item.startHour)) : sel.quantity;
+                return sum + qty * catalogItem.price;
+            }, 0);
+        }
+
+        function render() {
+            var cart = window.CBCart.getCart();
+            var emptyEl = document.getElementById('cbEmptyCart');
+            var contentEl = document.getElementById('cbCartContent');
+
+            if (!cart.items.length) {
+                emptyEl.style.display = '';
+                contentEl.style.display = 'none';
+                return;
+            }
+            emptyEl.style.display = 'none';
+            contentEl.style.display = '';
+
+            var container = document.getElementById('cbCartItems');
+            container.innerHTML = '';
+            var grandTotal = 0;
+
+            cart.items.forEach(function (item, index) {
+                var lineTotal = (item.price || 0) + addOnLineTotal(item);
+                grandTotal += lineTotal;
+
+                var row = document.createElement('div');
+                row.className = 'd-flex justify-content-between align-items-start py-2';
+                if (index > 0) row.style.borderTop = '1px solid var(--cb-border)';
+
+                var left = document.createElement('div');
+                left.innerHTML = '<div class="fw-semibold">' + item.courtName + '</div>' +
+                    '<div class="small text-muted">' + fmtDate(item.date) + ' &bull; ' + fmtHour(item.startHour) + ' - ' + fmtHour(item.endHour) + '</div>';
+
+                if (addOnCatalog.length) {
+                    var addOnWrap = document.createElement('div');
+                    addOnWrap.className = 'mt-2';
+                    addOnCatalog.forEach(function (a) {
+                        var existing = (item.addOns || []).find(function (s) { return s.addOnItemId === a.id; });
+                        var qtyId = 'addon_' + index + '_' + a.id;
+                        var wrap = document.createElement('div');
+                        wrap.className = 'd-flex align-items-center gap-2 small mb-1';
+                        wrap.innerHTML =
+                            '<label class="text-muted" style="min-width:140px;" for="' + qtyId + '">' + a.name + ' (₱' + a.price + (a.pricingType === 'PerHour' ? '/hr' : '/unit') + ')</label>' +
+                            '<input type="number" min="0" class="form-control form-control-sm" style="width:70px;" id="' + qtyId + '" value="' + (existing ? existing.quantity : 0) + '" data-item-index="' + index + '" data-addon-id="' + a.id + '" />';
+                        addOnWrap.appendChild(wrap);
+                    });
+                    left.appendChild(addOnWrap);
+                }
+
+                var right = document.createElement('div');
+                right.className = 'text-end';
+                right.innerHTML = '<div class="fw-semibold">' + money(lineTotal) + '</div>' +
+                    '<button type="button" class="btn btn-sm btn-link text-danger p-0 cb-remove-item" data-index="' + index + '">Remove</button>';
+
+                row.appendChild(left);
+                row.appendChild(right);
+                container.appendChild(row);
+            });
+
+            document.getElementById('cbCartGrandTotal').textContent = money(grandTotal);
+        }
+
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.cb-remove-item');
+            if (!btn) return;
+            window.CBCart.removeItem(parseInt(btn.dataset.index, 10));
+            render();
+        });
+
+        document.addEventListener('input', function (e) {
+            if (!e.target.matches('[data-item-index][data-addon-id]')) return;
+            var cart = window.CBCart.getCart();
+            var index = parseInt(e.target.dataset.itemIndex, 10);
+            var addOnId = parseInt(e.target.dataset.addonId, 10);
+            var qty = Math.max(0, parseInt(e.target.value, 10) || 0);
+            var item = cart.items[index];
+            if (!item) return;
+
+            item.addOns = (item.addOns || []).filter(function (s) { return s.addOnItemId !== addOnId; });
+            if (qty > 0) item.addOns.push({ addOnItemId: addOnId, quantity: qty, hours: null });
+
+            localStorage.setItem('cb-cart', JSON.stringify(cart));
+            render();
+        });
+
+        document.getElementById('cbWalkInCartForm').addEventListener('submit', function () {
+            document.getElementById('cbCartJson').value = JSON.stringify(window.CBCart.getCart().items);
+        });
+
+        var paymentMethodSelect = document.getElementById('paymentMethodSelect');
+        var referenceField = document.getElementById('referenceField');
+        var proofField = document.getElementById('proofField');
+        function toggleReferenceField() {
+            var show = paymentMethodSelect.value !== 'Cash';
+            referenceField.style.display = show ? '' : 'none';
+            proofField.style.display = show ? '' : 'none';
+        }
+        paymentMethodSelect?.addEventListener('change', toggleReferenceField);
+        toggleReferenceField();
+
+        render();
+    })();
+</script>

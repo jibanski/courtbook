@@ -225,23 +225,35 @@
                                     }
                                     else
                                     {
-                                        <a asp-controller="Bookings" asp-action="Create"
-                                           asp-route-courtId="@Model.Court.Id"
-                                           asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                           asp-route-startHour="@slot.StartHour"
-                                           asp-route-endHour="@slot.EndHour"
-                                           class="slot-available h-100 p-3 text-center rounded-3 d-block">
-                                            <div class="fw-bold mb-1" style="font-size:.95rem;color:#4ade80;">@slot.TimeLabel</div>
-                                            <div style="font-size:.75rem;color:var(--cb-text-3);">
-                                                @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull;
-                                                <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
-                                            </div>
-                                            <div class="mt-2">
-                                                <span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
-                                                    <i class="bi bi-calendar-plus me-1"></i>Book
-                                                </span>
-                                            </div>
-                                        </a>
+                                        <div class="position-relative h-100">
+                                            <a asp-controller="Bookings" asp-action="Create"
+                                               asp-route-courtId="@Model.Court.Id"
+                                               asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                               asp-route-startHour="@slot.StartHour"
+                                               asp-route-endHour="@slot.EndHour"
+                                               class="slot-available h-100 p-3 text-center rounded-3 d-block">
+                                                <div class="fw-bold mb-1" style="font-size:.95rem;color:#4ade80;">@slot.TimeLabel</div>
+                                                <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                                    @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull;
+                                                    <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
+                                                </div>
+                                                <div class="mt-2">
+                                                    <span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
+                                                        <i class="bi bi-calendar-plus me-1"></i>Book
+                                                    </span>
+                                                </div>
+                                            </a>
+                                            <button type="button" class="cb-add-to-cart btn btn-sm p-0"
+                                                    title="Add to cart — book with other slots together"
+                                                    data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
+                                                    data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
+                                                    data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@slot.StartHour" data-end-hour="@slot.EndHour"
+                                                    data-price="@price"
+                                                    style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
+                                                           background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
+                                                <i class="bi bi-plus-lg" style="font-size:.7rem;"></i>
+                                            </button>
+                                        </div>
                                     }
                                 </div>
                             }
@@ -460,16 +472,28 @@
                                     }
                                     else
                                     {
-                                        <a asp-controller="Bookings" asp-action="Create"
-                                           asp-route-courtId="@Model.Court.Id"
-                                           asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                           asp-route-startHour="@h"
-                                           class="slot-available p-2 text-center rounded-3 d-block">
-                                            <div style="font-size:.8rem;color:#4ade80;font-weight:600;">@timeLabel</div>
-                                            <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
-                                                ₱@rate.ToString("N0")
-                                            </div>
-                                        </a>
+                                        <div class="position-relative h-100">
+                                            <a asp-controller="Bookings" asp-action="Create"
+                                               asp-route-courtId="@Model.Court.Id"
+                                               asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                               asp-route-startHour="@h"
+                                               class="slot-available p-2 text-center rounded-3 d-block">
+                                                <div style="font-size:.8rem;color:#4ade80;font-weight:600;">@timeLabel</div>
+                                                <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
+                                                    ₱@rate.ToString("N0")
+                                                </div>
+                                            </a>
+                                            <button type="button" class="cb-add-to-cart btn btn-sm p-0"
+                                                    title="Add to cart — book with other slots together"
+                                                    data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
+                                                    data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
+                                                    data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@h" data-end-hour="@(h + 1)"
+                                                    data-price="@rate"
+                                                    style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;
+                                                           background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
+                                                <i class="bi bi-plus-lg" style="font-size:.6rem;"></i>
+                                            </button>
+                                        </div>
                                     }
                                 </div>
                             }
@@ -490,6 +514,8 @@
         </div>
     </div>
 </div>
+
+@await Html.PartialAsync("_CartWidget", (string?)null)
 
 @functions {
     static string SportIcon(string sport) => sport?.ToLower() switch
