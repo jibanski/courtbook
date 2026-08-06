@@ -238,24 +238,36 @@
                                 }
                                 else
                                 {
-                                    <a asp-action="WalkInForm"
-                                       asp-route-courtId="@Model.Court.Id"
-                                       asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                       asp-route-startHour="@slot.StartHour"
-                                       asp-route-endHour="@slot.EndHour"
-                                       class="h-100 p-3 text-center rounded-3 d-block text-decoration-none"
-                                       style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
-                                        <div class="fw-bold mb-1" style="font-size:.95rem;color:var(--cb-text);">@slot.TimeLabel</div>
-                                        <div style="font-size:.75rem;color:var(--cb-text-3);">
-                                            @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &middot;
-                                            <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
-                                        </div>
-                                        <div class="mt-2">
-                                            <span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
-                                                <i class="bi bi-calendar-plus me-1"></i>Book
-                                            </span>
-                                        </div>
-                                    </a>
+                                    <div class="position-relative h-100">
+                                        <a asp-action="WalkInForm"
+                                           asp-route-courtId="@Model.Court.Id"
+                                           asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                           asp-route-startHour="@slot.StartHour"
+                                           asp-route-endHour="@slot.EndHour"
+                                           class="h-100 p-3 text-center rounded-3 d-block text-decoration-none"
+                                           style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
+                                            <div class="fw-bold mb-1" style="font-size:.95rem;color:var(--cb-text);">@slot.TimeLabel</div>
+                                            <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                                @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &middot;
+                                                <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
+                                            </div>
+                                            <div class="mt-2">
+                                                <span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
+                                                    <i class="bi bi-calendar-plus me-1"></i>Book
+                                                </span>
+                                            </div>
+                                        </a>
+                                        <button type="button" class="cb-add-to-cart btn btn-sm p-0"
+                                                title="Add to cart — log with other slots together"
+                                                data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
+                                                data-owner-id="@settings?.OwnerId" data-facility-name="@settings?.FacilityName"
+                                                data-date="@selectedDate.ToString("yyyy-MM-dd")" data-start-hour="@slot.StartHour" data-end-hour="@slot.EndHour"
+                                                data-price="@price"
+                                                style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
+                                                       background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
+                                            <i class="bi bi-plus-lg" style="font-size:.7rem;"></i>
+                                        </button>
+                                    </div>
                                 }
                             </div>
                         }
@@ -412,15 +424,27 @@
                                 }
                                 else
                                 {
-                                    <a asp-action="WalkInForm"
-                                       asp-route-courtId="@Model.Court.Id"
-                                       asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                       asp-route-startHour="@h"
-                                       class="p-2 text-center rounded-3 d-block text-decoration-none"
-                                       style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
-                                        <div style="font-size:.8rem;color:var(--cb-text);font-weight:600;">@timeLabel</div>
-                                        <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">₱@rate.ToString("N0")</div>
-                                    </a>
+                                    <div class="position-relative h-100">
+                                        <a asp-action="WalkInForm"
+                                           asp-route-courtId="@Model.Court.Id"
+                                           asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                           asp-route-startHour="@h"
+                                           class="p-2 text-center rounded-3 d-block text-decoration-none"
+                                           style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
+                                            <div style="font-size:.8rem;color:var(--cb-text);font-weight:600;">@timeLabel</div>
+                                            <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">₱@rate.ToString("N0")</div>
+                                        </a>
+                                        <button type="button" class="cb-add-to-cart btn btn-sm p-0"
+                                                title="Add to cart — log with other slots together"
+                                                data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
+                                                data-owner-id="@settings?.OwnerId" data-facility-name="@settings?.FacilityName"
+                                                data-date="@selectedDate.ToString("yyyy-MM-dd")" data-start-hour="@h" data-end-hour="@(h + 1)"
+                                                data-price="@rate"
+                                                style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;
+                                                       background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
+                                            <i class="bi bi-plus-lg" style="font-size:.6rem;"></i>
+                                        </button>
+                                    </div>
                                 }
                             </div>
                         }
@@ -430,3 +454,5 @@
         </div>
     }
 </div>
+
+@await Html.PartialAsync("_CartWidget", "/Staff/WalkInCartForm")
