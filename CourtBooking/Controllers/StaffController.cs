@@ -25,18 +25,21 @@ public class StaffController : Controller
     private readonly GuestCheckoutService _guestCheckout;
     private readonly EmailService _email;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ILogger<StaffController> _logger;
 
     public StaffController(
         ApplicationDbContext db,
         BookingService bookingService,
         GuestCheckoutService guestCheckout,
         EmailService email,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        ILogger<StaffController> logger)
     {
         _db             = db;
         _bookingService = bookingService;
         _guestCheckout  = guestCheckout;
         _email          = email;
+        _logger         = logger;
         _userManager    = userManager;
     }
 
@@ -497,6 +500,13 @@ public class StaffController : Controller
             return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour });
         }
 
+        // Cash is taken and verified in person, so it's confirmed on the spot. Every other
+        // method (GCash/Maya/GoTyme/etc.) is just a screen staff glanced at — same as a customer's
+        // own screenshot, it still needs the facility owner to actually confirm the payment before
+        // the slot counts as booked. Until then it sits Pending, which already blocks the slot for
+        // everyone else (see BookingService.IsSlotAvailableAsync) and shows as "Pending" on the grid.
+        bool isCash = IsCashPayment(paymentMethod);
+
         var booking = new Booking
         {
             CourtId       = courtId,
@@ -507,41 +517,114 @@ public class StaffController : Controller
             EndTime       = endTime,
             TotalPrice    = totalPrice + addOnsTotal,
             Notes         = notes,
-            Status        = BookingStatus.Confirmed,
-            PaymentStatus = PaymentStatus.Paid,
+            Status        = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
+            PaymentStatus = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
             PaymentMethod = paymentMethod,
             PaymentReference = paymentReference,
             PaymentProofPath = proofPath,
-            PaidAt        = DateTime.UtcNow,
+            PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
+            PaidAt        = isCash ? DateTime.UtcNow : null,
             LoggedByStaffId = CurrentStaffId,
             CustomerNameSnapshot = customerName,
             AddOns        = addOns
         };
         await _bookingService.CreateBookingAsync(booking);
 
-        // Staff walk-ins are immediately confirmed/paid, so send the same customer-facing
-        // confirmation right away (including for advance bookings).
         var customerEmailToNotify = customerEmail.Trim();
-        if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
+        if (isCash)
         {
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            await _email.SendBookingConfirmedToCustomerAsync(
-                customerEmailToNotify,
-                customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
-                booking.Id,
-                court.Name,
-                booking.BookingDate,
-                booking.StartTime,
-                booking.EndTime,
-                booking.TotalPrice,
-                booking.PaymentMethod,
-                booking.PaymentReference,
-                baseUrl,
-                isGuest: customer.IsGuest);
+            // Cash walk-ins are immediately confirmed/paid, so send the same customer-facing
+            // confirmation right away (including for advance bookings).
+            if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
+            {
+                var baseUrl = $"{Request.Scheme}://{Request.Host}";
+                await _email.SendBookingConfirmedToCustomerAsync(
+                    customerEmailToNotify,
+                    customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                    booking.Id,
+                    court.Name,
+                    booking.BookingDate,
+                    booking.StartTime,
+                    booking.EndTime,
+                    booking.TotalPrice,
+                    booking.PaymentMethod,
+                    booking.PaymentReference,
+                    baseUrl,
+                    isGuest: customer.IsGuest);
+            }
+            TempData["Success"] = $"Booked {court.Name} for {customerName} ({TimeDisplay.HourRange(startHour, startHour + durationHours)}) — ₱{booking.TotalPrice:N0} via {paymentMethod} logged.";
+        }
+        else
+        {
+            var owner = employerOwnerId != null ? await _userManager.FindByIdAsync(employerOwnerId) : null;
+            await SendWalkInPaymentSubmittedNotificationAsync(new List<Booking> { booking }, new List<Court> { court }, owner);
+            TempData["Success"] = $"Logged {court.Name} for {customerName} ({TimeDisplay.HourRange(startHour, startHour + durationHours)}) — ₱{booking.TotalPrice:N0} via {paymentMethod}, pending confirmation.";
         }
 
-        TempData["Success"] = $"Booked {court.Name} for {customerName} ({TimeDisplay.HourRange(startHour, startHour + durationHours)}) — ₱{booking.TotalPrice:N0} via {paymentMethod} logged.";
         return RedirectToAction(nameof(Index));
+    }
+
+    private static bool IsCashPayment(string? paymentMethod) =>
+        string.IsNullOrWhiteSpace(paymentMethod) || string.Equals(paymentMethod, "Cash", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Tells the facility owner a staff member logged a non-cash walk-in payment that's sitting
+    /// Pending until they confirm it — mirrors <c>SendBundleProofSubmittedNotificationAsync</c>'s
+    /// "please review" role for customer-submitted proof, just triggered by staff instead.
+    /// </summary>
+    private async Task SendWalkInPaymentSubmittedNotificationAsync(List<Booking> bookings, List<Court> courts, ApplicationUser? owner)
+    {
+        try
+        {
+            if (owner is null || string.IsNullOrWhiteSpace(owner.Email)) return;
+
+            var courtsById  = courts.ToDictionary(c => c.Id);
+            var baseUrl     = $"{Request.Scheme}://{Request.Host}";
+            var bookingsUrl = $"{baseUrl}/Admin/Bookings?awaitingConfirmation=true";
+            var first       = bookings[0];
+            var amount      = bookings.Sum(b => b.TotalPrice).ToString("N0");
+            var rowsHtml = string.Join("", bookings.Select(b =>
+            {
+                var courtName = courtsById.TryGetValue(b.CourtId, out var c) ? c.Name : "Court";
+                return $"<tr><td style='padding:4px 0;color:#212529;'>{courtName}</td>" +
+                       $"<td style='padding:4px 0;color:#6c757d;'>{b.BookingDate:MMM d, yyyy}, {b.StartTime:hh\\:mm tt} – {b.EndTime:hh\\:mm tt}</td>" +
+                       $"<td style='padding:4px 0;text-align:right;font-weight:600;'>₱{b.TotalPrice:N0}</td></tr>";
+            }));
+            var rowsPlain = string.Join("\n", bookings.Select(b =>
+            {
+                var courtName = courtsById.TryGetValue(b.CourtId, out var c) ? c.Name : "Court";
+                return $"- {courtName}: {b.BookingDate:MMM d, yyyy}, {b.StartTime:hh\\:mm tt} – {b.EndTime:hh\\:mm tt} (₱{b.TotalPrice:N0})";
+            }));
+
+            var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
+      <div style='font-size:13px;opacity:.85;letter-spacing:.5px;text-transform:uppercase;'>CourtBook</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>🔔 Walk-in Payment Needs Confirmation</div>
+    </div>
+    <div style='padding:24px;font-size:15px;line-height:1.6;'>
+      <p style='margin:0 0 16px;'>Your staff logged a walk-in booking paid via <strong>{first.PaymentMethod}</strong> — please confirm the payment before it's finalized:</p>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;'>{rowsHtml}</table>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;margin-top:12px;border-top:1px solid #e9ecef;padding-top:8px;'>
+        <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Total</td><td style='padding:5px 0;font-weight:600;color:#198754;'>₱{amount}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Customer</td><td style='padding:5px 0;'>{first.CustomerNameSnapshot}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Reference</td><td style='padding:5px 0;font-family:monospace;'>{first.PaymentReference ?? "—"}</td></tr>
+      </table>
+      <p style='margin:16px 0 0;text-align:center;'>
+        <a href='{bookingsUrl}' style='display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>Review &amp; Confirm</a>
+      </p>
+    </div>
+  </div>
+</body></html>";
+
+            var plain = $"Walk-in Payment Needs Confirmation\n\n{rowsPlain}\n\nTotal: ₱{amount}\nCustomer: {first.CustomerNameSnapshot}\nMethod: {first.PaymentMethod}\n\nReview and confirm: {bookingsUrl}";
+            await _email.SendAsync(owner.Email, "🔔 Walk-in payment needs your confirmation", html, plain);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "[StaffController] Failed to send walk-in payment submitted notification");
+        }
     }
 
     // ── Walk-in cart: log several slots (any of the employer's courts) as one paid transaction ──
@@ -679,6 +762,10 @@ public class StaffController : Controller
             return RedirectToAction(nameof(WalkInCartForm));
         }
 
+        // Same Cash-vs-everything-else rule as CreateWalkIn: cash is confirmed on the spot,
+        // any other method needs the owner's confirmation before it's really booked.
+        bool isCash = IsCashPayment(paymentMethod);
+
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
@@ -703,12 +790,13 @@ public class StaffController : Controller
                 EndTime              = end,
                 TotalPrice           = slotPrice + addOnsTotal,
                 Notes                = notes,
-                Status               = BookingStatus.Confirmed,
-                PaymentStatus        = PaymentStatus.Paid,
+                Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
+                PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
                 PaymentMethod        = paymentMethod,
                 PaymentReference     = paymentReference,
                 PaymentProofPath     = proofPath,
-                PaidAt               = DateTime.UtcNow,
+                PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
+                PaidAt               = isCash ? DateTime.UtcNow : null,
                 LoggedByStaffId      = CurrentStaffId,
                 BundleGroupId        = groupId,
                 CustomerNameSnapshot = customerName,
@@ -719,26 +807,36 @@ public class StaffController : Controller
         _db.Bookings.AddRange(bookings);
         await _db.SaveChangesAsync();
 
-        // Staff walk-ins are immediately confirmed/paid — send one confirmation per booking,
-        // reusing the same per-booking template the single-slot walk-in already sends.
         var customerEmailToNotify = customerEmail.Trim();
-        if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
+        if (isCash)
         {
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            foreach (var booking in bookings)
+            // Cash walk-ins are immediately confirmed/paid — send one confirmation per booking,
+            // reusing the same per-booking template the single-slot walk-in already sends.
+            if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
             {
-                var court = courtsById[booking.CourtId];
-                await _email.SendBookingConfirmedToCustomerAsync(
-                    customerEmailToNotify,
-                    customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
-                    booking.Id, court.Name, booking.BookingDate, booking.StartTime, booking.EndTime,
-                    booking.TotalPrice, booking.PaymentMethod, booking.PaymentReference, baseUrl,
-                    isGuest: customer.IsGuest);
+                var baseUrl = $"{Request.Scheme}://{Request.Host}";
+                foreach (var booking in bookings)
+                {
+                    var court = courtsById[booking.CourtId];
+                    await _email.SendBookingConfirmedToCustomerAsync(
+                        customerEmailToNotify,
+                        customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                        booking.Id, court.Name, booking.BookingDate, booking.StartTime, booking.EndTime,
+                        booking.TotalPrice, booking.PaymentMethod, booking.PaymentReference, baseUrl,
+                        isGuest: customer.IsGuest);
+                }
             }
+        }
+        else
+        {
+            var owner = employerOwnerId != null ? await _userManager.FindByIdAsync(employerOwnerId) : null;
+            await SendWalkInPaymentSubmittedNotificationAsync(bookings, courtsById.Values.ToList(), owner);
         }
 
         var grandTotal = bookings.Sum(b => b.TotalPrice);
-        TempData["Success"] = $"Logged {bookings.Count} slot{(bookings.Count == 1 ? "" : "s")} for {customerName} — ₱{grandTotal:N0} via {paymentMethod}.";
+        TempData["Success"] = isCash
+            ? $"Logged {bookings.Count} slot{(bookings.Count == 1 ? "" : "s")} for {customerName} — ₱{grandTotal:N0} via {paymentMethod}."
+            : $"Logged {bookings.Count} slot{(bookings.Count == 1 ? "" : "s")} for {customerName} — ₱{grandTotal:N0} via {paymentMethod}, pending confirmation.";
         TempData["ClearCart"] = true;
         return RedirectToAction(nameof(Index));
     }
@@ -847,6 +945,8 @@ public class StaffController : Controller
             return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
         }
 
+        bool isCash = IsCashPayment(paymentMethod);
+
         var booking = new Booking
         {
             CourtId              = courtId,
@@ -857,12 +957,13 @@ public class StaffController : Controller
             EndTime              = end,
             TotalPrice           = block.FlatPrice,
             Notes                = notes,
-            Status               = BookingStatus.Confirmed,
-            PaymentStatus        = PaymentStatus.Paid,
+            Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
+            PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
             PaymentMethod        = paymentMethod,
             PaymentReference     = paymentReference,
             PaymentProofPath     = proofPath,
-            PaidAt               = DateTime.UtcNow,
+            PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
+            PaidAt               = isCash ? DateTime.UtcNow : null,
             LoggedByStaffId      = CurrentStaffId,
             CustomerNameSnapshot = customerName,
             CourtBundleId        = bundle.Id,
@@ -871,25 +972,35 @@ public class StaffController : Controller
         await _bookingService.CreateBookingAsync(booking);
 
         var customerEmailToNotify = customerEmail.Trim();
-        if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
+        if (isCash)
         {
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            await _email.SendBookingConfirmedToCustomerAsync(
-                customerEmailToNotify,
-                customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
-                booking.Id,
-                court.Name,
-                booking.BookingDate,
-                booking.StartTime,
-                booking.EndTime,
-                booking.TotalPrice,
-                booking.PaymentMethod,
-                booking.PaymentReference,
-                baseUrl,
-                isGuest: customer.IsGuest);
+            if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
+            {
+                var baseUrl = $"{Request.Scheme}://{Request.Host}";
+                await _email.SendBookingConfirmedToCustomerAsync(
+                    customerEmailToNotify,
+                    customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                    booking.Id,
+                    court.Name,
+                    booking.BookingDate,
+                    booking.StartTime,
+                    booking.EndTime,
+                    booking.TotalPrice,
+                    booking.PaymentMethod,
+                    booking.PaymentReference,
+                    baseUrl,
+                    isGuest: customer.IsGuest);
+            }
+            TempData["Success"] = $"Booked {court.Name} ({bundle.Name}) for {customerName} ({TimeDisplay.HourRange(startHour, endHour)}) — ₱{booking.TotalPrice:N0} via {paymentMethod} logged.";
+        }
+        else
+        {
+            var employerOwnerId = await GetEmployerOwnerIdAsync();
+            var owner = employerOwnerId != null ? await _userManager.FindByIdAsync(employerOwnerId) : null;
+            await SendWalkInPaymentSubmittedNotificationAsync(new List<Booking> { booking }, new List<Court> { court }, owner);
+            TempData["Success"] = $"Logged {court.Name} ({bundle.Name}) for {customerName} ({TimeDisplay.HourRange(startHour, endHour)}) — ₱{booking.TotalPrice:N0} via {paymentMethod}, pending confirmation.";
         }
 
-        TempData["Success"] = $"Booked {court.Name} ({bundle.Name}) for {customerName} ({TimeDisplay.HourRange(startHour, endHour)}) — ₱{booking.TotalPrice:N0} via {paymentMethod} logged.";
         return RedirectToAction(nameof(Index));
     }
 

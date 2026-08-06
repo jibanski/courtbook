@@ -5,6 +5,7 @@
     var combinedTotal  = (decimal)ViewBag.CombinedTotal;
     var courtNames     = (string)ViewBag.CourtNames;
     var groupId        = (Guid)ViewBag.GroupId;
+    var rows           = ViewBag.Rows as List<CourtBooking.Models.Booking> ?? new List<CourtBooking.Models.Booking> { Model };
     bool hasGCash   = !string.IsNullOrWhiteSpace(settings.GCashNumber);
     bool hasMaya    = !string.IsNullOrWhiteSpace(settings.MayaNumber);
     bool hasGoTyme  = !string.IsNullOrWhiteSpace(settings.GoTymeNumber);
@@ -49,12 +50,21 @@
                                 <i class="bi bi-buildings me-1 text-primary"></i>@settings.FacilityName
                             </div>
                         }
-                        <div class="col-6 text-muted small">Courts</div>
-                        <div class="col-6 fw-semibold">@courtNames</div>
-                        <div class="col-6 text-muted small">Date</div>
-                        <div class="col-6 fw-semibold">@Model.BookingDate.ToString("MMMM d, yyyy")</div>
-                        <div class="col-6 text-muted small">Time</div>
-                        <div class="col-6 fw-semibold">@Model.StartTime.ToString("hh:mm tt") – @Model.EndTime.ToString("hh:mm tt")</div>
+                        <div class="col-12">
+                            @foreach (var row in rows)
+                            {
+                                <div class="d-flex justify-content-between align-items-start py-1" style="border-bottom:1px solid var(--cb-border,#eee);">
+                                    <div>
+                                        <div class="fw-semibold">@(row.Court?.Name ?? "Court")</div>
+                                        <div class="small text-muted">
+                                            @row.BookingDate.ToString("MMM d, yyyy") &bull;
+                                            @row.StartTime.ToString("hh:mm tt") – @row.EndTime.ToString("hh:mm tt")
+                                        </div>
+                                    </div>
+                                    <div class="fw-semibold">₱@row.TotalPrice.ToString("N0")</div>
+                                </div>
+                            }
+                        </div>
                         <div class="col-12"><hr class="my-2"></div>
                         <div class="col-6 fw-bold">Total Amount</div>
                         <div class="col-6 fw-bold text-success fs-5">₱@combinedTotal.ToString("N0")</div>

@@ -136,16 +136,16 @@
                             {
                                 if (renderedGroups.Contains(gid)) { continue; }
                                 renderedGroups.Add(gid);
-                                var groupRows = Model.Where(x => x.BundleGroupId == gid).ToList();
+                                var groupRows = Model.Where(x => x.BundleGroupId == gid)
+                                    .OrderBy(x => x.BookingDate).ThenBy(x => x.StartTime).ToList();
                                 var groupFirst = groupRows[0];
                                 var groupTotal = groupRows.Sum(r => r.TotalPrice);
-                                var groupCourtNames = string.Join(", ", groupRows.Select(r => r.Court.Name));
                                 <div class="col-lg-6">
                                     <div class="card border-warning border-2 h-100" style="box-shadow:0 0 0 1px rgba(163,255,18,0.25) inset;">
                                         <div class="card-body">
                                             <div class="d-flex justify-content-between align-items-start mb-2">
                                                 <div>
-                                                    <span class="fw-bold"><i class="bi bi-box-seam me-1"></i>Bundle Booking</span>
+                                                    <span class="fw-bold"><i class="bi bi-box-seam me-1"></i>@groupRows.Count slot@(groupRows.Count != 1 ? "s" : "") Booking</span>
                                                     <span class="badge bg-warning text-dark ms-2">Pending</span>
                                                 </div>
                                                 <span class="fw-bold text-success">₱@groupTotal.ToString("N0")</span>
@@ -154,8 +154,10 @@
                                                 <div><i class="bi bi-person me-1 text-muted"></i><strong>@(groupFirst.CustomerNameSnapshot ?? groupFirst.User.FullName)</strong> (@groupFirst.User.Email)
                                                     @if (groupFirst.User.IsGuest) { <span class="badge bg-secondary ms-1">Guest</span> }
                                                 </div>
-                                                <div><i class="bi bi-buildings me-1 text-muted"></i>@groupCourtNames</div>
-                                                <div><i class="bi bi-calendar me-1 text-muted"></i>@groupFirst.BookingDate.ToString("MMM d, yyyy") @groupFirst.StartTime.ToString("hh:mm tt")–@groupFirst.EndTime.ToString("hh:mm tt")</div>
+                                                @foreach (var row in groupRows)
+                                                {
+                                                    <div><i class="bi bi-calendar me-1 text-muted"></i>@row.Court.Name &bull; @row.BookingDate.ToString("MMM d, yyyy") @row.StartTime.ToString("hh:mm tt")–@row.EndTime.ToString("hh:mm tt")</div>
+                                                }
                                             </div>
 
                                             @if (!string.IsNullOrWhiteSpace(groupFirst.PaymentMethod) || !string.IsNullOrWhiteSpace(groupFirst.PaymentReference))
@@ -189,14 +191,14 @@
                                                 <form asp-action="ConfirmBundlePayment" asp-route-groupId="@gid" method="post" class="flex-fill">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-success btn-sm w-100"
-                                                            onclick="return confirm('Confirm this bundle booking?')">
+                                                            onclick="return confirm('Confirm this booking?')">
                                                         <i class="bi bi-check-circle me-1"></i>Confirm
                                                     </button>
                                                 </form>
                                                 <form asp-action="RejectBundlePayment" asp-route-groupId="@gid" method="post" class="flex-fill">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-danger btn-sm w-100"
-                                                            onclick="return confirm('Reject and cancel this bundle booking?')">
+                                                            onclick="return confirm('Reject and cancel this booking?')">
                                                         <i class="bi bi-x-circle me-1"></i>Reject
                                                     </button>
                                                 </form>

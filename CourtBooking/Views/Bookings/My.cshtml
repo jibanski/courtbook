@@ -42,10 +42,13 @@
                 {
                     if (renderedGroups.Contains(gid)) { continue; }
                     renderedGroups.Add(gid);
-                    var groupRows = Model.Where(b => b.BundleGroupId == gid).ToList();
-                    var groupIsPast = groupRows[0].BookingDate < PhtClock.Today;
+                    var groupRows = Model.Where(b => b.BundleGroupId == gid)
+                        .OrderBy(b => b.BookingDate).ThenBy(b => b.StartTime).ToList();
+                    // Matches BundleBookingsController.Cancel's guard: the group can't be cancelled
+                    // once ANY of its slots is today or in the past, not just the earliest one.
+                    var groupIsPast = groupRows.Any(b => b.BookingDate <= PhtClock.Today);
                     var groupCombinedTotal = groupRows.Sum(b => b.TotalPrice);
-                    var groupCourtNames = string.Join(", ", groupRows.Select(b => b.Court.Name));
+                    var groupCourtNames = string.Join(", ", groupRows.Select(b => b.Court.Name).Distinct());
                     var groupPendingPayment = groupRows[0].PaymentStatus == CourtBooking.Models.PaymentStatus.Unpaid
                                            && groupRows[0].Status == CourtBooking.Models.BookingStatus.Pending
                                            && !groupRows[0].HasPaymentProof;
@@ -64,18 +67,19 @@
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <div>
                                         <h6 class="fw-bold mb-0"><i class="bi bi-box-seam me-1"></i>@groupCourtNames</h6>
-                                        <div class="text-muted" style="font-size:.75rem;">All @groupRows.Count courts, one reservation</div>
+                                        <div class="text-muted" style="font-size:.75rem;">@groupRows.Count slot@(groupRows.Count != 1 ? "s" : ""), one payment</div>
                                     </div>
                                     <span class="badge @groupBadgeClass">@groupRows[0].Status</span>
                                 </div>
-                                <p class="mb-1">
-                                    <i class="bi bi-calendar me-2 text-primary"></i>
-                                    <strong>@groupRows[0].BookingDate.ToString("MMMM d, yyyy")</strong>
-                                </p>
-                                <p class="mb-1">
-                                    <i class="bi bi-clock me-2 text-primary"></i>
-                                    @groupRows[0].StartTime.ToString("hh:mm tt") – @groupRows[0].EndTime.ToString("hh:mm tt")
-                                </p>
+                                <div class="mb-2">
+                                    @foreach (var row in groupRows)
+                                    {
+                                        <div class="d-flex align-items-center gap-2 small mb-1">
+                                            <i class="bi bi-calendar2-week text-primary"></i>
+                                            <span>@row.Court.Name &bull; @row.BookingDate.ToString("MMM d, yyyy") &bull; @row.StartTime.ToString("hh:mm tt") – @row.EndTime.ToString("hh:mm tt")</span>
+                                        </div>
+                                    }
+                                </div>
                                 <p class="mb-1">
                                     <i class="bi bi-cash-coin me-2 text-primary"></i>
                                     <strong>₱@groupCombinedTotal.ToString("N0")</strong> total
