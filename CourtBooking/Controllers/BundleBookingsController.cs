@@ -213,12 +213,14 @@ public class BundleBookingsController : Controller
             .ToListAsync();
         if (rows.Count == 0) return NotFound();
 
+        rows = rows.OrderBy(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();
         var first    = rows[0];
         var settings = (first.Court?.OwnerId != null
             ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == first.Court.OwnerId)
             : null) ?? new FacilitySettings();
 
         ViewBag.Settings      = settings;
+        ViewBag.Rows           = rows;
         ViewBag.CombinedTotal  = rows.Sum(r => r.TotalPrice);
         ViewBag.CourtNames     = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
         ViewBag.GroupId        = groupId;
@@ -311,7 +313,7 @@ public class BundleBookingsController : Controller
             .ToListAsync();
         if (rows.Count == 0) return NotFound();
 
-        if (rows[0].BookingDate <= PhtClock.Today)
+        if (rows.Any(r => r.BookingDate <= PhtClock.Today))
         {
             TempData["Error"] = "Cannot cancel a past or same-day booking.";
             return RedirectToAction("My", "Bookings");
@@ -338,12 +340,14 @@ public class BundleBookingsController : Controller
             .ToListAsync();
         if (rows.Count == 0) return NotFound();
 
+        rows = rows.OrderBy(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();
         var first    = rows[0];
         var settings = (first.Court?.OwnerId != null
             ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == first.Court.OwnerId)
             : null) ?? new FacilitySettings();
 
         ViewBag.Settings      = settings;
+        ViewBag.Rows          = rows;
         ViewBag.CombinedTotal = rows.Sum(r => r.TotalPrice);
         ViewBag.CourtNames    = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
         ViewBag.GroupId       = first.BundleGroupId;
@@ -432,7 +436,7 @@ public class BundleBookingsController : Controller
         var rows = await _db.Bookings.Where(b => b.GuestAccessToken == token).ToListAsync();
         if (rows.Count == 0) return NotFound();
 
-        if (rows[0].BookingDate <= PhtClock.Today)
+        if (rows.Any(r => r.BookingDate <= PhtClock.Today))
         {
             TempData["Error"] = "Cannot cancel a past or same-day booking.";
             return RedirectToAction(nameof(GuestPay), new { token });

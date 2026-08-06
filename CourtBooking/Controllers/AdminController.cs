@@ -21,19 +21,22 @@ public class AdminController : Controller
     private readonly EmailService _email;
     private readonly IConfiguration _config;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ILogger<AdminController> _logger;
 
     public AdminController(
         ApplicationDbContext db,
         BookingService bookingService,
         EmailService email,
         IConfiguration config,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        ILogger<AdminController> logger)
     {
         _db             = db;
         _bookingService = bookingService;
         _email          = email;
         _config         = config;
         _userManager    = userManager;
+        _logger         = logger;
     }
 
     // ── Current-owner helpers ─────────────────────────────────────────────────
@@ -1524,29 +1527,79 @@ public class AdminController : Controller
         var first = rows[0];
         if (!string.IsNullOrWhiteSpace(first.User?.Email))
         {
-            var baseUrl    = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
-            var bundleName = first.CourtBundleId.HasValue
-                ? (await _db.CourtBundles.FindAsync(first.CourtBundleId.Value))?.Name ?? "Bundle"
-                : "Bundle";
-            var courtNames = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
-            var combinedTotal = rows.Sum(r => r.TotalPrice);
-            await _email.SendBookingConfirmedToCustomerAsync(
-                first.User.Email!,
-                first.User.FirstName,
-                first.Id,
-                $"{bundleName} ({courtNames})",
-                first.BookingDate,
-                first.StartTime,
-                first.EndTime,
-                combinedTotal,
-                first.PaymentMethod,
-                first.PaymentReference,
-                baseUrl,
-                first.User.IsGuest);
+            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            await SendGroupPaymentConfirmedEmailAsync(rows, first.User, baseUrl);
         }
 
-        TempData["Success"] = "Bundle booking confirmed — the customer has been emailed a confirmation.";
+        TempData["Success"] = "Booking confirmed — the customer has been emailed a confirmation.";
         return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
+    }
+
+    /// <summary>
+    /// Confirmation email for a <see cref="Booking.BundleGroupId"/> group — a real CourtBundle
+    /// purchase (every row sharing one date/time window) or an ad-hoc multi-court cart checkout
+    /// (rows can each have their own date/time). Lists every row individually rather than
+    /// picking one row's date/time to stand in for the whole group, which would silently drop
+    /// the other slots' schedule info whenever they differ.
+    /// </summary>
+    private async Task SendGroupPaymentConfirmedEmailAsync(List<Booking> rows, ApplicationUser user, string baseUrl)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(user.Email)) return;
+
+            rows = rows.OrderBy(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();
+            var first        = rows[0];
+            var greeting     = string.IsNullOrWhiteSpace(user.FirstName) ? "Hi there" : $"Hi {user.FirstName}";
+            var amount        = rows.Sum(r => r.TotalPrice).ToString("N0");
+            var method        = string.IsNullOrWhiteSpace(first.PaymentMethod) ? "Online payment" : first.PaymentMethod;
+            var refLine       = string.IsNullOrWhiteSpace(first.PaymentReference) ? "" :
+                                $"<tr><td style='color:#6c757d;padding:5px 0;'>Reference</td><td style='padding:5px 0;font-family:monospace;font-size:13px;'>{first.PaymentReference}</td></tr>";
+            var myBookings    = $"{baseUrl.TrimEnd('/')}/Bookings/My";
+            var myBookingsButton = user.IsGuest ? "" : $@"
+      <p style='margin:20px 0 0;text-align:center;'>
+        <a href='{myBookings}' style='display:inline-block;background:#198754;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>View My Bookings</a>
+      </p>";
+            var rowsHtml = string.Join("", rows.Select(r =>
+                $"<tr><td style='padding:4px 0;color:#212529;'>{r.Court?.Name ?? "Court"}</td>" +
+                $"<td style='padding:4px 0;color:#6c757d;'>{r.BookingDate:MMM d, yyyy}, {r.StartTime:hh\\:mm tt} – {r.EndTime:hh\\:mm tt}</td>" +
+                $"<td style='padding:4px 0;text-align:right;font-weight:600;'>₱{r.TotalPrice:N0}</td></tr>"));
+            var rowsPlain = string.Join("\n", rows.Select(r =>
+                $"- {r.Court?.Name ?? "Court"}: {r.BookingDate:MMM d, yyyy}, {r.StartTime:hh\\:mm tt} – {r.EndTime:hh\\:mm tt} (₱{r.TotalPrice:N0})"));
+
+            var subjectLabel = rows.Count == 1 ? (first.Court?.Name ?? "Booking") : $"{rows.Count} slots";
+
+            var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#198754;color:#fff;padding:18px 24px;'>
+      <div style='font-size:13px;opacity:.9;letter-spacing:.5px;text-transform:uppercase;'>Booking Confirmed</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>✅ Payment Received</div>
+    </div>
+    <div style='padding:24px;font-size:15px;line-height:1.6;'>
+      <p style='margin:0 0 16px;'>{greeting}, your payment has been received and your booking is now <strong style='color:#198754;'>confirmed</strong>.</p>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;'>{rowsHtml}</table>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;margin-top:12px;border-top:1px solid #e9ecef;padding-top:8px;'>
+        <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Total</td> <td style='padding:5px 0;font-weight:600;color:#198754;'>₱{amount}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Method</td><td style='padding:5px 0;'>{method}</td></tr>
+        {refLine}
+      </table>{myBookingsButton}
+    </div>
+    <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
+      Automated confirmation
+    </div>
+  </div>
+</body></html>";
+
+            var plain = $"Payment Received — {subjectLabel} Confirmed\n\n{greeting},\n\n{rowsPlain}\n\nTotal: ₱{amount} via {method}. Your booking is now confirmed."
+                      + (user.IsGuest ? "" : $"\n\nView your bookings: {myBookings}");
+
+            await _email.SendAsync(user.Email!, $"✅ Booking Confirmed — {subjectLabel}", html, plain);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[AdminController] Failed to send group payment confirmed email");
+        }
     }
 
     public async Task<IActionResult> RejectBundlePayment(Guid groupId)
@@ -1559,13 +1612,10 @@ public class AdminController : Controller
             .ToListAsync();
         if (rows.Count == 0) return NotFound();
 
+        rows = rows.OrderBy(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();
         var first         = rows[0];
         var customerEmail = first.User?.Email;
         var customerName  = first.User?.FirstName;
-        var courtName     = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
-        var bookingDate   = first.BookingDate;
-        var startTime     = first.StartTime;
-        var endTime       = first.EndTime;
 
         foreach (var booking in rows)
         {
@@ -1576,11 +1626,53 @@ public class AdminController : Controller
         await _db.SaveChangesAsync();
 
         if (!string.IsNullOrWhiteSpace(customerEmail))
-            await SendPaymentRejectedEmailAsync(customerEmail!, customerName, first.Id,
-                courtName, bookingDate, startTime, endTime);
+            await SendGroupPaymentRejectedEmailAsync(customerEmail!, customerName, rows);
 
-        TempData["Error"] = "Bundle booking rejected and cancelled — the customer has been notified.";
+        TempData["Error"] = "Booking rejected and cancelled — the customer has been notified.";
         return RedirectToAction(nameof(Bookings), new { awaitingConfirmation = true });
+    }
+
+    /// <summary>Group-aware counterpart to <see cref="SendPaymentRejectedEmailAsync"/> — lists every
+    /// row in the <see cref="Booking.BundleGroupId"/> group individually instead of picking one row's
+    /// date/time to stand in for the whole group (see <see cref="SendGroupPaymentConfirmedEmailAsync"/>
+    /// for why that's wrong once rows can have different dates/times, as an ad-hoc cart checkout does).</summary>
+    private async Task SendGroupPaymentRejectedEmailAsync(string toEmail, string? firstName, List<Booking> rows)
+    {
+        try
+        {
+            var greeting  = string.IsNullOrWhiteSpace(firstName) ? "Hi there" : $"Hi {firstName}";
+            var baseUrl   = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            var browseUrl = $"{baseUrl}/Courts";
+            var rowsHtml = string.Join("", rows.Select(r =>
+                $"<tr><td style='padding:4px 0;color:#212529;'>{r.Court?.Name ?? "Court"}</td>" +
+                $"<td style='padding:4px 0;color:#6c757d;'>{r.BookingDate:MMM d, yyyy}, {r.StartTime:hh\\:mm tt} – {r.EndTime:hh\\:mm tt}</td></tr>"));
+            var rowsPlain = string.Join("\n", rows.Select(r =>
+                $"- {r.Court?.Name ?? "Court"}: {r.BookingDate:MMM d, yyyy}, {r.StartTime:hh\\:mm tt} – {r.EndTime:hh\\:mm tt}"));
+
+            var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:540px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#dc3545;color:#fff;padding:18px 24px;'>
+      <div style='font-size:13px;opacity:.9;letter-spacing:.5px;text-transform:uppercase;'>Booking Update</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>Payment Not Confirmed</div>
+    </div>
+    <div style='padding:24px;font-size:15px;line-height:1.6;'>
+      <p style='margin:0 0 16px;'>{greeting}, unfortunately the facility could not confirm your payment for the booking below, so it has been <strong>cancelled</strong>.</p>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;'>{rowsHtml}</table>
+      <p style='margin:16px 0 0;text-align:center;'>
+        <a href='{browseUrl}' style='display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>Browse Courts</a>
+      </p>
+    </div>
+  </div>
+</body></html>";
+
+            var plain = $"Payment Not Confirmed\n\n{greeting},\n\n{rowsPlain}\n\nThis booking has been cancelled. Browse courts: {browseUrl}";
+            await _email.SendAsync(toEmail, "Booking Update — Payment Not Confirmed", html, plain);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[AdminController] Failed to send group payment rejected email");
+        }
     }
 
     // ── Open Play Sign-ups ───────────────────────────────────────────────────────

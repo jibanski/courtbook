@@ -127,6 +127,11 @@
                             <input type="file" name="paymentProof" class="form-control" accept="image/jpeg,image/png,image/webp" />
                             <div class="form-text">Screenshot of the GCash/Maya payment confirmation, for your records.</div>
                         </div>
+                        <div class="alert alert-warning small" id="pendingNotice" style="display:none;">
+                            <i class="bi bi-hourglass-split me-1"></i>
+                            Non-cash payments are logged as <strong>Pending</strong> — the slot is held, but the owner
+                            still needs to confirm the payment before this booking counts as booked.
+                        </div>
 
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(optional)</span></label>
@@ -144,7 +149,7 @@
                             <a asp-action="NewWalkIn" asp-route-courtId="@court?.Id" asp-route-date="@date.ToString("yyyy-MM-dd")" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left me-1"></i>Back
                             </a>
-                            <button type="submit" class="btn btn-primary px-4">
+                            <button type="submit" class="btn btn-primary px-4" id="submitBtn">
                                 <i class="bi bi-check-circle me-1"></i>Confirm Payment
                             </button>
                         </div>
@@ -179,10 +184,16 @@
     const paymentMethodSelect = document.getElementById('paymentMethodSelect');
     const referenceField = document.getElementById('referenceField');
     const proofField = document.getElementById('proofField');
+    const pendingNotice = document.getElementById('pendingNotice');
+    const submitBtn = document.getElementById('submitBtn');
     function toggleReferenceField() {
-        const show = paymentMethodSelect.value !== 'Cash';
-        referenceField.style.display = show ? '' : 'none';
-        proofField.style.display = show ? '' : 'none';
+        const isCash = paymentMethodSelect.value === 'Cash';
+        referenceField.style.display = isCash ? 'none' : '';
+        proofField.style.display = isCash ? 'none' : '';
+        pendingNotice.style.display = isCash ? 'none' : '';
+        submitBtn.innerHTML = isCash
+            ? '<i class="bi bi-check-circle me-1"></i>Confirm Payment'
+            : '<i class="bi bi-hourglass-split me-1"></i>Log Payment (Pending)';
     }
     paymentMethodSelect?.addEventListener('change', toggleReferenceField);
     toggleReferenceField();
