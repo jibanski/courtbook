@@ -27,6 +27,7 @@ public class OpenPlaySignupsController : Controller
     private readonly EmailService                 _email;
     private readonly GuestCheckoutService         _guestCheckout;
     private readonly ILogger<OpenPlaySignupsController> _logger;
+    private readonly ImageCompressionService      _imageCompression;
 
     public OpenPlaySignupsController(
         ApplicationDbContext db,
@@ -35,7 +36,8 @@ public class OpenPlaySignupsController : Controller
         IConfiguration config,
         EmailService email,
         GuestCheckoutService guestCheckout,
-        ILogger<OpenPlaySignupsController> logger)
+        ILogger<OpenPlaySignupsController> logger,
+        ImageCompressionService imageCompression)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -44,6 +46,7 @@ public class OpenPlaySignupsController : Controller
         _email          = email;
         _guestCheckout  = guestCheckout;
         _logger         = logger;
+        _imageCompression = imageCompression;
     }
 
     [AllowAnonymous]
@@ -225,10 +228,20 @@ public class OpenPlaySignupsController : Controller
 
         var uploadsDir = Path.Combine(UploadsRoot, "uploads", "proofs");
         Directory.CreateDirectory(uploadsDir);
-        var fileName = $"openplay_{id}_{Guid.NewGuid():N}{ext}";
+        var fileName = $"openplay_{id}_{Guid.NewGuid():N}.jpg";
         var fullPath = Path.Combine(uploadsDir, fileName);
-        using (var stream = System.IO.File.Create(fullPath))
-            await screenshot.CopyToAsync(stream);
+        byte[] compressed;
+        try
+        {
+            await using var source = screenshot.OpenReadStream();
+            compressed = await _imageCompression.CompressAsync(source);
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(Pay), new { id });
+        }
+        await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
 
         signup.PaymentMethod           = method;
         signup.PaymentReference        = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim();
@@ -328,10 +341,20 @@ public class OpenPlaySignupsController : Controller
 
         var uploadsDir = Path.Combine(UploadsRoot, "uploads", "proofs");
         Directory.CreateDirectory(uploadsDir);
-        var fileName = $"openplay_{signup.Id}_{Guid.NewGuid():N}{ext}";
+        var fileName = $"openplay_{signup.Id}_{Guid.NewGuid():N}.jpg";
         var fullPath = Path.Combine(uploadsDir, fileName);
-        using (var stream = System.IO.File.Create(fullPath))
-            await screenshot.CopyToAsync(stream);
+        byte[] compressed;
+        try
+        {
+            await using var source = screenshot.OpenReadStream();
+            compressed = await _imageCompression.CompressAsync(source);
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+        await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
 
         signup.PaymentMethod           = method;
         signup.PaymentReference        = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim();

@@ -26,6 +26,7 @@ public class BundleBookingsController : Controller
     private readonly EmailService                 _email;
     private readonly GuestCheckoutService         _guestCheckout;
     private readonly ILogger<BundleBookingsController> _logger;
+    private readonly ImageCompressionService      _imageCompression;
 
     public BundleBookingsController(
         ApplicationDbContext db,
@@ -34,7 +35,8 @@ public class BundleBookingsController : Controller
         IConfiguration config,
         EmailService email,
         GuestCheckoutService guestCheckout,
-        ILogger<BundleBookingsController> logger)
+        ILogger<BundleBookingsController> logger,
+        ImageCompressionService imageCompression)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -43,6 +45,7 @@ public class BundleBookingsController : Controller
         _email          = email;
         _guestCheckout  = guestCheckout;
         _logger         = logger;
+        _imageCompression = imageCompression;
     }
 
     [AllowAnonymous]
@@ -276,10 +279,20 @@ public class BundleBookingsController : Controller
 
         var uploadsDir = Path.Combine(UploadsRoot, "uploads", "proofs");
         Directory.CreateDirectory(uploadsDir);
-        var fileName = $"bundle_{groupId:N}_{Guid.NewGuid():N}{ext}";
+        var fileName = $"bundle_{groupId:N}_{Guid.NewGuid():N}.jpg";
         var fullPath = Path.Combine(uploadsDir, fileName);
-        using (var stream = System.IO.File.Create(fullPath))
-            await screenshot.CopyToAsync(stream);
+        byte[] compressed;
+        try
+        {
+            await using var source = screenshot.OpenReadStream();
+            compressed = await _imageCompression.CompressAsync(source);
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(Pay), new { groupId });
+        }
+        await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
         var screenshotPath = $"/uploads/proofs/{fileName}";
 
         foreach (var booking in rows)
@@ -402,10 +415,20 @@ public class BundleBookingsController : Controller
 
         var uploadsDir = Path.Combine(UploadsRoot, "uploads", "proofs");
         Directory.CreateDirectory(uploadsDir);
-        var fileName = $"bundle_{token:N}_{Guid.NewGuid():N}{ext}";
+        var fileName = $"bundle_{token:N}_{Guid.NewGuid():N}.jpg";
         var fullPath = Path.Combine(uploadsDir, fileName);
-        using (var stream = System.IO.File.Create(fullPath))
-            await screenshot.CopyToAsync(stream);
+        byte[] compressed;
+        try
+        {
+            await using var source = screenshot.OpenReadStream();
+            compressed = await _imageCompression.CompressAsync(source);
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+        await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
         var screenshotPath = $"/uploads/proofs/{fileName}";
 
         foreach (var booking in rows)
