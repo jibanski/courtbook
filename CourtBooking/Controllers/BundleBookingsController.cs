@@ -585,12 +585,20 @@ public class BundleBookingsController : Controller
             var first       = rows[0];
             var baseUrl     = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
             var bookingsUrl = $"{baseUrl}/Admin/Bookings";
-            var courtNames  = string.Join(", ", rows.Select(r => r.Court?.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
-            var dateLabel   = first.BookingDate.ToString("dddd, MMMM d, yyyy");
-            var timeLabel   = $"{first.StartTime:hh\\:mm tt} – {first.EndTime:hh\\:mm tt}";
             var amount      = rows.Sum(r => r.TotalPrice).ToString("N0");
             var method      = first.PaymentMethod ?? "—";
             var reference   = first.PaymentReference ?? "—";
+            // One row per slot (mirrors CartController's booking-received email) — a flat
+            // "Courts"/"Time" summary collapsed distinct courts/times into one misleading line.
+            var rowsHtml = string.Join("", rows.Select(r =>
+            {
+                var courtName = r.Court?.Name ?? "Court";
+                var dateLabel = r.BookingDate.ToString("MMM d, yyyy");
+                var timeLabel = $"{r.StartTime:hh\\:mm tt} – {r.EndTime:hh\\:mm tt}";
+                return $"<tr><td style='padding:4px 0;color:#212529;'>{courtName}</td><td style='padding:4px 0;color:#6c757d;'>{dateLabel}, {timeLabel}</td><td style='padding:4px 0;text-align:right;font-weight:600;'>₱{r.TotalPrice:N0}</td></tr>";
+            }));
+            var plainRows = string.Join("\n", rows.Select(r =>
+                $"- {r.Court?.Name ?? "Court"}: {r.BookingDate:MMM d, yyyy}, {r.StartTime:hh\\:mm tt} – {r.EndTime:hh\\:mm tt} (₱{r.TotalPrice:N0})"));
 
             var html = $@"<!doctype html>
 <html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
@@ -600,12 +608,10 @@ public class BundleBookingsController : Controller
       <div style='font-size:20px;font-weight:700;margin-top:4px;'>🔔 Payment Proof Submitted</div>
     </div>
     <div style='padding:24px;font-size:15px;line-height:1.6;'>
-      <p style='margin:0 0 16px;'>A customer submitted payment proof for a booking. Please <strong style='color:#0d6efd;'>review and confirm</strong> it:</p>
-      <table style='width:100%;border-collapse:collapse;font-size:14px;'>
-        <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Courts</td>  <td style='padding:5px 0;'>{courtNames}</td></tr>
-        <tr><td style='color:#6c757d;padding:5px 0;'>Date</td>       <td style='padding:5px 0;'>{dateLabel}</td></tr>
-        <tr><td style='color:#6c757d;padding:5px 0;'>Time</td>       <td style='padding:5px 0;'>{timeLabel}</td></tr>
-        <tr><td style='color:#6c757d;padding:5px 0;'>Amount</td>     <td style='font-weight:600;color:#198754;padding:5px 0;'>₱{amount}</td></tr>
+      <p style='margin:0 0 16px;'>A customer submitted payment proof for {rows.Count} slot{(rows.Count == 1 ? "" : "s")}. Please <strong style='color:#0d6efd;'>review and confirm</strong> it:</p>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;'>{rowsHtml}</table>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;margin-top:12px;border-top:1px solid #e9ecef;padding-top:8px;'>
+        <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Amount</td>     <td style='font-weight:600;color:#198754;padding:5px 0;'>₱{amount}</td></tr>
         <tr><td style='color:#6c757d;padding:5px 0;'>Method</td>     <td style='padding:5px 0;'>{method}</td></tr>
         <tr><td style='color:#6c757d;padding:5px 0;'>Reference #</td><td style='font-family:monospace;padding:5px 0;'>{reference}</td></tr>
       </table>
@@ -616,7 +622,7 @@ public class BundleBookingsController : Controller
   </div>
 </body></html>";
 
-            var plain = $"Payment Proof Submitted\n\nCourts: {courtNames}\nDate: {dateLabel}\nTime: {timeLabel}\nAmount: ₱{amount}\nMethod: {method}\nReference: {reference}\n\nReview and confirm: {bookingsUrl}";
+            var plain = $"Payment Proof Submitted\n\n{plainRows}\n\nAmount: ₱{amount}\nMethod: {method}\nReference: {reference}\n\nReview and confirm: {bookingsUrl}";
             await _email.SendAsync(owner.Email, "🔔 Booking — Payment proof submitted, please confirm", html, plain);
         }
         catch (Exception ex)
