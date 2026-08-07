@@ -466,6 +466,13 @@
                                              style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.55;cursor:default;">
                                             <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
                                             <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@(blockReason ?? "Unavailable")</div>
+                                            @if (isBundleOnly)
+                                            {
+                                                var bundleWindowLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
+                                                <div style="font-size:.65rem;color:var(--cb-text-3);margin-top:2px;">
+                                                    <i class="bi bi-box-seam me-1"></i>Blocks @bundleWindowLabel bundle
+                                                </div>
+                                            }
                                         </div>
                                     }
                                     else if (isOpenPlaySignup && signupMatch.SpotsRemaining > 0)
