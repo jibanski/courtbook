@@ -307,22 +307,63 @@
                                    full-width block spanning its whole hour range, instead of one tile per hour. *@
                                 if (!isPast && !isBooked && !isPending && !isBlocked && isBundleOnly)
                                 {
-                                    var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
+                                    var blockStart = bundleMatch.Block.StartHour;
+                                    var blockEnd   = bundleMatch.Block.EndHour;
+                                    // BundleBookingsController.Create requires an exact match against the block's
+                                    // own bounds — if any hour inside it is booked/pending/blocked elsewhere, the
+                                    // whole window can't be sold as a bundle, not just that one hour.
+                                    bool wholeBlockFree = true;
+                                    for (int bh = blockStart; bh < blockEnd; bh++)
+                                    {
+                                        if (Model.BookedHours.Contains(bh) || Model.PendingHours.Contains(bh) || Model.BlockedHours.Contains(bh))
+                                        {
+                                            wholeBlockFree = false;
+                                            break;
+                                        }
+                                    }
+
+                                    if (wholeBlockFree && h == blockStart)
+                                    {
+                                        var bundleLabel = TimeDisplay.HourRange(blockStart, blockEnd);
+                                        <div class="col-12">
+                                            <a asp-controller="BundleBookings" asp-action="Create"
+                                               asp-route-bundleId="@bundleMatch.Bundle.Id"
+                                                             asp-route-courtId="@Model.Court.Id"
+                                               asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                               asp-route-startHour="@blockStart"
+                                               asp-route-endHour="@blockEnd"
+                                               class="p-2 text-center rounded-3 d-block text-decoration-none" style="background:var(--cb-lime);">
+                                                <div style="font-size:.85rem;color:#000;font-weight:700;">@bundleLabel</div>
+                                                <div style="font-size:.7rem;color:#000;margin-top:2px;font-weight:600;">
+                                                    <i class="bi bi-box-seam me-1"></i>Bundle Only
+                                                </div>
+                                            </a>
+                                        </div>
+                                        h = blockEnd - 1;
+                                        continue;
+                                    }
+
+                                    // Part of this window is already taken elsewhere — merge the remaining free
+                                    // hours into one disabled placeholder instead of a misleading clickable bar,
+                                    // or letting them fall through to an individually-bookable tile (bundle-only
+                                    // hours are never sold individually).
+                                    var runEnd = h + 1;
+                                    while (runEnd < blockEnd
+                                           && !Model.BookedHours.Contains(runEnd) && !Model.PendingHours.Contains(runEnd) && !Model.BlockedHours.Contains(runEnd))
+                                    {
+                                        runEnd++;
+                                    }
+                                    var placeholderLabel = TimeDisplay.HourRange(h, runEnd);
                                     <div class="col-12">
-                                        <a asp-controller="BundleBookings" asp-action="Create"
-                                           asp-route-bundleId="@bundleMatch.Bundle.Id"
-                                                         asp-route-courtId="@Model.Court.Id"
-                                           asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                           asp-route-startHour="@bundleMatch.Block.StartHour"
-                                           asp-route-endHour="@bundleMatch.Block.EndHour"
-                                           class="p-2 text-center rounded-3 d-block text-decoration-none" style="background:var(--cb-lime);">
-                                            <div style="font-size:.85rem;color:#000;font-weight:700;">@bundleLabel</div>
-                                            <div style="font-size:.7rem;color:#000;margin-top:2px;font-weight:600;">
-                                                <i class="bi bi-box-seam me-1"></i>Bundle Only
+                                        <div class="p-2 text-center rounded-3"
+                                             style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.6;cursor:default;">
+                                            <div style="font-size:.85rem;color:var(--cb-text-2);font-weight:700;">@placeholderLabel</div>
+                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;font-weight:600;">
+                                                <i class="bi bi-box-seam me-1"></i>Bundle Only &bull; unavailable (window partially booked)
                                             </div>
-                                        </a>
+                                        </div>
                                     </div>
-                                    h = bundleMatch.Block.EndHour - 1;
+                                    h = runEnd - 1;
                                     continue;
                                 }
 
