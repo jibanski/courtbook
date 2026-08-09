@@ -211,7 +211,7 @@ public class BookingsController : Controller
                 var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(vm.GuestName!, vm.GuestEmail!, vm.GuestPhone!);
                 userId = guestUser.Id;
             }
-            catch (GuestEmailConflictException ex)
+            catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
             {
                 ModelState.AddModelError("GuestEmail", ex.Message);
                 return View(vm);

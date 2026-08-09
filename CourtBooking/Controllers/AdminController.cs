@@ -2321,7 +2321,7 @@ public class AdminController : Controller
         {
             customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
         }
-        catch (GuestEmailConflictException ex)
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
         {
             TempData["Error"] = ex.Message;
             return RedirectToAction(nameof(RentAddOns));

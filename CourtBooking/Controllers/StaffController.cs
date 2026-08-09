@@ -486,7 +486,7 @@ public class StaffController : Controller
         {
             customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
         }
-        catch (GuestEmailConflictException ex)
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
         {
             TempData["Error"] = ex.Message;
             return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
@@ -757,7 +757,7 @@ public class StaffController : Controller
         {
             customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
         }
-        catch (GuestEmailConflictException ex)
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
         {
             TempData["Error"] = ex.Message;
             return RedirectToAction(nameof(WalkInCartForm));
@@ -901,7 +901,7 @@ public class StaffController : Controller
         {
             customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
         }
-        catch (GuestEmailConflictException ex)
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
         {
             TempData["Error"] = ex.Message;
             return RedirectToAction(nameof(RentAddOns));
@@ -1079,7 +1079,7 @@ public class StaffController : Controller
         {
             customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
         }
-        catch (GuestEmailConflictException ex)
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
         {
             TempData["Error"] = ex.Message;
             return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
@@ -1229,7 +1229,7 @@ public class StaffController : Controller
         {
             customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
         }
-        catch (GuestEmailConflictException ex)
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
         {
             TempData["Error"] = ex.Message;
             return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
