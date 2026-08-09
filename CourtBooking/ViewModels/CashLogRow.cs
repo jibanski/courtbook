@@ -10,6 +10,11 @@ public class CashLogRow
 {
     public int Id { get; set; }
     public bool IsOpenPlay { get; set; }
+
+    /// <summary>True for a standalone <c>AddOnRental</c> — an add-on-only counter sale with no
+    /// court/Open Play attached. <see cref="StartTime"/>/<see cref="EndTime"/> aren't meaningful
+    /// for these rows (no time slot), views should hide the Time column for them instead.</summary>
+    public bool IsAddOnOnly { get; set; }
     public DateOnly BookingDate { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
@@ -25,6 +30,15 @@ public class CashLogRow
     public decimal AddOnsTotal { get; set; }
     public string? AddOnsSummary { get; set; }
     public decimal TotalPrice { get; set; }
+
+    /// <summary>Cash, GCash, Maya, or GoTyme — lets the reconciliation views split totals by method
+    /// instead of assuming everything logged here was handed over as physical cash.</summary>
+    public string? PaymentMethod { get; set; }
+
+    /// <summary>Confirmed (cash, or a digital payment the owner has verified) vs. Pending (a digital
+    /// payment claim that's still awaiting owner confirmation) — views must surface this so an
+    /// unconfirmed sale is never mistaken for money already collected.</summary>
+    public CourtBooking.Models.BookingStatus Status { get; set; }
 
     public string? LoggedByStaffId { get; set; }
     public DateTime CreatedAt { get; set; }

@@ -853,6 +853,145 @@ public class StaffController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    // ── Standalone add-on rentals ─────────────────────────────────────────────
+    // For a customer who just wants to rent add-ons (paddles, shuttlecocks, etc.) at the
+    // counter without booking a court or joining Open Play. No time slot/court/date involved —
+    // this is a simple point-of-sale style transaction, same payment lifecycle as a walk-in
+    // (Cash confirmed on the spot, everything else Pending until the owner confirms).
+
+    public async Task<IActionResult> RentAddOns()
+    {
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        ViewBag.AddOns = employerOwnerId != null
+            ? await _bookingService.GetActiveAddOnsAsync(employerOwnerId)
+            : new List<AddOnItem>();
+        ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(employerOwnerId);
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateAddOnRental(
+        string customerName, string customerEmail, string customerPhone,
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
+        {
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(RentAddOns));
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
+            return RedirectToAction(nameof(RentAddOns));
+        }
+        if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
+
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        if (employerOwnerId is null) return Forbid();
+
+        var (items, total) = await _bookingService.ResolveSelectedAddOnRentalItemsAsync(employerOwnerId, Request.Form);
+        if (items.Count == 0)
+        {
+            TempData["Error"] = "Select at least one add-on item and quantity.";
+            return RedirectToAction(nameof(RentAddOns));
+        }
+
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (GuestEmailConflictException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(RentAddOns));
+        }
+
+        string? proofPath;
+        try
+        {
+            proofPath = await SavePaymentProofAsync(paymentProof, "addonrental");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = $"{ex.Message} — sale was not logged.";
+            return RedirectToAction(nameof(RentAddOns));
+        }
+
+        // Same Cash-vs-everything-else rule as the walk-in flows: cash is confirmed on the spot,
+        // any other method sits Pending until the owner confirms it actually came through.
+        bool isCash = IsCashPayment(paymentMethod);
+
+        var rental = new AddOnRental
+        {
+            OwnerId              = employerOwnerId,
+            UserId               = customer.Id,
+            CustomerNameSnapshot = customerName,
+            TotalPrice           = total,
+            Notes                = notes,
+            Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
+            PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
+            PaymentMethod        = paymentMethod,
+            PaymentReference     = paymentReference,
+            PaymentProofPath     = proofPath,
+            PaidAt               = isCash ? DateTime.UtcNow : null,
+            LoggedByStaffId      = CurrentStaffId,
+            Items                = items
+        };
+        _db.AddOnRentals.Add(rental);
+        await _db.SaveChangesAsync();
+
+        if (!isCash)
+        {
+            var owner = await _userManager.FindByIdAsync(employerOwnerId);
+            await SendAddOnRentalPaymentSubmittedNotificationAsync(rental, owner);
+        }
+
+        TempData["Success"] = isCash
+            ? $"Logged add-on rental for {customerName} — ₱{total:N0} via {paymentMethod}."
+            : $"Logged add-on rental for {customerName} — ₱{total:N0} via {paymentMethod}, pending confirmation.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Tells the facility owner a staff member logged a non-cash add-on rental that's
+    /// sitting Pending until they confirm it — same idea as <see cref="SendWalkInPaymentSubmittedNotificationAsync"/>.</summary>
+    private async Task SendAddOnRentalPaymentSubmittedNotificationAsync(AddOnRental rental, ApplicationUser? owner)
+    {
+        try
+        {
+            if (owner is null || string.IsNullOrWhiteSpace(owner.Email)) return;
+
+            var baseUrl  = $"{Request.Scheme}://{Request.Host}";
+            var reviewUrl = $"{baseUrl}/Admin/AddOns";
+            var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
+      <div style='font-size:13px;opacity:.85;letter-spacing:.5px;text-transform:uppercase;'>CourtBook</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>🔔 Add-on Rental Needs Confirmation</div>
+    </div>
+    <div style='padding:24px;font-size:15px;line-height:1.6;'>
+      <p style='margin:0 0 16px;'>Your staff logged an add-on rental paid via <strong>{rental.PaymentMethod}</strong> — please confirm the payment before it's finalized:</p>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;'>
+        <tr><td style='color:#6c757d;padding:5px 0;width:120px;'>Customer</td><td style='padding:5px 0;'>{rental.CustomerNameSnapshot}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Amount</td><td style='padding:5px 0;font-weight:600;color:#198754;'>₱{rental.TotalPrice:N0}</td></tr>
+        <tr><td style='color:#6c757d;padding:5px 0;'>Reference</td><td style='padding:5px 0;font-family:monospace;'>{rental.PaymentReference ?? "—"}</td></tr>
+      </table>
+      <p style='margin:16px 0 0;text-align:center;'>
+        <a href='{reviewUrl}' style='display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>Review &amp; Confirm</a>
+      </p>
+    </div>
+  </div>
+</body></html>";
+            var plain = $"Add-on Rental Needs Confirmation\n\nCustomer: {rental.CustomerNameSnapshot}\nAmount: ₱{rental.TotalPrice:N0}\nMethod: {rental.PaymentMethod}\n\nReview and confirm: {reviewUrl}";
+            await _email.SendAsync(owner.Email, "🔔 Add-on rental needs your confirmation", html, plain);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "[StaffController] Failed to send add-on rental payment submitted notification");
+        }
+    }
+
     // ── Walk-in bundle booking ────────────────────────────────────────────────
     // A bundle sells one of its member courts at a flat price during a recurring
     // peak window (see BundleBookingsController for the customer-facing version).
@@ -1190,11 +1329,17 @@ public class StaffController : Controller
     public async Task<IActionResult> MyCashLog(DateOnly? from, DateOnly? to)
     {
         var courtIds = await GetMyCourtIdsAsync();
-        var bookings = await _bookingService.GetCashLogAsync(courtIds, CurrentStaffId, from, to);
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        var bookings = await _bookingService.GetCashLogAsync(courtIds, CurrentStaffId, from, to, employerOwnerId);
 
         ViewBag.From = from;
         ViewBag.To   = to;
-        ViewBag.GrandTotal = bookings.Sum(b => b.TotalPrice);
+        var confirmed = bookings.Where(b => b.Status != BookingStatus.Pending).ToList();
+        ViewBag.GrandTotal   = confirmed.Sum(b => b.TotalPrice);
+        ViewBag.CashTotal    = confirmed.Where(b => string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase)).Sum(b => b.TotalPrice);
+        ViewBag.DigitalTotal = confirmed.Where(b => !string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase)).Sum(b => b.TotalPrice);
+        ViewBag.PendingTotal = bookings.Where(b => b.Status == BookingStatus.Pending).Sum(b => b.TotalPrice);
+        ViewBag.PendingCount = bookings.Count(b => b.Status == BookingStatus.Pending);
         return View(bookings);
     }
 

@@ -25,6 +25,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PlatformConfig> PlatformConfig { get; set; }
     public DbSet<AddOnItem> AddOnItems { get; set; }
     public DbSet<BookingAddOn> BookingAddOns { get; set; }
+    public DbSet<AddOnRental> AddOnRentals { get; set; }
+    public DbSet<AddOnRentalItem> AddOnRentalItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -100,6 +102,24 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(s => s.User)
             .WithMany()
             .HasForeignKey(s => s.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<AddOnRental>()
+            .HasOne(r => r.User)
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<AddOnRentalItem>()
+            .HasOne(i => i.AddOnRental)
+            .WithMany(r => r.Items)
+            .HasForeignKey(i => i.AddOnRentalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<AddOnRentalItem>()
+            .HasOne(i => i.AddOnItem)
+            .WithMany()
+            .HasForeignKey(i => i.AddOnItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Sport>().HasData(

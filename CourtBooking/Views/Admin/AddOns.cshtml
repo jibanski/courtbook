@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Add-ons";
     var addOnList = ViewBag.AddOnList as List<AddOnItem>;
+    var rentalList = ViewBag.RentalList as List<AddOnRental> ?? new List<AddOnRental>();
 }
 
 <div class="cb-page-header">
@@ -93,6 +94,68 @@
                     </table>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong><i class="bi bi-bag-check me-2" style="color:var(--cb-lime);"></i>Add-on Rentals</strong>
+            <span class="text-muted small">Standalone sales logged by staff &mdash; no court/Open Play involved</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr><th>Logged On</th><th>Customer</th><th>Items</th><th>Total</th><th>Method</th><th>Status</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @if (!rentalList.Any())
+                    {
+                        <tr><td colspan="7" class="text-center py-4" style="color:var(--cb-text-3);">No add-on rentals logged yet.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var rental in rentalList)
+                        {
+                            <tr>
+                                <td class="text-nowrap">@rental.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")</td>
+                                <td>@(rental.CustomerNameSnapshot ?? rental.User?.FullName)</td>
+                                <td style="font-size:.85rem;">@string.Join(", ", rental.Items.Select(i => $"{i.Quantity}x {i.AddOnItem.Name}"))</td>
+                                <td>₱@rental.TotalPrice.ToString("N0")</td>
+                                <td>@rental.PaymentMethod</td>
+                                <td>
+                                    @if (rental.Status == BookingStatus.Confirmed)
+                                    {
+                                        <span class="badge bg-success-subtle text-success-emphasis">Confirmed</span>
+                                    }
+                                    else if (rental.Status == BookingStatus.Cancelled)
+                                    {
+                                        <span class="badge bg-secondary">Rejected</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis">Pending</span>
+                                    }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    @if (rental.Status == BookingStatus.Pending)
+                                    {
+                                        <form asp-action="ConfirmAddOnRentalPayment" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@rental.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-success">Confirm</button>
+                                        </form>
+                                        <form asp-action="RejectAddOnRentalPayment" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@rental.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
