@@ -152,7 +152,7 @@ public class BundleBookingsController : Controller
                 var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(guestName!, guestEmail!, guestPhone!);
                 userId = guestUser.Id;
             }
-            catch (GuestEmailConflictException ex)
+            catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
             {
                 TempData["Error"] = ex.Message;
                 return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });

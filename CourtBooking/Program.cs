@@ -47,6 +47,16 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireUppercase = false;
     options.Password.RequiredLength = 6;
     options.SignIn.RequireConfirmedAccount = false;
+
+    // UserName is always set equal to Email throughout this app (registration, guest
+    // checkout, staff-created walk-ins/add-on rentals, etc.), and Email is already the
+    // thing that gets format-validated (EmailAddressAttribute / RequireUniqueEmail).
+    // Identity's default AllowedUserNameCharacters allow-list rejects perfectly valid
+    // email addresses containing e.g. an apostrophe, which made GetOrCreateGuestUserAsync
+    // throw an uncaught InvalidOperationException ("Username '...' is invalid, can only
+    // contain letters or digits") and crash the request with a 500. Clearing the allow-list
+    // disables Identity's separate per-character username check entirely.
+    options.User.AllowedUserNameCharacters = "";
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
