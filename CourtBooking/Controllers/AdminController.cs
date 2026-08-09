@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 
@@ -18,6 +19,7 @@ public class AdminController : Controller
 {
     private readonly ApplicationDbContext _db;
     private readonly BookingService _bookingService;
+    private readonly GuestCheckoutService _guestCheckout;
     private readonly EmailService _email;
     private readonly IConfiguration _config;
     private readonly UserManager<ApplicationUser> _userManager;
@@ -27,6 +29,7 @@ public class AdminController : Controller
     public AdminController(
         ApplicationDbContext db,
         BookingService bookingService,
+        GuestCheckoutService guestCheckout,
         EmailService email,
         IConfiguration config,
         UserManager<ApplicationUser> userManager,
@@ -35,6 +38,7 @@ public class AdminController : Controller
     {
         _db             = db;
         _bookingService = bookingService;
+        _guestCheckout  = guestCheckout;
         _email          = email;
         _config         = config;
         _userManager    = userManager;
@@ -60,8 +64,9 @@ public class AdminController : Controller
                             + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == PhtClock.Today && s.Status != BookingStatus.Cancelled);
         var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
         var activeCourts    = await MyCourts.CountAsync(c => c.IsActive);
-        var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
-        var awaitingSignups = await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
+        var awaitingPayment    = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
+        var awaitingSignups    = await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
+        var awaitingAddOnRentals = await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.Status == BookingStatus.Pending);
         var settings        = await GetMySettingsAsync();
 
         ViewBag.TotalBookings   = totalBookings;
@@ -70,6 +75,7 @@ public class AdminController : Controller
         ViewBag.ActiveCourts    = activeCourts;
         ViewBag.AwaitingPayment = awaitingPayment;
         ViewBag.AwaitingSignups = awaitingSignups;
+        ViewBag.AwaitingAddOnRentals = awaitingAddOnRentals;
         ViewBag.FacilitySettings = settings;
 
         // ── Setup Checklist (shown on dashboard until all required items are done) ──
@@ -216,21 +222,36 @@ public class AdminController : Controller
 
         var liveBookings = _db.Bookings.Where(b => courtIds.Contains(b.CourtId));
         var liveSignups  = _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId));
+        // Standalone add-on rentals (e.g. paddle-only counter sales) have no court/slot, so they
+        // can't be scoped to a specific court — only fold them in for the "all courts" view.
+        var liveAddOnRentals = _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId);
 
-        // Open Play sign-ups are a separate entity from regular/bundle bookings but count
-        // toward the same revenue and conversion numbers, so project both to the same shape
-        // and combine (UNION ALL, via Concat) before aggregating.
+        // Open Play sign-ups and standalone add-on rentals are separate entities from regular
+        // bookings but count toward the same revenue and conversion numbers, so project all three
+        // to the same shape and combine (UNION ALL, via Concat) before aggregating. PaymentProofPath
+        // (AddOnRental) has no separate "submitted at" timestamp like Booking/OpenPlaySignup do,
+        // so HasProof normalizes that difference across all three sources.
         var bookingRows = liveBookings.Select(b => new
         {
             b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
-            b.PaidAt, b.PaymentProofSubmittedAt, b.PaymentReference, b.PaymentMethod
+            b.PaidAt, HasProof = b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod
         });
         var signupRows = liveSignups.Select(s => new
         {
             s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
-            s.PaidAt, s.PaymentProofSubmittedAt, s.PaymentReference, s.PaymentMethod
+            s.PaidAt, HasProof = s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod
+        });
+        var addOnRentalRows = liveAddOnRentals.Select(r => new
+        {
+            BookingDate = DateOnly.FromDateTime(r.CreatedAt.AddHours(8)),
+            r.TotalPrice, r.Status, r.PaymentStatus,
+            r.PaidAt, HasProof = r.PaymentProofPath != null, r.PaymentReference, r.PaymentMethod
         });
         var combined = bookingRows.Concat(signupRows);
+        if (!courtId.HasValue)
+        {
+            combined = combined.Concat(addOnRentalRows);
+        }
 
         var totalBookings   = await combined.CountAsync(x => x.Status != BookingStatus.Cancelled);
         var todayBookings   = await combined.CountAsync(x => x.BookingDate == today && x.Status != BookingStatus.Cancelled);
@@ -240,16 +261,22 @@ public class AdminController : Controller
         var totalRevenue    = await combined
             .Where(x => x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
             .SumAsync(x => (decimal?)x.TotalPrice) ?? 0m;
-        var awaitingPayment = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.PaymentProofSubmittedAt != null);
+        var awaitingPayment = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.HasProof);
         var pendingNoProof  = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.PaymentReference == null);
 
-        // Add-ons (e.g. paddle rentals) only ever attach to regular Bookings, not Open Play
-        // sign-ups, so this is a separate query rather than folded into `combined` above.
-        // Split out of totalRevenue so the owner can see rental vs. add-on sales separately.
-        var addOnsRevenue = await _db.BookingAddOns
+        // Add-ons attached to a Booking, plus standalone add-on rentals (same "all courts only"
+        // scoping as above) — split out of totalRevenue so the owner can see rental vs. add-on
+        // sales separately.
+        var bookingAddOnsRevenue = await _db.BookingAddOns
             .Where(a => courtIds.Contains(a.Booking.CourtId)
                      && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed))
             .SumAsync(a => (decimal?)(a.Quantity * a.UnitPrice)) ?? 0m;
+        var standaloneAddOnRentalsRevenue = courtId.HasValue
+            ? 0m
+            : await liveAddOnRentals
+                .Where(r => r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed)
+                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+        var addOnsRevenue = bookingAddOnsRevenue + standaloneAddOnRentalsRevenue;
         var courtRentalRevenue = totalRevenue - addOnsRevenue;
 
         var revenueRows = await combined
@@ -2087,6 +2114,15 @@ public class AdminController : Controller
         var booking  = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
         if (booking is null) return NotFound();
         booking.Status = status;
+        // This dropdown is the only status-setter that doesn't already pair with a payment
+        // update (ConfirmPayment/webhooks/walk-ins all flip both together) — without this,
+        // forcing a still-Unpaid booking to Confirmed here leaves Payment stuck showing
+        // "Submitted"/"Unpaid" forever even though the booking itself now reads Confirmed.
+        if ((status == BookingStatus.Confirmed || status == BookingStatus.Completed) && booking.PaymentStatus != PaymentStatus.Paid)
+        {
+            booking.PaymentStatus = PaymentStatus.Paid;
+            booking.PaidAt ??= DateTime.UtcNow;
+        }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Booking status updated.";
         return RedirectToAction(nameof(Bookings));
@@ -2099,6 +2135,11 @@ public class AdminController : Controller
         var signup   = await _db.OpenPlaySignups.FirstOrDefaultAsync(sg => sg.Id == id && courtIds.Contains(sg.CourtId));
         if (signup is null) return NotFound();
         signup.Status = status;
+        if ((status == BookingStatus.Confirmed || status == BookingStatus.Completed) && signup.PaymentStatus != PaymentStatus.Paid)
+        {
+            signup.PaymentStatus = PaymentStatus.Paid;
+            signup.PaidAt ??= DateTime.UtcNow;
+        }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Sign-up status updated.";
         return RedirectToAction(nameof(Bookings));
@@ -2173,7 +2214,7 @@ public class AdminController : Controller
     public async Task<IActionResult> CashLog(DateOnly? from, DateOnly? to, string? staffId)
     {
         var courtIds = await GetMyCourtIdsAsync();
-        var bookings = await _bookingService.GetCashLogAsync(courtIds, staffId, from, to);
+        var bookings = await _bookingService.GetCashLogAsync(courtIds, staffId, from, to, CurrentUserId);
 
         var staffIds = bookings.Select(b => b.LoggedByStaffId!).Distinct().ToList();
         var staffNames = await _db.Users
@@ -2185,7 +2226,12 @@ public class AdminController : Controller
         ViewBag.From       = from;
         ViewBag.To         = to;
         ViewBag.StaffId    = staffId;
-        ViewBag.GrandTotal = bookings.Sum(b => b.TotalPrice);
+        var confirmed = bookings.Where(b => b.Status != BookingStatus.Pending).ToList();
+        ViewBag.GrandTotal   = confirmed.Sum(b => b.TotalPrice);
+        ViewBag.CashTotal    = confirmed.Where(b => string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase)).Sum(b => b.TotalPrice);
+        ViewBag.DigitalTotal = confirmed.Where(b => !string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase)).Sum(b => b.TotalPrice);
+        ViewBag.PendingTotal = bookings.Where(b => b.Status == BookingStatus.Pending).Sum(b => b.TotalPrice);
+        ViewBag.PendingCount = bookings.Count(b => b.Status == BookingStatus.Pending);
         return View(bookings);
     }
 
@@ -2197,6 +2243,15 @@ public class AdminController : Controller
             .Where(a => a.OwnerId == CurrentUserId)
             .OrderBy(a => a.Name)
             .ToListAsync();
+
+        ViewBag.RentalList = await _db.AddOnRentals
+            .Where(r => r.OwnerId == CurrentUserId)
+            .Include(r => r.User)
+            .Include(r => r.Items).ThenInclude(i => i.AddOnItem)
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(50)
+            .ToListAsync();
+
         return View();
     }
 
@@ -2222,6 +2277,164 @@ public class AdminController : Controller
         if (item is null) return NotFound();
         item.IsActive = !item.IsActive;
         await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(AddOns));
+    }
+
+    // ── Rent add-ons directly (owner logging a counter sale themselves) ─────────
+    // Same idea as StaffController.RentAddOns/CreateAddOnRental, just for the owner acting as
+    // their own front desk. Since Admin *is* the facility owner, non-cash sales are still logged
+    // Pending (for the Cash/Sales Log paper trail) but there's no separate owner to notify.
+
+    public async Task<IActionResult> RentAddOns()
+    {
+        ViewBag.AddOns = await _bookingService.GetActiveAddOnsAsync(CurrentUserId);
+        ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(CurrentUserId);
+        return View("~/Views/Staff/RentAddOns.cshtml");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateAddOnRental(
+        string customerName, string customerEmail, string customerPhone,
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
+        {
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(RentAddOns));
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
+            return RedirectToAction(nameof(RentAddOns));
+        }
+        if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
+
+        var (items, total) = await _bookingService.ResolveSelectedAddOnRentalItemsAsync(CurrentUserId, Request.Form);
+        if (items.Count == 0)
+        {
+            TempData["Error"] = "Select at least one add-on item and quantity.";
+            return RedirectToAction(nameof(RentAddOns));
+        }
+
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (GuestEmailConflictException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(RentAddOns));
+        }
+
+        string? proofPath;
+        try
+        {
+            proofPath = await SavePaymentProofAsync(paymentProof, "addonrental");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = $"{ex.Message} — sale was not logged.";
+            return RedirectToAction(nameof(RentAddOns));
+        }
+
+        bool isCash = IsCashPayment(paymentMethod);
+
+        var rental = new AddOnRental
+        {
+            OwnerId              = CurrentUserId,
+            UserId               = customer.Id,
+            CustomerNameSnapshot = customerName,
+            TotalPrice           = total,
+            Notes                = notes,
+            Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
+            PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
+            PaymentMethod        = paymentMethod,
+            PaymentReference     = paymentReference,
+            PaymentProofPath     = proofPath,
+            PaidAt               = isCash ? DateTime.UtcNow : null,
+            LoggedByStaffId      = CurrentUserId,
+            Items                = items
+        };
+        _db.AddOnRentals.Add(rental);
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = isCash
+            ? $"Logged add-on rental for {customerName} — ₱{total:N0} via {paymentMethod}."
+            : $"Logged add-on rental for {customerName} — ₱{total:N0} via {paymentMethod}, pending confirmation.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    private async Task<List<string>> GetAvailablePaymentMethodsAsync(string ownerId)
+    {
+        var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == ownerId);
+        var methods = new List<string> { "Cash" };
+        if (!string.IsNullOrWhiteSpace(settings?.GCashNumber)) methods.Add("GCash");
+        if (!string.IsNullOrWhiteSpace(settings?.MayaNumber)) methods.Add("Maya");
+        if (!string.IsNullOrWhiteSpace(settings?.GoTymeNumber)) methods.Add("GoTyme");
+        return methods;
+    }
+
+    private static bool IsCashPayment(string? paymentMethod) =>
+        string.IsNullOrWhiteSpace(paymentMethod) || string.Equals(paymentMethod, "Cash", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Saves an optional payment-proof screenshot (JPG/PNG/WebP) — mirrors
+    /// <c>StaffController.SavePaymentProofAsync</c> for the owner's own add-on rental flow.</summary>
+    private async Task<string?> SavePaymentProofAsync(IFormFile? paymentProof, string prefix)
+    {
+        if (paymentProof is not { Length: > 0 }) return null;
+
+        var ext = Path.GetExtension(paymentProof.FileName).ToLower();
+        if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp"))
+            throw new InvalidOperationException("Payment proof must be JPG, PNG, or WebP.");
+
+        var uploadsDir = Path.Combine(UploadsRoot, "uploads", "proofs");
+        Directory.CreateDirectory(uploadsDir);
+        var fileName = $"{prefix}_{Guid.NewGuid():N}.jpg";
+        var fullPath = Path.Combine(uploadsDir, fileName);
+        byte[] compressed;
+        try
+        {
+            await using var source = paymentProof.OpenReadStream();
+            compressed = await _imageCompression.CompressAsync(source);
+        }
+        catch (SixLabors.ImageSharp.UnknownImageFormatException)
+        {
+            throw new InvalidOperationException("That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.");
+        }
+        await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
+        return $"/uploads/proofs/{fileName}";
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConfirmAddOnRentalPayment(int id)
+    {
+        var rental = await _db.AddOnRentals
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.Id == id && r.OwnerId == CurrentUserId);
+        if (rental is null) return NotFound();
+
+        rental.Status        = BookingStatus.Confirmed;
+        rental.PaymentStatus = PaymentStatus.Paid;
+        rental.PaidAt         = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Add-on rental #{id} confirmed.";
+        return RedirectToAction(nameof(AddOns));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RejectAddOnRentalPayment(int id)
+    {
+        var rental = await _db.AddOnRentals.FirstOrDefaultAsync(r => r.Id == id && r.OwnerId == CurrentUserId);
+        if (rental is null) return NotFound();
+
+        rental.Status           = BookingStatus.Cancelled;
+        rental.PaymentReference = null;
+        rental.PaymentProofPath = null;
+        await _db.SaveChangesAsync();
+
+        TempData["Error"] = $"Add-on rental #{id} rejected and cancelled.";
         return RedirectToAction(nameof(AddOns));
     }
 

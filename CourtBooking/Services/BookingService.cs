@@ -344,6 +344,39 @@ public class BookingService
         return (result, total);
     }
 
+    /// <summary>
+    /// Same <c>addon_{Id}</c>/<c>addon_hrs_{Id}</c> form-reading logic as <see cref="ResolveSelectedAddOnsAsync"/>,
+    /// but builds <see cref="AddOnRentalItem"/> line items for a standalone add-on-only sale (no court/booking
+    /// attached) instead of <see cref="BookingAddOn"/>.
+    /// </summary>
+    public async Task<(List<AddOnRentalItem> Items, decimal Total)> ResolveSelectedAddOnRentalItemsAsync(string ownerId, IFormCollection form, int durationHours = 1)
+    {
+        var catalog = await GetActiveAddOnsAsync(ownerId);
+        var result = new List<AddOnRentalItem>();
+        decimal total = 0;
+
+        foreach (var item in catalog)
+        {
+            if (!form.TryGetValue($"addon_{item.Id}", out var raw)) continue;
+            if (!int.TryParse(raw, out var qty) || qty <= 0) continue;
+
+            if (item.PricingType == AddOnPricingType.PerHour)
+            {
+                var hrs = form.TryGetValue($"addon_hrs_{item.Id}", out var hrsRaw) && int.TryParse(hrsRaw, out var h) && h > 0
+                    ? h : durationHours;
+                result.Add(new AddOnRentalItem { AddOnItemId = item.Id, Quantity = hrs, UnitPrice = item.Price, PricingType = item.PricingType });
+                total += hrs * item.Price;
+            }
+            else
+            {
+                result.Add(new AddOnRentalItem { AddOnItemId = item.Id, Quantity = qty, UnitPrice = item.Price, PricingType = item.PricingType });
+                total += qty * item.Price;
+            }
+        }
+
+        return (result, total);
+    }
+
     /// <summary>One requested add-on line from a non-form source (e.g. a cart-checkout JSON payload).</summary>
     public record AddOnSelection(int AddOnItemId, int Quantity, int? Hours);
 
@@ -480,13 +513,18 @@ public class BookingService
 
     // ── Staff walk-in cash bookings ─────────────────────────────────────────────
 
-    /// <summary>Cash walk-ins logged by staff for these courts — both regular court bookings and
-    /// Open Play sign-ups, merged into one list — optionally filtered to one staff member and/or a
-    /// date range. Used by both the staff's own cash log and the owner's reconciliation view.</summary>
-    public async Task<List<CashLogRow>> GetCashLogAsync(List<int> courtIds, string? staffId, DateOnly? from, DateOnly? to)
+    /// <summary>Sales walk-ins logged by staff for these courts — regular court bookings, Open Play
+    /// sign-ups, and standalone add-on-only rentals — merged into one list, any payment method
+    /// (Cash, GCash, Maya, GoTyme), optionally filtered to one staff member and/or a date range.
+    /// Used by both the staff's own log and the owner's reconciliation view — despite the "Cash Log"
+    /// name (kept for URL/nav stability), it covers every staff/owner-logged sale so nothing slips
+    /// through untracked, with <see cref="CashLogRow.PaymentMethod"/> letting the views split cash
+    /// from digital totals. <paramref name="ownerId"/> scopes the add-on-rental portion (which has no
+    /// court to filter by); pass null to skip it.</summary>
+    public async Task<List<CashLogRow>> GetCashLogAsync(List<int> courtIds, string? staffId, DateOnly? from, DateOnly? to, string? ownerId = null)
     {
         var bookingQuery = _db.Bookings
-            .Where(b => courtIds.Contains(b.CourtId) && b.PaymentMethod == "Cash"
+            .Where(b => courtIds.Contains(b.CourtId)
                      && b.LoggedByStaffId != null && b.Status != BookingStatus.Cancelled)
             .Include(b => b.Court)
             .Include(b => b.User)
@@ -494,30 +532,43 @@ public class BookingService
             .AsQueryable();
 
         var signupQuery = _db.OpenPlaySignups
-            .Where(s => courtIds.Contains(s.CourtId) && s.PaymentMethod == "Cash"
+            .Where(s => courtIds.Contains(s.CourtId)
                      && s.LoggedByStaffId != null && s.Status != BookingStatus.Cancelled)
             .Include(s => s.Court)
             .Include(s => s.User)
             .AsQueryable();
 
+        var rentalQuery = ownerId != null
+            ? _db.AddOnRentals
+                .Where(r => r.OwnerId == ownerId
+                         && r.LoggedByStaffId != null && r.Status != BookingStatus.Cancelled)
+                .Include(r => r.User)
+                .Include(r => r.Items).ThenInclude(i => i.AddOnItem)
+                .AsQueryable()
+            : null;
+
         if (staffId != null)
         {
             bookingQuery = bookingQuery.Where(b => b.LoggedByStaffId == staffId);
             signupQuery  = signupQuery.Where(s => s.LoggedByStaffId == staffId);
+            rentalQuery  = rentalQuery?.Where(r => r.LoggedByStaffId == staffId);
         }
         if (from.HasValue)
         {
             bookingQuery = bookingQuery.Where(b => b.BookingDate >= from.Value);
             signupQuery  = signupQuery.Where(s => s.BookingDate >= from.Value);
+            rentalQuery  = rentalQuery?.Where(r => r.CreatedAt >= from.Value.ToDateTime(TimeOnly.MinValue).AddHours(-8));
         }
         if (to.HasValue)
         {
             bookingQuery = bookingQuery.Where(b => b.BookingDate <= to.Value);
             signupQuery  = signupQuery.Where(s => s.BookingDate <= to.Value);
+            rentalQuery  = rentalQuery?.Where(r => r.CreatedAt < to.Value.AddDays(1).ToDateTime(TimeOnly.MinValue).AddHours(-8));
         }
 
         var bookings = await bookingQuery.ToListAsync();
         var signups  = await signupQuery.ToListAsync();
+        var rentals  = rentalQuery != null ? await rentalQuery.ToListAsync() : new List<AddOnRental>();
 
         var rows = bookings.Select(b =>
         {
@@ -535,6 +586,8 @@ public class BookingService
                 AddOnsTotal     = addOnsTotal,
                 AddOnsSummary   = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
                 TotalPrice      = b.TotalPrice,
+                PaymentMethod   = b.PaymentMethod,
+                Status          = b.Status,
                 LoggedByStaffId = b.LoggedByStaffId,
                 CreatedAt       = b.CreatedAt
             };
@@ -555,8 +608,33 @@ public class BookingService
             AddOnsTotal     = 0,
             AddOnsSummary   = null,
             TotalPrice      = s.TotalPrice,
+            PaymentMethod   = s.PaymentMethod,
+            Status          = s.Status,
             LoggedByStaffId = s.LoggedByStaffId,
             CreatedAt       = s.CreatedAt
+        }));
+
+        rows.AddRange(rentals.Select(r =>
+        {
+            var localCreated = r.CreatedAt.AddHours(8);
+            return new CashLogRow
+            {
+                Id              = r.Id,
+                IsAddOnOnly     = true,
+                BookingDate     = DateOnly.FromDateTime(localCreated),
+                StartTime       = TimeOnly.FromDateTime(localCreated),
+                EndTime         = TimeOnly.FromDateTime(localCreated),
+                CourtName       = "Add-on Rental",
+                CustomerName    = r.CustomerNameSnapshot ?? r.User.FullName,
+                CourtRental     = 0,
+                AddOnsTotal     = r.TotalPrice,
+                AddOnsSummary   = r.Items.Any() ? string.Join(", ", r.Items.Select(i => $"{i.Quantity}x {i.AddOnItem.Name}")) : null,
+                TotalPrice      = r.TotalPrice,
+                PaymentMethod   = r.PaymentMethod,
+                Status          = r.Status,
+                LoggedByStaffId = r.LoggedByStaffId,
+                CreatedAt       = r.CreatedAt
+            };
         }));
 
         return rows.OrderByDescending(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();

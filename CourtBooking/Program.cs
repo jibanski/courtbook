@@ -718,6 +718,85 @@ using (var scope = app.Services.CreateScope())
     }
     catch { /* column already exists or db not ready — non-fatal */ }
 
+    // ── Standalone add-on rentals (staff logs a customer renting add-ons only — no court/Open
+    // Play involved). Real EF migration AddAddOnRentals also creates these tables; this is just
+    // the usual belt-and-suspenders fallback in case Migrate() didn't apply it for some reason.
+    try
+    {
+        if (isPostgres)
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""AddOnRentals"" (
+                    ""Id""                  serial                  PRIMARY KEY,
+                    ""OwnerId""             character varying(450)  NOT NULL,
+                    ""UserId""              character varying(450)  NOT NULL,
+                    ""CustomerNameSnapshot"" character varying(200) NULL,
+                    ""TotalPrice""          numeric(10,2)           NOT NULL DEFAULT 0,
+                    ""Notes""               character varying(500)  NULL,
+                    ""Status""              integer                 NOT NULL DEFAULT 0,
+                    ""PaymentStatus""       integer                 NOT NULL DEFAULT 0,
+                    ""PaymentMethod""       text                    NULL,
+                    ""PaymentReference""    text                    NULL,
+                    ""PaymentProofPath""    text                    NULL,
+                    ""PaidAt""              timestamp with time zone NULL,
+                    ""CreatedAt""           timestamp with time zone NOT NULL DEFAULT now(),
+                    ""LoggedByStaffId""     text                    NULL,
+                    CONSTRAINT ""FK_AddOnRentals_AspNetUsers_UserId""
+                        FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""AddOnRentalItems"" (
+                    ""Id""            serial          PRIMARY KEY,
+                    ""AddOnRentalId"" integer         NOT NULL,
+                    ""AddOnItemId""   integer         NOT NULL,
+                    ""Quantity""      integer         NOT NULL DEFAULT 1,
+                    ""UnitPrice""     numeric(10,2)   NOT NULL DEFAULT 0,
+                    ""PricingType""   integer         NOT NULL DEFAULT 0,
+                    CONSTRAINT ""FK_AddOnRentalItems_AddOnRentals_AddOnRentalId""
+                        FOREIGN KEY (""AddOnRentalId"") REFERENCES ""AddOnRentals"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_AddOnRentalItems_AddOnItems_AddOnItemId""
+                        FOREIGN KEY (""AddOnItemId"") REFERENCES ""AddOnItems"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+        }
+        else
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""AddOnRentals"" (
+                    ""Id""                  INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""OwnerId""             TEXT     NOT NULL,
+                    ""UserId""              TEXT     NOT NULL,
+                    ""CustomerNameSnapshot"" TEXT    NULL,
+                    ""TotalPrice""          TEXT     NOT NULL DEFAULT '0',
+                    ""Notes""               TEXT     NULL,
+                    ""Status""              INTEGER  NOT NULL DEFAULT 0,
+                    ""PaymentStatus""       INTEGER  NOT NULL DEFAULT 0,
+                    ""PaymentMethod""       TEXT     NULL,
+                    ""PaymentReference""    TEXT     NULL,
+                    ""PaymentProofPath""    TEXT     NULL,
+                    ""PaidAt""              TEXT     NULL,
+                    ""CreatedAt""           TEXT     NOT NULL DEFAULT (datetime('now')),
+                    ""LoggedByStaffId""     TEXT     NULL,
+                    FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""AddOnRentalItems"" (
+                    ""Id""            INTEGER  PRIMARY KEY AUTOINCREMENT,
+                    ""AddOnRentalId"" INTEGER  NOT NULL,
+                    ""AddOnItemId""   INTEGER  NOT NULL,
+                    ""Quantity""      INTEGER  NOT NULL DEFAULT 1,
+                    ""UnitPrice""     TEXT     NOT NULL DEFAULT '0',
+                    ""PricingType""   INTEGER  NOT NULL DEFAULT 0,
+                    FOREIGN KEY (""AddOnRentalId"") REFERENCES ""AddOnRentals"" (""Id"") ON DELETE CASCADE,
+                    FOREIGN KEY (""AddOnItemId"") REFERENCES ""AddOnItems"" (""Id"") ON DELETE CASCADE
+                )
+            ");
+        }
+    }
+    catch { /* table already exists or db not ready — non-fatal */ }
+
     foreach (var role in new[] { "Admin", "Customer", "Staff" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));

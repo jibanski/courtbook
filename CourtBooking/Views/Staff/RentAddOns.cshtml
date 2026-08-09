@@ -1,0 +1,188 @@
+@{
+    ViewData["Title"] = "Rent Add-ons";
+    var addOns = ViewBag.AddOns as List<CourtBooking.Models.AddOnItem>;
+    var paymentMethods = ViewBag.PaymentMethods as List<string> ?? new List<string> { "Cash" };
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">Rent Add-ons</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+            For a customer who just wants to rent equipment &mdash; no court booking or Open Play sign-up involved.
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-bag-check me-2" style="color:var(--cb-lime);"></i>Add-on Rental</h5>
+                </div>
+                <div class="card-body">
+                    @if (TempData["Error"] != null)
+                    {
+                        <div class="alert alert-danger">@TempData["Error"]</div>
+                    }
+
+                    @if (addOns is null || !addOns.Any())
+                    {
+                        <div class="alert alert-warning">
+                            No active add-ons in your facility's catalog yet.
+                            @if (User.IsInRole("Admin"))
+                            {
+                                <a asp-action="AddOns">Add some under Add-ons.</a>
+                            }
+                            else
+                            {
+                                <text>Ask the owner to add some under Add-ons.</text>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <form asp-action="CreateAddOnRental" method="post" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Customer Name</label>
+                                <input name="customerName" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Customer Email</label>
+                                <input type="email" name="customerEmail" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Customer Phone</label>
+                                <input type="tel" name="customerPhone" class="form-control" required />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Add-ons</label>
+                                <div class="border rounded-3 p-2">
+                                    @foreach (var item in addOns)
+                                    {
+                                        @if (item.PricingType == CourtBooking.Models.AddOnPricingType.PerHour)
+                                        {
+                                            <div class="d-flex justify-content-between align-items-center py-1 gap-2">
+                                                <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2")/hr)</span></span>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:70px;"
+                                                           min="0" value="0" placeholder="qty"
+                                                           data-price="@item.Price" data-pricing-type="1" />
+                                                    <span class="text-muted small">×</span>
+                                                    <input type="number" name="addon_hrs_@item.Id" class="form-control addon-hrs" style="width:70px;"
+                                                           min="1" value="1" placeholder="hrs"
+                                                           data-price="@item.Price" data-pricing-type="1" />
+                                                    <span class="text-muted small">hrs</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex justify-content-between align-items-center py-1">
+                                                <span>@item.Name <span class="text-muted small">(₱@item.Price.ToString("N2") each)</span></span>
+                                                <input type="number" name="addon_@item.Id" class="form-control addon-qty" style="width:80px;"
+                                                       min="0" value="0" data-price="@item.Price" data-pricing-type="0" />
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Payment Method</label>
+                                <select name="paymentMethod" class="form-select" id="paymentMethodSelect">
+                                    @foreach (var method in paymentMethods)
+                                    {
+                                        <option value="@method">@method</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="mb-3" id="referenceField" style="display:none;">
+                                <label class="form-label fw-semibold">Reference Number <span class="text-muted fw-normal">(optional)</span></label>
+                                <input name="paymentReference" class="form-control" placeholder="e.g. GCash/Maya reference number" />
+                            </div>
+                            <div class="mb-3" id="proofField" style="display:none;">
+                                <label class="form-label fw-semibold">Proof of Payment <span class="text-muted fw-normal">(optional)</span></label>
+                                <input type="file" name="paymentProof" class="form-control" accept="image/jpeg,image/png,image/webp" />
+                                <div class="form-text">Screenshot of the GCash/Maya payment confirmation, for your records.</div>
+                            </div>
+                            <div class="alert alert-warning small" id="pendingNotice" style="display:none;">
+                                <i class="bi bi-hourglass-split me-1"></i>
+                                Non-cash payments are logged as <strong>Pending</strong> until the owner confirms the payment.
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(optional)</span></label>
+                                <textarea name="notes" class="form-control" rows="2"></textarea>
+                            </div>
+
+                            <div class="alert alert-primary">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-cash-coin me-2"></i><strong>Amount Due</strong></span>
+                                    <span class="fs-5 fw-bold" id="totalPrice">₱0</span>
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
+                                <a asp-action="Index" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left me-1"></i>Cancel
+                                </a>
+                                <button type="submit" class="btn btn-primary px-4" id="submitBtn">
+                                    <i class="bi bi-check-circle me-1"></i>Confirm Payment
+                                </button>
+                            </div>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function addOnsTotal() {
+        let sum = 0;
+        document.querySelectorAll('.addon-qty').forEach(el => {
+            const qty = parseInt(el.value) || 0;
+            if (qty <= 0) return;
+            const isPerHour = el.dataset.pricingType === '1';
+            if (isPerHour) {
+                const hrsInput = document.querySelector('input[name="addon_hrs_' + el.name.replace('addon_', '') + '"]');
+                const hrs = parseInt(hrsInput?.value) || 1;
+                sum += qty * hrs * parseFloat(el.dataset.price);
+            } else {
+                sum += qty * parseFloat(el.dataset.price);
+            }
+        });
+        return sum;
+    }
+
+    function updateTotal() {
+        document.getElementById('totalPrice').textContent = '₱' + addOnsTotal().toLocaleString();
+    }
+
+    document.querySelectorAll('.addon-qty, .addon-hrs').forEach(el => el.addEventListener('input', updateTotal));
+    updateTotal();
+
+    const paymentMethodSelect = document.getElementById('paymentMethodSelect');
+    const referenceField = document.getElementById('referenceField');
+    const proofField = document.getElementById('proofField');
+    const pendingNotice = document.getElementById('pendingNotice');
+    const submitBtn = document.getElementById('submitBtn');
+    function toggleReferenceField() {
+        const isCash = paymentMethodSelect.value === 'Cash';
+        referenceField.style.display = isCash ? 'none' : '';
+        proofField.style.display = isCash ? 'none' : '';
+        pendingNotice.style.display = isCash ? 'none' : '';
+        submitBtn.innerHTML = isCash
+            ? '<i class="bi bi-check-circle me-1"></i>Confirm Payment'
+            : '<i class="bi bi-hourglass-split me-1"></i>Log Payment (Pending)';
+    }
+    paymentMethodSelect?.addEventListener('change', toggleReferenceField);
+    toggleReferenceField();
+</script>
+}
