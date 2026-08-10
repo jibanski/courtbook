@@ -240,12 +240,18 @@ public class AdminController : Controller
             .ToListAsync();
         // Standalone add-on rentals (e.g. paddle-only counter sales) have no court/slot, so they
         // can't be scoped to a specific court — only fold them in for the "all courts" view.
+        // DateOnly.FromDateTime() is computed after the round trip (not inside the Select sent
+        // to the DB) — Npgsql failed to translate it into valid SQL ("operator does not exist"),
+        // even though the same expression translates fine against SQLite locally.
         var addOnRentalRows = courtId.HasValue
             ? new List<AnalyticsRow>()
-            : await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId)
+            : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId)
+                .Select(r => new { r.CreatedAt, r.TotalPrice, r.Status, r.PaymentStatus,
+                    r.PaidAt, HasProof = r.PaymentProofPath != null, r.PaymentReference, r.PaymentMethod })
+                .ToListAsync())
                 .Select(r => new AnalyticsRow(DateOnly.FromDateTime(r.CreatedAt.AddHours(8)), r.TotalPrice,
-                    r.Status, r.PaymentStatus, r.PaidAt, r.PaymentProofPath != null, r.PaymentReference, r.PaymentMethod))
-                .ToListAsync();
+                    r.Status, r.PaymentStatus, r.PaidAt, r.HasProof, r.PaymentReference, r.PaymentMethod))
+                .ToList();
 
         var combined = bookingRows.Concat(signupRows).Concat(addOnRentalRows).ToList();
 

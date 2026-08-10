@@ -39,13 +39,7 @@ public class GuestCheckoutService
                 "An account already exists with this email. Please log in to continue.");
 
         if (existing is not null)
-        {
-            existing.FirstName   = firstName;
-            existing.LastName    = lastName;
-            existing.PhoneNumber = phone;
-            await _userManager.UpdateAsync(existing);
-            return existing;
-        }
+            return await UpdateGuestDetailsAsync(existing, firstName, lastName, phone);
 
         var guest = new ApplicationUser
         {
@@ -58,12 +52,35 @@ public class GuestCheckoutService
             EmailConfirmed = false
         };
 
-        var result = await _userManager.CreateAsync(guest);
-        if (!result.Succeeded)
-            throw new InvalidOperationException("Could not create guest checkout: " + string.Join(" ", result.Errors.Select(e => e.Description)));
+        try
+        {
+            var result = await _userManager.CreateAsync(guest);
+            if (!result.Succeeded)
+                throw new InvalidOperationException("Could not create guest checkout: " + string.Join(" ", result.Errors.Select(e => e.Description)));
+        }
+        catch (DbUpdateException)
+        {
+            // NormalizedEmail has a unique index — a near-simultaneous request for the same
+            // email (double-clicked submit, or two staff serving the same walk-in at once)
+            // can create the guest first, tripping this instead of the check above. Reuse
+            // whatever got created rather than failing the whole checkout.
+            _db.Entry(guest).State = EntityState.Detached;
+            var racedUser = await _db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
+            if (racedUser is null) throw;
+            return await UpdateGuestDetailsAsync(racedUser, firstName, lastName, phone);
+        }
 
         await _userManager.AddToRoleAsync(guest, "Customer");
         return guest;
+    }
+
+    private async Task<ApplicationUser> UpdateGuestDetailsAsync(ApplicationUser user, string firstName, string lastName, string phone)
+    {
+        user.FirstName   = firstName;
+        user.LastName    = lastName;
+        user.PhoneNumber = phone;
+        await _userManager.UpdateAsync(user);
+        return user;
     }
 }
 
