@@ -209,10 +209,20 @@
             return params.toString();
         }
 
+        let refreshInFlight = false;
+
         async function refresh() {
+            // A slow/hung request (e.g. a large facility's history taking a while to
+            // aggregate) must never let polls pile up on top of each other, or the page
+            // can end up stuck showing the initial "Loading…" placeholders forever.
+            if (refreshInFlight) return;
+            refreshInFlight = true;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
             try {
                 const qs  = currentFilters();
-                const res = await fetch('@Url.Action("AnalyticsData", "Admin")' + (qs ? '?' + qs : ''), { credentials: 'same-origin' });
+                const res = await fetch('@Url.Action("AnalyticsData", "Admin")' + (qs ? '?' + qs : ''),
+                    { credentials: 'same-origin', signal: controller.signal });
                 if (!res.ok) throw new Error(res.status);
                 const d = await res.json();
 
@@ -234,16 +244,20 @@
                 document.getElementById('m-addOnsRevenue').textContent  = peso(d.counters.addOnsRevenue);
                 document.getElementById('m-pendingNoProof').textContent = d.counters.pendingNoProof;
 
-                revenueChart.data.labels = d.revenueByDay.map(r => r.date.slice(5));
-                revenueChart.data.datasets[0].data = d.revenueByDay.map(r => Number(r.revenue));
-                revenueChart.update('none');
+                if (revenueChart) {
+                    revenueChart.data.labels = d.revenueByDay.map(r => r.date.slice(5));
+                    revenueChart.data.datasets[0].data = d.revenueByDay.map(r => Number(r.revenue));
+                    revenueChart.update('none');
+                }
 
                 const methods = d.methodBreakdown || [];
                 document.getElementById('method-empty').classList.toggle('d-none', methods.length > 0);
-                methodChart.data.labels = methods.map(m => m.method);
-                methodChart.data.datasets[0].data = methods.map(m => m.count);
-                methodChart.data.datasets[0].backgroundColor = methods.map(m => colorFor(m.method));
-                methodChart.update('none');
+                if (methodChart) {
+                    methodChart.data.labels = methods.map(m => m.method);
+                    methodChart.data.datasets[0].data = methods.map(m => m.count);
+                    methodChart.data.datasets[0].backgroundColor = methods.map(m => colorFor(m.method));
+                    methodChart.update('none');
+                }
 
                 const tbody = document.getElementById('method-table');
                 tbody.innerHTML = methods.length === 0
@@ -260,11 +274,14 @@
                     'Updated ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             } catch (e) {
                 document.getElementById('analytics-updated').textContent = 'Update failed — retrying…';
+            } finally {
+                clearTimeout(timeout);
+                refreshInFlight = false;
             }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            initCharts();
+            try { initCharts(); } catch (e) { /* Chart.js failed to load — metrics/table still work without it */ }
             refresh();
             setInterval(refresh, 10000);
             document.getElementById('f-apply').addEventListener('click', refresh);
