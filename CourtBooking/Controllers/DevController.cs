@@ -277,6 +277,35 @@ public class DevController : Controller
         return RedirectToActionFacilities(password);
     }
 
+    // POST /Dev/ResetOwnerPassword — sets a new known password for a forgetful facility owner
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetOwnerPassword(string password, string ownerId, string newPassword)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        var user = await _userManager.FindByIdAsync(ownerId);
+        if (user is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(newPassword))
+        {
+            TempData["Error"] = "New password cannot be blank.";
+            return RedirectToActionFacilities(password);
+        }
+
+        if (await _userManager.HasPasswordAsync(user))
+            await _userManager.RemovePasswordAsync(user);
+
+        var result = await _userManager.AddPasswordAsync(user, newPassword);
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = string.Join(" ", result.Errors.Select(e => e.Description));
+            return RedirectToActionFacilities(password);
+        }
+
+        TempData["Success"] = $"Password reset for {user.Email}. They can log in with the new password now.";
+        return RedirectToActionFacilities(password);
+    }
+
     // POST /Dev/ChangeBillingModel
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ChangeBillingModel(string password, int id, string billingModel)

@@ -1,11 +1,11 @@
 @model List<CourtBooking.Models.CourtBlock>
 @{
-    ViewData["Title"] = "Block Court";
-    var court = ViewBag.Court as CourtBooking.Models.Court;
-    var today = PhtClock.Today;
-    var todayStr = today.ToString("yyyy-MM-dd");
+    ViewData["Title"] = "Block Multiple Courts";
+    var courts     = ViewBag.Courts as List<CourtBooking.Models.Court> ?? new();
+    var courtNames = ViewBag.BlockCourt as Dictionary<int, string> ?? new();
+    var today      = PhtClock.Today;
+    var todayStr   = today.ToString("yyyy-MM-dd");
 
-    // Split into upcoming / expired blocks for display
     var upcoming = Model.Where(b => b.EndDate >= today).ToList();
     var past     = Model.Where(b => b.EndDate <  today).ToList();
 }
@@ -17,10 +17,7 @@
                 <li class="breadcrumb-item">
                     <a asp-action="Courts" style="color:var(--cb-text-3);text-decoration:none;">Courts</a>
                 </li>
-                <li class="breadcrumb-item">
-                    <a asp-action="EditCourt" asp-route-id="@court!.Id" style="color:var(--cb-text-3);text-decoration:none;">@court.Name</a>
-                </li>
-                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">Block Periods</li>
+                <li class="breadcrumb-item active" style="color:var(--cb-text-2);">Block Multiple Courts</li>
             </ol>
         </nav>
         <div class="d-flex align-items-center gap-3">
@@ -29,9 +26,9 @@
                 <i class="bi bi-slash-circle fs-4" style="color:#f87171;"></i>
             </span>
             <div>
-                <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">@court!.Name — Block Periods</h1>
+                <h1 class="mb-0" style="font-size:1.5rem;font-weight:800;">Block Multiple Courts</h1>
                 <p class="mb-0" style="color:var(--cb-text-3);font-size:.875rem;">
-                    Close the court for a date/time range — maintenance, events, holidays, etc.
+                    Close a date/time range across several courts in one go — maintenance, events, holidays, etc.
                 </p>
             </div>
         </div>
@@ -56,69 +53,179 @@
                 </div>
             }
 
-            @* ── Add New Block ── *@
+            @* ── Add New Bulk Block ── *@
             <div class="card mb-4">
                 <div class="card-header">
                     <h6 class="mb-0 fw-bold" style="font-size:.875rem;">
                         <i class="bi bi-plus-circle me-2" style="color:var(--cb-lime);"></i>Add Block Period
                     </h6>
                     <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
-                        All hours between the start and end times will be unavailable for booking.
+                        All hours between the start and end times will be unavailable for booking on every court you select.
                     </p>
                 </div>
                 <div class="card-body p-4">
-                    <form asp-action="AddCourtBlock" method="post">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="courtId" value="@court.Id" />
+                    @if (!courts.Any())
+                    {
+                        <p class="mb-0" style="color:var(--cb-text-3);font-size:.825rem;">
+                            You don't have any courts yet.
+                        </p>
+                    }
+                    else
+                    {
+                        <form asp-action="AddCourtBlockBulk" method="post" id="bulkBlockForm">
+                            @Html.AntiForgeryToken()
 
-                        <div class="row g-3">
-                            @* Start *@
-                            <div class="col-sm-6">
-                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Start Date</label>
-                                <input type="date" name="startDate" class="form-control"
-                                       value="@todayStr" min="@todayStr" required />
+                            @* ── Mode toggle ── *@
+                            <div class="mb-3 d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="mode" value="same"
+                                           id="mode-same" checked onchange="cbSwitchMode()" />
+                                    <label class="form-check-label small fw-semibold" for="mode-same" style="color:var(--cb-text-2);">
+                                        Same timing for all
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="mode" value="custom"
+                                           id="mode-custom" onchange="cbSwitchMode()" />
+                                    <label class="form-check-label small fw-semibold" for="mode-custom" style="color:var(--cb-text-2);">
+                                        Different timing per court
+                                    </label>
+                                </div>
                             </div>
-                            <div class="col-sm-6">
-                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Start Hour</label>
-                                <select name="startHour" class="form-select">
-                                    @for (int h = 0; h < 24; h++)
+
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <label class="form-label small fw-semibold mb-0" style="color:var(--cb-text-2);">Courts</label>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cbToggleAll(true)">Select All</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cbToggleAll(false)">Clear</button>
+                                    </div>
+                                </div>
+                                <div class="row g-2" id="cbSameCourtsList">
+                                    @foreach (var c in courts)
                                     {
-                                        <option value="@h">@TimeDisplay.Hour(h)</option>
+                                        <div class="col-sm-6 col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input cb-court-check" type="checkbox"
+                                                       name="courtIds" value="@c.Id" id="court-@c.Id"
+                                                       checked onchange="cbSyncCustomRow(@c.Id)" />
+                                                <label class="form-check-label" for="court-@c.Id" style="font-size:.875rem;">
+                                                    @c.Name
+                                                    <span class="text-muted" style="font-size:.75rem;"> (@c.SportType)</span>
+                                                </label>
+                                            </div>
+                                        </div>
                                     }
-                                </select>
+                                </div>
                             </div>
 
-                            @* End *@
-                            <div class="col-sm-6">
-                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">End Date</label>
-                                <input type="date" name="endDate" class="form-control"
-                                       value="@todayStr" min="@todayStr" required />
-                            </div>
-                            <div class="col-sm-6">
-                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">End Hour</label>
-                                <select name="endHour" class="form-select">
-                                    @for (int h = 1; h <= 24; h++)
-                                    {
-                                        <option value="@h" selected="@(h == 24)">@TimeDisplay.Hour(h)</option>
-                                    }
-                                </select>
+                            @* ── "Same timing" inputs ── *@
+                            <div class="row g-3" id="cbSameTimingFields">
+                                @* Start *@
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Start Date</label>
+                                    <input type="date" name="startDate" class="form-control"
+                                           value="@todayStr" min="@todayStr" required />
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Start Hour</label>
+                                    <select name="startHour" class="form-select">
+                                        @for (int h = 0; h < 24; h++)
+                                        {
+                                            <option value="@h">@TimeDisplay.Hour(h)</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                @* End *@
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">End Date</label>
+                                    <input type="date" name="endDate" class="form-control"
+                                           value="@todayStr" min="@todayStr" required />
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">End Hour</label>
+                                    <select name="endHour" class="form-select">
+                                        @for (int h = 1; h <= 24; h++)
+                                        {
+                                            <option value="@h" selected="@(h == 24)">@TimeDisplay.Hour(h)</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                @* Reason *@
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Reason <span class="text-muted fw-normal">(optional)</span></label>
+                                    <input type="text" name="reason" class="form-control"
+                                           placeholder="e.g. Maintenance, Private event, Public holiday…"
+                                           maxlength="300" />
+                                </div>
                             </div>
 
-                            @* Reason *@
-                            <div class="col-12">
-                                <label class="form-label small fw-semibold" style="color:var(--cb-text-2);">Reason <span class="text-muted fw-normal">(optional)</span></label>
-                                <input type="text" name="reason" class="form-control"
-                                       placeholder="e.g. Maintenance, Private event, Public holiday…"
-                                       maxlength="300" />
+                            @* ── "Custom timing per court" rows ── *@
+                            <div class="d-none" id="cbCustomTimingFields">
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle">
+                                        <thead>
+                                            <tr style="font-size:.78rem;color:var(--cb-text-3);">
+                                                <th>Court</th>
+                                                <th>Start Date</th>
+                                                <th>Start Hour</th>
+                                                <th>End Date</th>
+                                                <th>End Hour</th>
+                                                <th>Reason</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var c in courts)
+                                            {
+                                                <tr id="cbCustomRow-@c.Id">
+                                                    <td style="font-size:.85rem;white-space:nowrap;">@c.Name</td>
+                                                    <td>
+                                                        <input type="date" name="startDate_@c.Id" class="form-control form-control-sm"
+                                                               value="@todayStr" min="@todayStr" style="min-width:135px;" />
+                                                    </td>
+                                                    <td>
+                                                        <select name="startHour_@c.Id" class="form-select form-select-sm" style="min-width:100px;">
+                                                            @for (int h = 0; h < 24; h++)
+                                                            {
+                                                                <option value="@h">@TimeDisplay.Hour(h)</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <input type="date" name="endDate_@c.Id" class="form-control form-control-sm"
+                                                               value="@todayStr" min="@todayStr" style="min-width:135px;" />
+                                                    </td>
+                                                    <td>
+                                                        <select name="endHour_@c.Id" class="form-select form-select-sm" style="min-width:100px;">
+                                                            @for (int h = 1; h <= 24; h++)
+                                                            {
+                                                                <option value="@h" selected="@(h == 24)">@TimeDisplay.Hour(h)</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <input type="text" name="reason_@c.Id" class="form-control form-control-sm"
+                                                               placeholder="Reason (optional)" maxlength="300" style="min-width:160px;" />
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="mb-0" style="font-size:.78rem;color:var(--cb-text-3);">
+                                    Only checked courts (above) are blocked — each row's own date/hour range applies to that court.
+                                </p>
                             </div>
 
-                            <div class="col-12">
+                            <div class="mt-3">
                                 <button type="submit" class="btn btn-danger fw-semibold">
-                                    <i class="bi bi-slash-circle me-1"></i>Block This Period
+                                    <i class="bi bi-slash-circle me-1"></i>Block Selected Courts
                                 </button>
                             </div>
-                        </div>
-                    </form>
+                        </form>
+                    }
                 </div>
             </div>
 
@@ -137,7 +244,7 @@
                     @if (!upcoming.Any())
                     {
                         <p class="p-4 mb-0" style="color:var(--cb-text-3);font-size:.825rem;">
-                            <i class="bi bi-check-circle me-1" style="color:#4ade80;"></i>No active blocks — this court is fully open.
+                            <i class="bi bi-check-circle me-1" style="color:#4ade80;"></i>No active blocks — all courts are fully open.
                         </p>
                     }
                     else
@@ -154,8 +261,11 @@
                                         </div>
                                         <div>
                                             <div class="fw-semibold" style="font-size:.9rem;">
+                                                @(courtNames.TryGetValue(blk.CourtId, out var cn) ? cn : "Unknown court")
+                                            </div>
+                                            <div style="font-size:.8rem;color:var(--cb-text-3);">
                                                 @blk.StartLabel
-                                                <span style="color:var(--cb-text-3);font-weight:400;"> → </span>
+                                                <span> → </span>
                                                 @blk.EndLabel
                                             </div>
                                             @if (!string.IsNullOrWhiteSpace(blk.Reason))
@@ -179,11 +289,6 @@
                                                 {
                                                     <span class="badge" style="background:var(--cb-surface-2);color:var(--cb-text-3);font-size:.68rem;">Single day</span>
                                                 }
-                                                else
-                                                {
-                                                    var days = (blk.EndDate.ToDateTime(TimeOnly.MinValue) - blk.StartDate.ToDateTime(TimeOnly.MinValue)).Days + 1;
-                                                    <span class="badge" style="background:var(--cb-surface-2);color:var(--cb-text-3);font-size:.68rem;">@days days</span>
-                                                }
                                             </div>
                                         </div>
                                     </div>
@@ -192,11 +297,10 @@
                                                 data-bs-toggle="modal" data-bs-target="#editBlockModal-@blk.Id">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <form asp-action="DeleteCourtBlock" method="post"
+                                        <form asp-action="DeleteCourtBlockBulk" method="post"
                                               onsubmit="return confirm('Remove this block? Customers will be able to book these hours again.')">
                                             @Html.AntiForgeryToken()
-                                            <input type="hidden" name="id"      value="@blk.Id" />
-                                            <input type="hidden" name="courtId" value="@court.Id" />
+                                            <input type="hidden" name="id" value="@blk.Id" />
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove block">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -207,12 +311,13 @@
                                 <div class="modal fade" id="editBlockModal-@blk.Id" tabindex="-1" aria-hidden="true">
                                     <div class="modal-dialog">
                                         <div class="modal-content" style="background:var(--cb-surface);color:var(--cb-text);">
-                                            <form asp-action="EditCourtBlock" method="post">
+                                            <form asp-action="EditCourtBlockBulk" method="post">
                                                 @Html.AntiForgeryToken()
-                                                <input type="hidden" name="id"      value="@blk.Id" />
-                                                <input type="hidden" name="courtId" value="@court.Id" />
+                                                <input type="hidden" name="id" value="@blk.Id" />
                                                 <div class="modal-header" style="border-color:var(--cb-border);">
-                                                    <h6 class="modal-title fw-bold" style="font-size:.9rem;">Edit Block</h6>
+                                                    <h6 class="modal-title fw-bold" style="font-size:.9rem;">
+                                                        Edit Block — @(courtNames.TryGetValue(blk.CourtId, out var ecn) ? ecn : "Unknown court")
+                                                    </h6>
                                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                 </div>
                                                 <div class="modal-body">
@@ -270,7 +375,7 @@
             @if (past.Any())
             {
                 <div class="card mb-4">
-                    <div class="card-header" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#pastBlocks">
+                    <div class="card-header" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#pastBlocksBulk">
                         <h6 class="mb-0 fw-bold d-flex align-items-center justify-content-between" style="font-size:.875rem;">
                             <span>
                                 <i class="bi bi-clock-history me-2" style="color:var(--cb-text-3);"></i>Past Blocks
@@ -279,7 +384,7 @@
                             <i class="bi bi-chevron-down" style="color:var(--cb-text-3);font-size:.75rem;"></i>
                         </h6>
                     </div>
-                    <div id="pastBlocks" class="collapse">
+                    <div id="pastBlocksBulk" class="collapse">
                         <ul class="list-group list-group-flush">
                             @foreach (var blk in past)
                             {
@@ -287,6 +392,7 @@
                                     style="opacity:.65;">
                                     <div>
                                         <div class="fw-semibold" style="font-size:.875rem;color:var(--cb-text-2);">
+                                            @(courtNames.TryGetValue(blk.CourtId, out var cn2) ? cn2 : "Unknown court") —
                                             @blk.StartLabel → @blk.EndLabel
                                         </div>
                                         @if (!string.IsNullOrWhiteSpace(blk.Reason))
@@ -294,11 +400,10 @@
                                             <div style="font-size:.78rem;color:var(--cb-text-3);">@blk.Reason</div>
                                         }
                                     </div>
-                                    <form asp-action="DeleteCourtBlock" method="post"
+                                    <form asp-action="DeleteCourtBlockBulk" method="post"
                                           onsubmit="return confirm('Delete this past block record?')">
                                         @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id"      value="@blk.Id" />
-                                        <input type="hidden" name="courtId" value="@court.Id" />
+                                        <input type="hidden" name="id" value="@blk.Id" />
                                         <button type="submit" class="btn btn-sm btn-outline-secondary" title="Delete record">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -311,12 +416,6 @@
             }
 
             <div class="d-flex gap-2">
-                <a asp-action="ManageSlots" asp-route-id="@court.Id" class="btn btn-outline-secondary">
-                    <i class="bi bi-calendar-week me-1"></i>Manage Slots
-                </a>
-                <a asp-action="BlockCourts" class="btn btn-outline-secondary">
-                    <i class="bi bi-collection me-1"></i>Block Multiple Courts
-                </a>
                 <a asp-action="Courts" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left me-1"></i>Back to Courts
                 </a>
@@ -325,3 +424,23 @@
         </div>
     </div>
 </div>
+
+<script>
+    function cbToggleAll(checked) {
+        document.querySelectorAll('.cb-court-check').forEach(cb => cb.checked = checked);
+    }
+
+    function cbSwitchMode() {
+        var custom = document.getElementById('mode-custom').checked;
+        document.getElementById('cbSameTimingFields').classList.toggle('d-none', custom);
+        document.getElementById('cbCustomTimingFields').classList.toggle('d-none', !custom);
+    }
+
+    // Dim a court's custom-timing row when its checkbox is unchecked, so it's clear
+    // that row won't be submitted even though its inputs remain in the form.
+    function cbSyncCustomRow(courtId) {
+        var checkbox = document.getElementById('court-' + courtId);
+        var row = document.getElementById('cbCustomRow-' + courtId);
+        if (checkbox && row) row.style.opacity = checkbox.checked ? '1' : '.4';
+    }
+</script>

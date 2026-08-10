@@ -261,6 +261,26 @@
                             }
                         </div>
                     </div>
+
+                    <!-- Action row 3: reset forgotten password -->
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-4 small text-secondary">
+                            <i class="bi bi-key me-1"></i>Forgot Password
+                        </div>
+                        <div class="col-md-8">
+                            <form asp-action="ResetOwnerPassword" method="post" class="d-flex gap-2">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="password" value="@password" />
+                                <input type="hidden" name="ownerId"  value="@f.OwnerId" />
+                                <input type="text" name="newPassword" class="form-control form-control-sm"
+                                       placeholder="New password (min 6 chars)" minlength="6" required />
+                                <button type="submit" class="btn btn-sm btn-outline-warning text-nowrap"
+                                        onclick="return confirm('Set a new password for @row.OwnerEmail?')">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Reset
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 }
 
             </div>

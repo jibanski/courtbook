@@ -1,0 +1,1 @@
+EXCEPTION: Exception calling ".ctor" with "1" argument(s): "The type initializer for 'Microsoft.Data.Sqlite.SqliteConnection' threw an exception."
