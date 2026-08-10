@@ -203,6 +203,13 @@ public class AdminController : Controller
     /// court + date range (defaults to all courts, last 30 days, when omitted) — the range/court
     /// filter lets the owner narrow in on a specific period or court to trace a discrepancy.
     /// </summary>
+    /// <summary>One row of the shared shape Bookings/OpenPlaySignups/AddOnRentals are projected
+    /// to for analytics, so the three sources can be combined and aggregated once in memory
+    /// instead of via a repeatedly-re-issued SQL UNION (see <see cref="AnalyticsData"/>).</summary>
+    private sealed record AnalyticsRow(
+        DateOnly BookingDate, decimal TotalPrice, BookingStatus Status, PaymentStatus PaymentStatus,
+        DateTime? PaidAt, bool HasProof, string? PaymentReference, string? PaymentMethod);
+
     [HttpGet]
     public async Task<IActionResult> AnalyticsData(int? courtId, DateOnly? from, DateOnly? to)
     {
@@ -215,54 +222,43 @@ public class AdminController : Controller
         var rangeTo   = to ?? today;
         var rangeFrom = from ?? rangeTo.AddDays(-29);
         if (rangeFrom > rangeTo) (rangeFrom, rangeTo) = (rangeTo, rangeFrom);
-        // DateOnly.ToDateTime() produces Kind=Unspecified, which Npgsql rejects when comparing
-        // against a "timestamp with time zone" column (PaidAt) — must be explicitly Utc.
-        var rangeFromDt = rangeFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8); // PHT midnight, as a UTC instant
         var todayDt     = today.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);    // PHT midnight today, as a UTC instant
 
-        var liveBookings = _db.Bookings.Where(b => courtIds.Contains(b.CourtId));
-        var liveSignups  = _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId));
+        // Fetch each source with one round trip each — a prior version ran ~8 separate
+        // Count/Sum/GroupBy queries against a Concat()'d IQueryable spanning three entity
+        // types, which is expensive to re-plan every call and, under Postgres with real
+        // production data volume, could pile up (each poll takes long enough that the next
+        // 10s auto-refresh overlaps it) and leave the dashboard stuck on "Loading…" forever.
+        // A facility's full booking history is small enough to aggregate in memory once.
+        var bookingRows = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId))
+            .Select(b => new AnalyticsRow(b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
+                b.PaidAt, b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod))
+            .ToListAsync();
+        var signupRows = await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId))
+            .Select(s => new AnalyticsRow(s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
+                s.PaidAt, s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod))
+            .ToListAsync();
         // Standalone add-on rentals (e.g. paddle-only counter sales) have no court/slot, so they
         // can't be scoped to a specific court — only fold them in for the "all courts" view.
-        var liveAddOnRentals = _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId);
+        var addOnRentalRows = courtId.HasValue
+            ? new List<AnalyticsRow>()
+            : await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId)
+                .Select(r => new AnalyticsRow(DateOnly.FromDateTime(r.CreatedAt.AddHours(8)), r.TotalPrice,
+                    r.Status, r.PaymentStatus, r.PaidAt, r.PaymentProofPath != null, r.PaymentReference, r.PaymentMethod))
+                .ToListAsync();
 
-        // Open Play sign-ups and standalone add-on rentals are separate entities from regular
-        // bookings but count toward the same revenue and conversion numbers, so project all three
-        // to the same shape and combine (UNION ALL, via Concat) before aggregating. PaymentProofPath
-        // (AddOnRental) has no separate "submitted at" timestamp like Booking/OpenPlaySignup do,
-        // so HasProof normalizes that difference across all three sources.
-        var bookingRows = liveBookings.Select(b => new
-        {
-            b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
-            b.PaidAt, HasProof = b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod
-        });
-        var signupRows = liveSignups.Select(s => new
-        {
-            s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
-            s.PaidAt, HasProof = s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod
-        });
-        var addOnRentalRows = liveAddOnRentals.Select(r => new
-        {
-            BookingDate = DateOnly.FromDateTime(r.CreatedAt.AddHours(8)),
-            r.TotalPrice, r.Status, r.PaymentStatus,
-            r.PaidAt, HasProof = r.PaymentProofPath != null, r.PaymentReference, r.PaymentMethod
-        });
-        var combined = bookingRows.Concat(signupRows);
-        if (!courtId.HasValue)
-        {
-            combined = combined.Concat(addOnRentalRows);
-        }
+        var combined = bookingRows.Concat(signupRows).Concat(addOnRentalRows).ToList();
 
-        var totalBookings   = await combined.CountAsync(x => x.Status != BookingStatus.Cancelled);
-        var todayBookings   = await combined.CountAsync(x => x.BookingDate == today && x.Status != BookingStatus.Cancelled);
-        var todayRevenue    = await combined
+        var totalBookings   = combined.Count(x => x.Status != BookingStatus.Cancelled);
+        var todayBookings   = combined.Count(x => x.BookingDate == today && x.Status != BookingStatus.Cancelled);
+        var todayRevenue    = combined
             .Where(x => x.PaidAt != null && x.PaidAt >= todayDt)
-            .SumAsync(x => (decimal?)x.TotalPrice) ?? 0m;
-        var totalRevenue    = await combined
+            .Sum(x => x.TotalPrice);
+        var totalRevenue    = combined
             .Where(x => x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
-            .SumAsync(x => (decimal?)x.TotalPrice) ?? 0m;
-        var awaitingPayment = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.HasProof);
-        var pendingNoProof  = await combined.CountAsync(x => x.Status == BookingStatus.Pending && x.PaymentReference == null);
+            .Sum(x => x.TotalPrice);
+        var awaitingPayment = combined.Count(x => x.Status == BookingStatus.Pending && x.HasProof);
+        var pendingNoProof  = combined.Count(x => x.Status == BookingStatus.Pending && x.PaymentReference == null);
 
         // Add-ons attached to a Booking, plus standalone add-on rentals (same "all courts only"
         // scoping as above) — split out of totalRevenue so the owner can see rental vs. add-on
@@ -271,20 +267,18 @@ public class AdminController : Controller
             .Where(a => courtIds.Contains(a.Booking.CourtId)
                      && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed))
             .SumAsync(a => (decimal?)(a.Quantity * a.UnitPrice)) ?? 0m;
-        var standaloneAddOnRentalsRevenue = courtId.HasValue
-            ? 0m
-            : await liveAddOnRentals
-                .Where(r => r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed)
-                .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m;
+        var standaloneAddOnRentalsRevenue = addOnRentalRows
+            .Where(r => r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed)
+            .Sum(r => r.TotalPrice);
         var addOnsRevenue = bookingAddOnsRevenue + standaloneAddOnRentalsRevenue;
         var courtRentalRevenue = totalRevenue - addOnsRevenue;
 
-        var revenueRows = await combined
+        var revenueRows = combined
             .Where(x => x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo
                         && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
             .GroupBy(x => x.BookingDate)
             .Select(g => new { Day = g.Key, Revenue = g.Sum(x => x.TotalPrice), Count = g.Count() })
-            .ToListAsync();
+            .ToList();
 
         var revenueByDay = new List<object>();
         for (var d = rangeFrom; d <= rangeTo; d = d.AddDays(1))
@@ -300,19 +294,20 @@ public class AdminController : Controller
 
         // Payment mix — include legacy paid bookings that have no PaidAt by
         // falling back to BookingDate, matching the 'paidInRange' counter below.
+        var rangeFromDt = rangeFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);
         var rangeToExclusiveDt = rangeTo.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);
-        var methodRows = await combined
+        var methodRows = combined
             .Where(x => x.PaymentStatus == PaymentStatus.Paid
                         && ((x.PaidAt != null && x.PaidAt >= rangeFromDt && x.PaidAt < rangeToExclusiveDt)
                             || (x.PaidAt == null && x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo)))
             .GroupBy(x => x.PaymentMethod ?? "Unknown")
             .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(x => x.TotalPrice) })
-            .ToListAsync();
+            .ToList();
 
-        var bookingsInRange = await combined
-            .CountAsync(x => x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo && x.Status != BookingStatus.Cancelled);
-        var paidInRange = await combined
-            .CountAsync(x => x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo && x.PaymentStatus == PaymentStatus.Paid);
+        var bookingsInRange = combined
+            .Count(x => x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo && x.Status != BookingStatus.Cancelled);
+        var paidInRange = combined
+            .Count(x => x.BookingDate >= rangeFrom && x.BookingDate <= rangeTo && x.PaymentStatus == PaymentStatus.Paid);
         var conversion = bookingsInRange > 0 ? Math.Round(paidInRange * 100.0 / bookingsInRange, 1) : 0.0;
 
         return Json(new
