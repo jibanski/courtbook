@@ -2084,6 +2084,40 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditCourtBlock(int id, int courtId,
+        DateOnly startDate, int startHour,
+        DateOnly endDate,   int endHour,
+        string?  reason)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var blk = await _db.CourtBlocks.FirstOrDefaultAsync(b =>
+            b.Id == id && myCourtIds.Contains(b.CourtId));
+        if (blk is null)
+        {
+            TempData["Error"] = "Block not found.";
+            return RedirectToAction(nameof(BlockCourt), new { id = courtId });
+        }
+
+        static DateTime ToInstant(DateOnly date, int hour) =>
+            date.AddDays(hour / 24).ToDateTime(new TimeOnly(hour % 24, 0));
+        if (ToInstant(endDate, endHour) <= ToInstant(startDate, startHour))
+        {
+            TempData["Error"] = "End must be after start.";
+            return RedirectToAction(nameof(BlockCourt), new { id = courtId });
+        }
+
+        blk.StartDate = startDate;
+        blk.StartHour = startHour;
+        blk.EndDate   = endDate;
+        blk.EndHour   = endHour;
+        blk.Reason    = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = "Block updated.";
+        return RedirectToAction(nameof(BlockCourt), new { id = courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteCourtBlock(int id, int courtId)
     {
         var myCourtIds = await GetMyCourtIdsAsync();

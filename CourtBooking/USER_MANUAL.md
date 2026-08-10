@@ -18,7 +18,7 @@ A complete guide for facility owners and customers using the CourtBook online co
 10. [Frequently Asked Questions](#10-frequently-asked-questions)
 11. [Support](#11-support)
 
-> **What's new:** Guest booking (no account required), Open Play public sign-ups, bundled multi-court packages, a recurring weekly schedule with rate tiers, multiple instant payment methods, and times now shown in 12-hour format (AM/PM) everywhere. See the relevant sections below.
+> **What's new:** Guest booking (no account required), Open Play public sign-ups, bundled multi-court packages, a recurring weekly schedule with rate tiers, multiple instant payment methods, times now shown in 12-hour format (AM/PM) everywhere, and bulk multi-court blocking (shared or per-court timing) with in-place block editing. See the relevant sections below.
 
 ---
 
@@ -219,6 +219,35 @@ For each booking you can:
 4. If valid → click **Confirm Payment**. Booking is now `Confirmed`.
 5. If invalid or duplicate → click **Reject Payment**. Customer is notified and can resubmit.
 
+### 5.8 Blocking Courts (Maintenance & Closures)
+
+Blocking marks a date/hour range on a court as unavailable — customers can't book it, and any Open Play or bundle windows in that range are hidden too. Use it for maintenance, private events, holidays, or any time a court is out of service.
+
+#### Blocking a single court
+
+Go to **Admin → Courts → Block Court** on the court you want to close. Fill in:
+
+- **Start Date / Start Hour** and **End Date / End Hour** — the range to block. Blocks can span multiple days.
+- **Reason** (optional) — shown to you in the blocks list (e.g. *"Resurfacing," "Private event"*) but not shown to customers.
+
+#### Blocking multiple courts at once
+
+Go to **Admin → Courts → Block Multiple Courts** (or click **Block Multiple Courts** from a single court's Block page). This page blocks any number of your courts in one submission, with two modes:
+
+- **Same timing for all** (default) — pick which courts to include, then set one shared Start/End Date+Hour and Reason that applies identically to every checked court. Use this for facility-wide closures (e.g. a public holiday or a facility-wide power outage).
+- **Different timing per court** — switch the mode toggle to reveal a table with its own Start/End Date+Hour and Reason for each court, so you can close Court 1 for the morning and Court 2 for the whole day in a single submission. Only courts left checked in the courts list are actually blocked — unchecked courts' rows are ignored even if filled in.
+
+Use **Select All** / **Clear** above the courts checklist to quickly toggle every court.
+
+#### Viewing, editing, and removing blocks
+
+Both the single-court and multi-court block pages list **Active & Upcoming Blocks**, showing the court, date/hour range, reason, and whether it's *Ongoing*, *Upcoming*, or a *Single day* block. From this list you can:
+
+- Click the **pencil icon** to edit a block's Start/End Date+Hour and Reason without deleting and re-creating it.
+- Click the **trash icon** to remove a block immediately — customers can book those hours again right away.
+
+A collapsible **Past Blocks** section further down keeps a history of blocks that have already ended.
+
 ---
 
 ## 6. Customer Guide
@@ -417,6 +446,12 @@ A: All times across the app (booking grids, schedules, admin pages, emails) now 
 
 **Q: What can I do to keep the booking pages fast and responsive?**
 A: Keep schedules simple where possible. Fewer overlapping bundle windows, fewer repeated rate tiers, and fewer separate Open Play blocks on the same court all help the booking page stay quick. CourtBook now caches recurring schedule lookups per request and groups consecutive Open Play hours, but the cleanest schedules still render the fastest.
+
+**Q: Can I close several courts at once instead of blocking each one individually?**
+A: Yes — go to **Admin → Courts → Block Multiple Courts**. Pick the courts to close and either apply one shared date/hour range to all of them, or switch to "Different timing per court" to give each court its own range in the same submission. See [5.8 Blocking Courts](#58-blocking-courts-maintenance--closures).
+
+**Q: I made a mistake setting up a block — do I have to delete it and start over?**
+A: No. On the block list (single-court or multi-court page), click the pencil icon next to the block to edit its dates, hours, or reason directly.
 
 ---
 
