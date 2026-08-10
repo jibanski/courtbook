@@ -60,6 +60,22 @@
   background: var(--cb-surface) !important;
 }
 
+/* Bootstrap's .btn-outline-light is white-on-transparent, meant to sit on a dark
+   background. Our .bg-dark override flips those containers to a light surface in
+   light mode, which left these buttons rendering white-on-white (invisible) —
+   e.g. the "Open Play Sign-ups" / "Bundles" / "Block Multiple Courts" header
+   buttons on Admin/Courts. Recolor them to use the themed text/border in light mode. */
+:root[data-theme="light"] .btn-outline-light {
+  color: var(--cb-text) !important;
+  border-color: var(--cb-border-hover) !important;
+}
+:root[data-theme="light"] .btn-outline-light:hover,
+:root[data-theme="light"] .btn-outline-light:focus {
+  background: var(--cb-surface-2) !important;
+  color: var(--cb-text) !important;
+  border-color: var(--cb-border-hover) !important;
+}
+
 /* ── Base Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
