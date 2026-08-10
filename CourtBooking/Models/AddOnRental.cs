@@ -38,8 +38,11 @@ public class AddOnRental
     public string? PaymentMethod { get; set; }
     public string? PaymentReference { get; set; }
     public string? PaymentProofPath { get; set; }
+
+    [Column(TypeName = "timestamp with time zone")]
     public DateTime? PaidAt { get; set; }
 
+    [Column(TypeName = "timestamp with time zone")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>The Staff account that logged this sale — every sale is staff-logged, there's no
