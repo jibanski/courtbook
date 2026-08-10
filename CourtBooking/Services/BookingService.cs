@@ -511,6 +511,78 @@ public class BookingService
         return Math.Max(0, block.MaxPlayers.Value - taken);
     }
 
+    /// <summary>Builds a fully-populated <see cref="CourtAvailabilityViewModel"/> for one court on one
+    /// date — the same slot/hourly-grid computation <c>FacilityController.BookCourt</c> used to do
+    /// inline. Extracted so a "book across all courts" page can call it once per court without
+    /// duplicating this logic.</summary>
+    public async Task<CourtAvailabilityViewModel> GetCourtAvailabilityAsync(Court court, DateOnly date)
+    {
+        var vm = new CourtAvailabilityViewModel { Court = court, Date = date };
+        (vm.RateRangeMin, vm.RateRangeMax) = await GetRateRangeAsync(court);
+
+        var slots = await _db.CourtTimeSlots
+            .Where(s => s.CourtId == court.Id && s.IsActive && s.SlotDate == date)
+            .OrderBy(s => s.StartHour)
+            .ToListAsync();
+
+        if (slots.Any())
+        {
+            vm.TimeSlots          = slots;
+            vm.UnavailableSlotIds = await GetUnavailableSlotIdsAsync(court.Id, date, slots);
+            foreach (var s in slots)
+            {
+                vm.SlotPrices[s.Id] = await GetTotalPriceAsync(
+                    court, date, new TimeOnly(s.StartHour % 24, 0), new TimeOnly(s.EndHour % 24, 0));
+            }
+
+            return vm;
+        }
+
+        var bookedHours           = await GetBookedHoursAsync(court.Id, date);
+        var pendingHours          = await GetPendingHoursAsync(court.Id, date);
+        var pendingBundleWindows  = await GetPendingBundleWindowsAsync(court.Id, date);
+        var blockedHours          = await GetBlockedHoursAsync(court.Id, date);
+        var blockReasons          = await GetBlockReasonsAsync(court.Id, date);
+        var schedule              = await GetHourlyScheduleAsync(court, date);
+
+        var bundleOnlyHours    = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
+        var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)>();
+        for (int h = court.OpeningHour; h < court.ClosingHour; h++)
+        {
+            var match = await ResolveBundleForHourAsync(court, date, h);
+            if (match is not null) { bundleOnlyHours[h] = match.Value; continue; }
+
+            if (schedule.TryGetValue(h, out var s) && s.Type == BookingType.AdminHostedOpenPlay)
+            {
+                var block = await ResolveScheduleBlockForHourAsync(court, date, h);
+                if (block is { AllowPublicSignup: true })
+                {
+                    var spotsRemaining = await GetOpenPlaySpotsRemainingAsync(block, court.Id, date);
+                    openPlaySignupInfo[h] = (block, spotsRemaining);
+                }
+            }
+        }
+
+        vm.BookedHours          = bookedHours;
+        vm.PendingHours         = pendingHours;
+        vm.PendingBundleWindows = pendingBundleWindows;
+        vm.BlockedHours         = blockedHours;
+        vm.BlockReasons         = blockReasons;
+        vm.BundleOnlyHours      = bundleOnlyHours;
+        vm.OpenPlaySignupInfo   = openPlaySignupInfo;
+        vm.OpenPlayHours = schedule
+            .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
+            .Select(kv => kv.Key).ToList();
+        vm.HourlyRates = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
+        vm.AvailableHours = Enumerable
+            .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
+            .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
+                     && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
+            .ToList();
+
+        return vm;
+    }
+
     // ── Staff walk-in cash bookings ─────────────────────────────────────────────
 
     /// <summary>Sales walk-ins logged by staff for these courts — regular court bookings, Open Play

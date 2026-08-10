@@ -111,72 +111,53 @@ public class FacilityController : Controller
             ? DateOnly.FromDateTime(date.Value)
             : PhtClock.Today;
 
-        var slots = await _db.CourtTimeSlots
-            .Where(s => s.CourtId == courtId && s.IsActive && s.SlotDate == selectedDate)
-            .OrderBy(s => s.StartHour)
-            .ToListAsync();
-
-        var vm = new CourtAvailabilityViewModel { Court = court, Date = selectedDate };
-        (vm.RateRangeMin, vm.RateRangeMax) = await _bookingService.GetRateRangeAsync(court);
-
-        if (slots.Any())
-        {
-            vm.TimeSlots          = slots;
-            vm.UnavailableSlotIds = await _bookingService.GetUnavailableSlotIdsAsync(courtId, selectedDate, slots);
-            foreach (var s in slots)
-            {
-                vm.SlotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
-                    court, selectedDate, new TimeOnly(s.StartHour % 24, 0), new TimeOnly(s.EndHour % 24, 0));
-            }
-        }
-        else
-        {
-            var bookedHours  = await _bookingService.GetBookedHoursAsync(courtId, selectedDate);
-            var pendingHours = await _bookingService.GetPendingHoursAsync(courtId, selectedDate);
-            var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(courtId, selectedDate);
-            var blockedHours = await _bookingService.GetBlockedHoursAsync(courtId, selectedDate);
-            var blockReasons = await _bookingService.GetBlockReasonsAsync(courtId, selectedDate);
-            var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
-
-            var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
-            var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)>();
-            for (int h = court.OpeningHour; h < court.ClosingHour; h++)
-            {
-                var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
-                if (match is not null) { bundleOnlyHours[h] = match.Value; continue; }
-
-                if (schedule.TryGetValue(h, out var s) && s.Type == BookingType.AdminHostedOpenPlay)
-                {
-                    var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
-                    if (block is { AllowPublicSignup: true })
-                    {
-                        var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingAsync(block, courtId, selectedDate);
-                        openPlaySignupInfo[h] = (block, spotsRemaining);
-                    }
-                }
-            }
-
-            vm.BookedHours     = bookedHours;
-            vm.PendingHours    = pendingHours;
-            vm.PendingBundleWindows = pendingBundleWindows;
-            vm.BlockedHours    = blockedHours;
-            vm.BlockReasons    = blockReasons;
-            vm.BundleOnlyHours = bundleOnlyHours;
-            vm.OpenPlaySignupInfo = openPlaySignupInfo;
-            vm.OpenPlayHours   = schedule
-                .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
-                .Select(kv => kv.Key).ToList();
-            vm.HourlyRates   = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
-            vm.AvailableHours = Enumerable
-                .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
-                .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
-                         && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
-                .ToList();
-        }
+        var vm = await _bookingService.GetCourtAvailabilityAsync(court, selectedDate);
 
         ViewBag.FacilitySettings = settings;
         ViewBag.Slug             = slug;
         return View(vm);
+    }
+
+    // GET /sportshub/{slug}/book-all — every active court's availability for one date, side by
+    // side, so a customer can add slots from several courts to the cart in one visit instead of
+    // navigating to each court's own page.
+    [Route("{slug}/book-all")]
+    public async Task<IActionResult> BookAll(string slug, DateTime? date, string? sport)
+    {
+        var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.Slug == slug);
+        if (settings is null) return NotFound();
+
+        if (settings.IsPubliclyHidden && !IsCurrentUserOwnerOf(settings))
+        {
+            ViewBag.Slug = slug;
+            return View("Suspended", settings);
+        }
+
+        SetFacilityCookie(slug);
+
+        var selectedDate = date.HasValue
+            ? DateOnly.FromDateTime(date.Value)
+            : PhtClock.Today;
+
+        var courtsQuery = _db.Courts.Where(c => c.OwnerId == settings.OwnerId && c.IsActive);
+        if (!string.IsNullOrWhiteSpace(sport))
+            courtsQuery = courtsQuery.Where(c => c.SportType == sport);
+
+        var courts = await courtsQuery.OrderBy(c => c.SportType).ThenBy(c => c.Name).ToListAsync();
+        var sports = await _db.Courts
+            .Where(c => c.OwnerId == settings.OwnerId && c.IsActive)
+            .Select(c => c.SportType).Distinct().ToListAsync();
+
+        var courtAvailability = new List<CourtAvailabilityViewModel>();
+        foreach (var court in courts)
+            courtAvailability.Add(await _bookingService.GetCourtAvailabilityAsync(court, selectedDate));
+
+        ViewBag.FacilitySettings = settings;
+        ViewBag.Slug             = slug;
+        ViewBag.Sports           = sports;
+        ViewBag.SelectedSport    = sport;
+        ViewBag.SelectedDate     = selectedDate;
+        return View(courtAvailability);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -2098,6 +2098,180 @@ public class AdminController : Controller
         return RedirectToAction(nameof(BlockCourt), new { id = courtId });
     }
 
+    // ── Bulk block across multiple courts at once ────────────────────────────
+
+    public async Task<IActionResult> BlockCourts()
+    {
+        var courts = await MyCourts.OrderBy(c => c.Name).ToListAsync();
+        var courtIds = courts.Select(c => c.Id).ToList();
+
+        var blocks = await _db.CourtBlocks
+            .Where(b => courtIds.Contains(b.CourtId))
+            .OrderByDescending(b => b.StartDate).ThenByDescending(b => b.StartHour)
+            .ToListAsync();
+
+        ViewBag.Courts     = courts;
+        ViewBag.BlockCourt = courts.ToDictionary(c => c.Id, c => c.Name);
+        return View(blocks);
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddCourtBlockBulk(int[] courtIds, string? mode,
+        DateOnly startDate, int startHour,
+        DateOnly endDate,   int endHour,
+        string?  reason)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var targetIds  = (courtIds ?? Array.Empty<int>()).Where(myCourtIds.Contains).Distinct().ToList();
+
+        if (!targetIds.Any())
+        {
+            TempData["Error"] = "Select at least one court to block.";
+            return RedirectToAction(nameof(BlockCourts));
+        }
+
+        static DateTime ToInstant(DateOnly date, int hour) =>
+            date.AddDays(hour / 24).ToDateTime(new TimeOnly(hour % 24, 0));
+
+        if (string.Equals(mode, "custom", StringComparison.OrdinalIgnoreCase))
+            return await AddCourtBlockBulkCustom(targetIds);
+
+        var startDt = ToInstant(startDate, startHour);
+        var endDt   = ToInstant(endDate, endHour);
+        if (endDt <= startDt)
+        {
+            TempData["Error"] = "End must be after start.";
+            return RedirectToAction(nameof(BlockCourts));
+        }
+
+        var reasonTrimmed = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        foreach (var cid in targetIds)
+        {
+            _db.CourtBlocks.Add(new CourtBlock
+            {
+                CourtId   = cid,
+                StartDate = startDate,
+                StartHour = startHour,
+                EndDate   = endDate,
+                EndHour   = endHour,
+                Reason    = reasonTrimmed
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = $"Blocked {targetIds.Count} court{(targetIds.Count == 1 ? "" : "s")} from " +
+                               $"{startDate:MMM d} {TimeDisplay.Hour(startHour)} to {endDate:MMM d} {TimeDisplay.Hour(endHour)}.";
+        return RedirectToAction(nameof(BlockCourts));
+    }
+
+    // Each court in targetIds gets its own Start/End Date+Hour, read from
+    // per-court form fields named "startDate_{courtId}", "startHour_{courtId}", etc.
+    private async Task<IActionResult> AddCourtBlockBulkCustom(List<int> targetIds)
+    {
+        static DateTime ToInstant(DateOnly date, int hour) =>
+            date.AddDays(hour / 24).ToDateTime(new TimeOnly(hour % 24, 0));
+
+        var courtNames = await _db.Courts.Where(c => targetIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+
+        var added  = new List<string>();
+        var errors = new List<string>();
+
+        foreach (var cid in targetIds)
+        {
+            var name = courtNames.GetValueOrDefault(cid, $"Court #{cid}");
+
+            var sd = Request.Form[$"startDate_{cid}"].ToString();
+            var sh = Request.Form[$"startHour_{cid}"].ToString();
+            var ed = Request.Form[$"endDate_{cid}"].ToString();
+            var eh = Request.Form[$"endHour_{cid}"].ToString();
+            var rs = Request.Form[$"reason_{cid}"].ToString();
+
+            if (!DateOnly.TryParse(sd, out var sDate) || !int.TryParse(sh, out var sHour) ||
+                !DateOnly.TryParse(ed, out var eDate) || !int.TryParse(eh, out var eHour))
+            {
+                errors.Add($"{name}: invalid date/time.");
+                continue;
+            }
+
+            if (ToInstant(eDate, eHour) <= ToInstant(sDate, sHour))
+            {
+                errors.Add($"{name}: end must be after start.");
+                continue;
+            }
+
+            _db.CourtBlocks.Add(new CourtBlock
+            {
+                CourtId   = cid,
+                StartDate = sDate,
+                StartHour = sHour,
+                EndDate   = eDate,
+                EndHour   = eHour,
+                Reason    = string.IsNullOrWhiteSpace(rs) ? null : rs.Trim()
+            });
+            added.Add(name);
+        }
+
+        if (added.Any())
+            await _db.SaveChangesAsync();
+
+        if (added.Any())
+            TempData["Success"] = $"Blocked {added.Count} court{(added.Count == 1 ? "" : "s")} with custom timing: {string.Join(", ", added)}.";
+        if (errors.Any())
+            TempData["Error"] = string.Join(" ", errors);
+
+        return RedirectToAction(nameof(BlockCourts));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditCourtBlockBulk(int id,
+        DateOnly startDate, int startHour,
+        DateOnly endDate,   int endHour,
+        string?  reason)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var blk = await _db.CourtBlocks.FirstOrDefaultAsync(b =>
+            b.Id == id && myCourtIds.Contains(b.CourtId));
+        if (blk is null)
+        {
+            TempData["Error"] = "Block not found.";
+            return RedirectToAction(nameof(BlockCourts));
+        }
+
+        static DateTime ToInstant(DateOnly date, int hour) =>
+            date.AddDays(hour / 24).ToDateTime(new TimeOnly(hour % 24, 0));
+        if (ToInstant(endDate, endHour) <= ToInstant(startDate, startHour))
+        {
+            TempData["Error"] = "End must be after start.";
+            return RedirectToAction(nameof(BlockCourts));
+        }
+
+        blk.StartDate = startDate;
+        blk.StartHour = startHour;
+        blk.EndDate   = endDate;
+        blk.EndHour   = endHour;
+        blk.Reason    = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        await _db.SaveChangesAsync();
+
+        TempData["Success"] = "Block updated.";
+        return RedirectToAction(nameof(BlockCourts));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteCourtBlockBulk(int id)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var blk = await _db.CourtBlocks.FirstOrDefaultAsync(b =>
+            b.Id == id && myCourtIds.Contains(b.CourtId));
+        if (blk is not null)
+        {
+            _db.CourtBlocks.Remove(blk);
+            await _db.SaveChangesAsync();
+            TempData["Success"] = "Block removed.";
+        }
+        return RedirectToAction(nameof(BlockCourts));
+    }
+
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleCourt(int id)
     {
