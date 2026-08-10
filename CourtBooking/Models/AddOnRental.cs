@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CourtBooking.Models;
 
@@ -25,6 +26,7 @@ public class AddOnRental
     [MaxLength(200)]
     public string? CustomerNameSnapshot { get; set; }
 
+    [Column(TypeName = "numeric(10,2)")]
     public decimal TotalPrice { get; set; }
 
     [MaxLength(500)]
