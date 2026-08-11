@@ -9,7 +9,7 @@
     decimal digitalTotal = ViewBag.DigitalTotal;
     decimal pendingTotal = ViewBag.PendingTotal;
     int pendingCount = ViewBag.PendingCount;
-    var byDay = Model.GroupBy(b => b.BookingDate).OrderByDescending(g => g.Key);
+    var byDay = Model.GroupBy(b => b.LoggedDate).OrderByDescending(g => g.Key);
 }
 
 <div class="cb-page-header">

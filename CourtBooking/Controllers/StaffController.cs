@@ -109,12 +109,12 @@ public class StaffController : Controller
     // ── All bookings (read-only) — lets front-desk staff verify a booking went ──
     // through, or look up a customer's booking, without needing Admin access.
 
-    public async Task<IActionResult> Bookings(string? status, DateOnly? date, string? search)
+    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, string? search)
     {
         var courtIds = await GetMyCourtIdsAsync();
         BookingStatus? exactStatus = !string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s) ? s : null;
 
-        var rows = await GetBookingRowsAsync(courtIds, exactDate: date, exactStatus: exactStatus);
+        var rows = await GetBookingRowsAsync(courtIds, dateFrom: dateFrom, dateTo: dateTo, exactStatus: exactStatus);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -125,9 +125,10 @@ public class StaffController : Controller
         }
 
         ViewBag.Rows = rows.OrderByDescending(r => r.CreatedAt).ToList();
-        ViewBag.SelectedStatus = status;
-        ViewBag.SelectedDate   = date;
-        ViewBag.Search         = search;
+        ViewBag.SelectedStatus   = status;
+        ViewBag.SelectedDateFrom = dateFrom;
+        ViewBag.SelectedDateTo   = dateTo;
+        ViewBag.Search           = search;
         return View();
     }
 
@@ -135,7 +136,8 @@ public class StaffController : Controller
     /// courts into one unified row list — shared by the dashboard's "Today's Bookings" and the "All
     /// Bookings" page so Open Play sign-ups never silently disappear from either.</summary>
     private async Task<List<AdminBookingRow>> GetBookingRowsAsync(
-        List<int> courtIds, DateOnly? exactDate = null, BookingStatus? exactStatus = null, bool excludeCancelled = false)
+        List<int> courtIds, DateOnly? exactDate = null, DateOnly? dateFrom = null, DateOnly? dateTo = null,
+        BookingStatus? exactStatus = null, bool excludeCancelled = false)
     {
         var query = _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId))
@@ -150,6 +152,16 @@ public class StaffController : Controller
         {
             query = query.Where(b => b.BookingDate == exactDate.Value);
             signupQuery = signupQuery.Where(sg => sg.BookingDate == exactDate.Value);
+        }
+        if (dateFrom.HasValue)
+        {
+            query = query.Where(b => b.BookingDate >= dateFrom.Value);
+            signupQuery = signupQuery.Where(sg => sg.BookingDate >= dateFrom.Value);
+        }
+        if (dateTo.HasValue)
+        {
+            query = query.Where(b => b.BookingDate <= dateTo.Value);
+            signupQuery = signupQuery.Where(sg => sg.BookingDate <= dateTo.Value);
         }
         if (exactStatus.HasValue)
         {

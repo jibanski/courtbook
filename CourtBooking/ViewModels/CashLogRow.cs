@@ -42,4 +42,9 @@ public class CashLogRow
 
     public string? LoggedByStaffId { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>PHT calendar date the sale was logged (from <see cref="CreatedAt"/>) — the Sales
+    /// Log filters and groups by this, not <see cref="BookingDate"/>, since staff may log a cash
+    /// payment for a booking dated differently than when the money was actually received.</summary>
+    public DateOnly LoggedDate => DateOnly.FromDateTime(CreatedAt.AddHours(8));
 }
