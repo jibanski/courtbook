@@ -627,15 +627,23 @@ public class BookingService
         }
         if (from.HasValue)
         {
-            bookingQuery = bookingQuery.Where(b => b.BookingDate >= from.Value);
-            signupQuery  = signupQuery.Where(s => s.BookingDate >= from.Value);
-            rentalQuery  = rentalQuery?.Where(r => r.CreatedAt >= from.Value.ToDateTime(TimeOnly.MinValue).AddHours(-8));
+            // Filter by when the sale was logged (CreatedAt), not the court's BookingDate — a
+            // staff member may log a cash payment today for a booking dated some other day, and
+            // the Sales Log needs to reflect when the money actually came in.
+            // DateTimeKind.Utc must be specified explicitly — Npgsql rejects Kind=Unspecified
+            // DateTimes as a parameter against a "timestamp with time zone" column (works fine
+            // against SQLite locally, but throws in production on Postgres).
+            var fromDt = from.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);
+            bookingQuery = bookingQuery.Where(b => b.CreatedAt >= fromDt);
+            signupQuery  = signupQuery.Where(s => s.CreatedAt >= fromDt);
+            rentalQuery  = rentalQuery?.Where(r => r.CreatedAt >= fromDt);
         }
         if (to.HasValue)
         {
-            bookingQuery = bookingQuery.Where(b => b.BookingDate <= to.Value);
-            signupQuery  = signupQuery.Where(s => s.BookingDate <= to.Value);
-            rentalQuery  = rentalQuery?.Where(r => r.CreatedAt < to.Value.AddDays(1).ToDateTime(TimeOnly.MinValue).AddHours(-8));
+            var toDt = to.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);
+            bookingQuery = bookingQuery.Where(b => b.CreatedAt < toDt);
+            signupQuery  = signupQuery.Where(s => s.CreatedAt < toDt);
+            rentalQuery  = rentalQuery?.Where(r => r.CreatedAt < toDt);
         }
 
         var bookings = await bookingQuery.ToListAsync();
@@ -709,6 +717,6 @@ public class BookingService
             };
         }));
 
-        return rows.OrderByDescending(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();
+        return rows.OrderByDescending(r => r.LoggedDate).ThenBy(r => r.CreatedAt).ToList();
     }
 }

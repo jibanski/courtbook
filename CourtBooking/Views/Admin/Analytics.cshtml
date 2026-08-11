@@ -55,6 +55,16 @@
                         <i class="bi bi-funnel me-1"></i>Apply Filter
                     </button>
                 </div>
+                <div class="col-12">
+                    <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Date range presets">
+                        <button type="button" class="btn btn-outline-secondary preset-btn" data-preset="today">Today</button>
+                        <button type="button" class="btn btn-outline-secondary preset-btn" data-preset="yesterday">Yesterday</button>
+                        <button type="button" class="btn btn-outline-secondary preset-btn" data-preset="week">This Week</button>
+                        <button type="button" class="btn btn-outline-secondary preset-btn" data-preset="month">This Month</button>
+                        <button type="button" class="btn btn-outline-secondary preset-btn" data-preset="lastmonth">Last Month</button>
+                        <button type="button" class="btn btn-outline-secondary preset-btn" data-preset="30d">Last 30 Days</button>
+                    </div>
+                </div>
             </form>
         </div>
     </div>
@@ -91,6 +101,24 @@
     </div>
 
     <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small text-uppercase">Bookings <span id="lbl-rangebookings-range"></span></div>
+                <div class="fs-3 fw-bold" id="m-rangeBookings">—</div>
+                <div class="small text-muted">non-cancelled, selected range</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small text-uppercase">Revenue <span id="lbl-rangerevenue-range"></span></div>
+                <div class="fs-3 fw-bold text-success" id="m-rangeRevenue">—</div>
+                <div class="small text-muted">paid, selected range</div>
+            </div></div>
+        </div>
+    </div>
+
+
+    <div class="row g-3 mb-4">
         <div class="col-lg-8">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
@@ -117,7 +145,7 @@
     </div>
 
     <div class="row g-3 mb-5">
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
                     <i class="bi bi-collection me-2"></i>All-Time
@@ -138,7 +166,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
                     <i class="bi bi-list-check me-2"></i>Payment Mix <span id="lbl-mix-range">(30d)</span>
@@ -150,6 +178,75 @@
                         </thead>
                         <tbody id="method-table"><tr><td colspan="3" class="text-center text-muted py-3">Loading…</td></tr></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-clipboard-data me-2"></i>Status Breakdown <span id="lbl-status-range">(30d)</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Status</th><th class="text-end">Count</th><th class="text-end">Value</th></tr>
+                        </thead>
+                        <tbody id="status-table"><tr><td colspan="3" class="text-center text-muted py-3">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-5">
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-grid-3x3-gap me-2"></i>By Court <span id="lbl-court-range">(30d)</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Court</th><th class="text-end">Bookings</th><th class="text-end">Revenue</th></tr>
+                        </thead>
+                        <tbody id="court-table"><tr><td colspan="3" class="text-center text-muted py-3">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-person-badge me-2"></i>By Staff <span id="lbl-staff-range">(30d)</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Staff</th><th class="text-end">Sales</th><th class="text-end">Revenue</th></tr>
+                        </thead>
+                        <tbody id="staff-table"><tr><td colspan="3" class="text-center text-muted py-3">Loading…</td></tr></tbody>
+                    </table>
+                    <div id="staff-empty" class="text-center text-muted py-3 small d-none">
+                        No staff-logged sales in this range.
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-bag-check me-2"></i>Top Add-On Items <span id="lbl-addons-range">(30d)</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Item</th><th class="text-end">Qty</th><th class="text-end">Revenue</th></tr>
+                        </thead>
+                        <tbody id="addons-table"><tr><td colspan="3" class="text-center text-muted py-3">Loading…</td></tr></tbody>
+                    </table>
+                    <div id="addons-empty" class="text-center text-muted py-3 small d-none">
+                        No add-ons sold in this range.
+                    </div>
                 </div>
             </div>
         </div>
@@ -175,6 +272,10 @@
             'Card': '#111827', 'Unknown': '#94a3b8'
         };
         function colorFor(m) { return methodColors[m] || '#64748b'; }
+        const statusColors = {
+            'Confirmed': '#22c55e', 'Completed': '#0ea5e9', 'Pending': '#f59e0b', 'Cancelled': '#ef4444'
+        };
+        function statusColorFor(s) { return statusColors[s] || '#64748b'; }
 
         let revenueChart, methodChart;
 
@@ -230,7 +331,13 @@
                 document.getElementById('lbl-revenue-range').textContent  = `— ${rangeLabel}`;
                 document.getElementById('lbl-methods-range').textContent  = rangeLabel;
                 document.getElementById('lbl-mix-range').textContent      = rangeLabel;
+                document.getElementById('lbl-status-range').textContent   = rangeLabel;
                 document.getElementById('lbl-conversion-range').textContent = rangeLabel;
+                document.getElementById('lbl-rangebookings-range').textContent = rangeLabel;
+                document.getElementById('lbl-rangerevenue-range').textContent  = rangeLabel;
+                document.getElementById('lbl-court-range').textContent   = rangeLabel;
+                document.getElementById('lbl-staff-range').textContent   = rangeLabel;
+                document.getElementById('lbl-addons-range').textContent  = rangeLabel;
 
                 document.getElementById('m-todayBookings').textContent  = d.counters.todayBookings;
                 document.getElementById('m-todayRevenue').textContent   = peso(d.counters.todayRevenue);
@@ -238,6 +345,8 @@
                 document.getElementById('m-conversion').textContent     = d.counters.conversionPct + '%';
                 document.getElementById('m-paid30').textContent         = d.counters.paidInRange;
                 document.getElementById('m-bookings30').textContent     = d.counters.bookingsInRange;
+                document.getElementById('m-rangeBookings').textContent  = d.counters.bookingsInRange;
+                document.getElementById('m-rangeRevenue').textContent   = peso(d.counters.rangeRevenue);
                 document.getElementById('m-totalBookings').textContent  = d.counters.totalBookings;
                 document.getElementById('m-totalRevenue').textContent   = peso(d.counters.totalRevenue);
                 document.getElementById('m-courtRentalRevenue').textContent = peso(d.counters.courtRentalRevenue);
@@ -269,6 +378,49 @@
                             <td class="text-end">${peso(m.revenue)}</td>
                         </tr>`).join('');
 
+                const statuses = d.statusBreakdown || [];
+                const statusTbody = document.getElementById('status-table');
+                statusTbody.innerHTML = statuses.length === 0
+                    ? '<tr><td colspan="3" class="text-center text-muted py-3">No bookings in this range.</td></tr>'
+                    : statuses.map(s =>
+                        `<tr>
+                            <td><span class="badge" style="background:${statusColorFor(s.status)};">${s.status}</span></td>
+                            <td class="text-end">${s.count}</td>
+                            <td class="text-end">${peso(s.revenue)}</td>
+                        </tr>`).join('');
+
+                const courts = d.courtBreakdown || [];
+                document.getElementById('court-table').innerHTML = courts.length === 0
+                    ? '<tr><td colspan="3" class="text-center text-muted py-3">No bookings in this range.</td></tr>'
+                    : courts.map(c =>
+                        `<tr>
+                            <td>${c.court}</td>
+                            <td class="text-end">${c.count}</td>
+                            <td class="text-end">${peso(c.revenue)}</td>
+                        </tr>`).join('');
+
+                const staffRows = d.staffBreakdown || [];
+                document.getElementById('staff-empty').classList.toggle('d-none', staffRows.length > 0);
+                document.getElementById('staff-table').innerHTML = staffRows.length === 0
+                    ? '<tr><td colspan="3" class="text-center text-muted py-3">No staff-logged sales.</td></tr>'
+                    : staffRows.map(s =>
+                        `<tr>
+                            <td>${s.staff}</td>
+                            <td class="text-end">${s.count}</td>
+                            <td class="text-end">${peso(s.revenue)}</td>
+                        </tr>`).join('');
+
+                const addOns = d.topAddOnItems || [];
+                document.getElementById('addons-empty').classList.toggle('d-none', addOns.length > 0);
+                document.getElementById('addons-table').innerHTML = addOns.length === 0
+                    ? '<tr><td colspan="3" class="text-center text-muted py-3">No add-ons sold.</td></tr>'
+                    : addOns.map(a =>
+                        `<tr>
+                            <td>${a.name}</td>
+                            <td class="text-end">${a.quantity}</td>
+                            <td class="text-end">${peso(a.revenue)}</td>
+                        </tr>`).join('');
+
                 const t = new Date(d.generatedAt);
                 document.getElementById('analytics-updated').textContent =
                     'Updated ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -285,6 +437,43 @@
             refresh();
             setInterval(refresh, 10000);
             document.getElementById('f-apply').addEventListener('click', refresh);
+
+            // PHT-local date formatted as yyyy-MM-dd for the <input type=date> fields.
+            const toDateInput = date => {
+                const pht = new Date(date.getTime() + 8 * 3600 * 1000);
+                return pht.toISOString().slice(0, 10);
+            };
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const now = new Date();
+                    let from = new Date(now), to = new Date(now);
+                    switch (btn.dataset.preset) {
+                        case 'today':     break;
+                        case 'yesterday': from.setUTCDate(from.getUTCDate() - 1); to = new Date(from); break;
+                        case 'week': {
+                            const phtDay = new Date(now.getTime() + 8 * 3600 * 1000).getUTCDay(); // 0=Sun..6=Sat
+                            const diffToMonday = (phtDay + 6) % 7;
+                            from.setUTCDate(from.getUTCDate() - diffToMonday);
+                            break;
+                        }
+                        case 'month': {
+                            const phtNow = new Date(now.getTime() + 8 * 3600 * 1000);
+                            from = new Date(Date.UTC(phtNow.getUTCFullYear(), phtNow.getUTCMonth(), 1) - 8 * 3600 * 1000);
+                            break;
+                        }
+                        case 'lastmonth': {
+                            const phtNow = new Date(now.getTime() + 8 * 3600 * 1000);
+                            from = new Date(Date.UTC(phtNow.getUTCFullYear(), phtNow.getUTCMonth() - 1, 1) - 8 * 3600 * 1000);
+                            to   = new Date(Date.UTC(phtNow.getUTCFullYear(), phtNow.getUTCMonth(), 0) - 8 * 3600 * 1000);
+                            break;
+                        }
+                        case '30d': from.setUTCDate(from.getUTCDate() - 29); break;
+                    }
+                    document.getElementById('f-from').value = toDateInput(from);
+                    document.getElementById('f-to').value   = toDateInput(to);
+                    refresh();
+                });
+            });
         });
     </script>
 }

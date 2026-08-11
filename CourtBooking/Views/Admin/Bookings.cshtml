@@ -2,7 +2,8 @@
 @{
     ViewData["Title"] = "All Bookings";
     var selectedStatus       = ViewBag.SelectedStatus as string;
-    var selectedDate         = ViewBag.SelectedDate as DateOnly?;
+    var selectedDateFrom     = ViewBag.SelectedDateFrom as DateOnly?;
+    var selectedDateTo       = ViewBag.SelectedDateTo as DateOnly?;
     var search               = ViewBag.Search as string;
     bool awaitingMode        = ViewBag.AwaitingConfirmation == true;
     int  pendingPaymentCount = (int)(ViewBag.PendingPaymentCount ?? 0);
@@ -41,11 +42,11 @@
         <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <form method="get" class="row g-3 align-items-end">
-                    <div class="col-sm-4">
+                    <div class="col-sm-3">
                         <label class="form-label fw-semibold">Search</label>
                         <input type="text" name="search" class="form-control" placeholder="Customer name or phone" value="@search" />
                     </div>
-                    <div class="col-sm-3">
+                    <div class="col-sm-2">
                         <label class="form-label fw-semibold">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All Statuses</option>
@@ -55,11 +56,15 @@
                             }
                         </select>
                     </div>
-                    <div class="col-sm-3">
-                        <label class="form-label fw-semibold">Date</label>
-                        <input type="date" name="date" class="form-control" value="@selectedDate?.ToString("yyyy-MM-dd")" />
+                    <div class="col-sm-2">
+                        <label class="form-label fw-semibold">From</label>
+                        <input type="date" name="dateFrom" class="form-control" value="@selectedDateFrom?.ToString("yyyy-MM-dd")" />
                     </div>
                     <div class="col-sm-2">
+                        <label class="form-label fw-semibold">To</label>
+                        <input type="date" name="dateTo" class="form-control" value="@selectedDateTo?.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="col-sm-3">
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="bi bi-funnel me-1"></i>Filter
                         </button>
@@ -85,11 +90,11 @@
                     </div>
                     <div class="col-sm-3">
                         <label class="form-label small fw-semibold">From</label>
-                        <input type="date" name="dateFrom" class="form-control" />
+                        <input type="date" name="dateFrom" class="form-control" value="@selectedDateFrom?.ToString("yyyy-MM-dd")" />
                     </div>
                     <div class="col-sm-3">
                         <label class="form-label small fw-semibold">To</label>
-                        <input type="date" name="dateTo" class="form-control" />
+                        <input type="date" name="dateTo" class="form-control" value="@selectedDateTo?.ToString("yyyy-MM-dd")" />
                     </div>
                     <div class="col-sm-3">
                         <button type="submit" class="btn btn-outline-primary w-100">
