@@ -1,4 +1,6 @@
 @model CourtBooking.ViewModels.LoginViewModel
+@using Microsoft.EntityFrameworkCore
+@inject CourtBooking.Data.ApplicationDbContext _loginDb
 @{
     ViewData["Title"] = "Login";
     var schemes = await Context.RequestServices
@@ -7,6 +9,21 @@
     bool hasGoogle   = schemes.Any(s => s.Name == "Google");
     bool hasFacebook = schemes.Any(s => s.Name == "Facebook");
     bool hasSocial   = hasGoogle || hasFacebook;
+
+    // Same single-tenant fallback _Layout uses for anonymous visitors, so the hero
+    // icon below matches whatever logo the navbar above it is already showing.
+    string? _logoUrl = null;
+    var _onlyFacility = await _loginDb.FacilitySettings.AsNoTracking().OrderBy(s => s.Id).Take(2).ToListAsync();
+    if (_onlyFacility.Count == 1) _logoUrl = _onlyFacility[0].BrandLogoUrl;
+
+    // No facility-specific logo yet — fall back to the platform's own uploaded logo
+    // before resorting to the generic lightning icon.
+    if (string.IsNullOrWhiteSpace(_logoUrl))
+    {
+        var _platformCfg = await _loginDb.PlatformConfig.AsNoTracking().FirstOrDefaultAsync();
+        if (_platformCfg?.LogoData is { Length: > 0 })
+            _logoUrl = $"data:{_platformCfg.LogoContentType};base64,{Convert.ToBase64String(_platformCfg.LogoData)}";
+    }
 }
 
 <div class="container">
@@ -15,10 +32,17 @@
             <div class="card shadow-sm">
                 <div class="card-body p-4">
                     <div class="text-center mb-4">
-                        <span class="d-inline-flex align-items-center justify-content-center rounded-3 mb-2"
-                              style="width:52px;height:52px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
-                            <i class="bi bi-lightning-charge-fill fs-4" style="color:var(--cb-lime);"></i>
-                        </span>
+                        @if (!string.IsNullOrWhiteSpace(_logoUrl))
+                        {
+                            <img src="@_logoUrl" alt="Logo" class="mb-2" style="width:52px;height:52px;object-fit:contain;border-radius:.75rem;" />
+                        }
+                        else
+                        {
+                            <span class="d-inline-flex align-items-center justify-content-center rounded-3 mb-2"
+                                  style="width:52px;height:52px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
+                                <i class="bi bi-lightning-charge-fill fs-4" style="color:var(--cb-lime);"></i>
+                            </span>
+                        }
                         <h2 class="fw-bold mt-1 mb-1">Welcome Back</h2>
                         <p style="color:var(--cb-text-3);font-size:.875rem;">Sign in to your CourtBook account</p>
                     </div>

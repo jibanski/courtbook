@@ -38,6 +38,15 @@
     var _brand   = _fs?.DisplayName    ?? "CourtBook";
     var _tagline = _fs?.DisplayTagline ?? "Book your court anytime, anywhere.";
     var _logoUrl = _fs?.BrandLogoUrl;
+
+    // No facility-specific logo yet — fall back to the platform's own uploaded logo
+    // before resorting to the generic lightning icon.
+    if (string.IsNullOrWhiteSpace(_logoUrl))
+    {
+        var _platformCfg = await _layoutDb.PlatformConfig.AsNoTracking().FirstOrDefaultAsync();
+        if (_platformCfg?.LogoData is { Length: > 0 })
+            _logoUrl = $"data:{_platformCfg.LogoContentType};base64,{Convert.ToBase64String(_platformCfg.LogoData)}";
+    }
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -302,10 +311,17 @@
         <div class="container">
             <div class="d-flex flex-column flex-md-row align-items-center justify-content-between gap-3">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="d-inline-flex align-items-center justify-content-center rounded-2 bg-primary"
-                          style="width:24px;height:24px;font-size:.7rem;color:#071827;flex-shrink:0;">
-                        <i class="bi bi-lightning-charge-fill"></i>
-                    </span>
+                    @if (!string.IsNullOrWhiteSpace(_logoUrl))
+                    {
+                        <img src="@_logoUrl" alt="@_brand" style="width:24px;height:24px;object-fit:contain;border-radius:4px;flex-shrink:0;" />
+                    }
+                    else
+                    {
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-2 bg-primary"
+                              style="width:24px;height:24px;font-size:.7rem;color:#071827;flex-shrink:0;">
+                            <i class="bi bi-lightning-charge-fill"></i>
+                        </span>
+                    }
                     <div>
                         <span class="brand-name fw-bold small">@_brand</span>
                         <span class="tagline ms-2">&mdash; @_tagline</span>

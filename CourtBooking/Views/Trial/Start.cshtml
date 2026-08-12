@@ -1,4 +1,5 @@
 @model CourtBooking.ViewModels.TrialRegistrationViewModel
+@inject CourtBooking.Data.ApplicationDbContext _trialDb
 @{
     ViewData["Title"] = "Create Account";
     Layout = "_LandingLayout";
@@ -8,6 +9,13 @@
     bool hasGoogle   = schemes.Any(s => s.Name == "Google");
     bool hasFacebook = schemes.Any(s => s.Name == "Facebook");
     bool hasSocial   = hasGoogle || hasFacebook;
+
+    // New signups aren't tied to a facility yet, so this mirrors _LandingLayout's own
+    // navbar logo (the platform's own uploaded logo), not any one tenant's brand.
+    var _platformCfg = await _trialDb.PlatformConfig.FindAsync(1);
+    string? _platformLogoSrc = _platformCfg?.LogoData is { Length: > 0 }
+        ? $"data:{_platformCfg.LogoContentType};base64,{Convert.ToBase64String(_platformCfg.LogoData)}"
+        : null;
 }
 
 <section class="py-5 min-vh-100 d-flex align-items-center"
@@ -27,10 +35,17 @@
                 <div class="card shadow-sm">
                     <div class="card-body p-4 p-md-5">
                         <div class="text-center mb-4">
-                            <span class="d-inline-flex align-items-center justify-content-center rounded-3 mb-2"
-                                  style="width:52px;height:52px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
-                                <i class="bi bi-lightning-charge-fill fs-4" style="color:var(--cb-lime);"></i>
-                            </span>
+                            @if (_platformLogoSrc != null)
+                            {
+                                <img src="@_platformLogoSrc" alt="Logo" class="mb-2" style="width:52px;height:52px;object-fit:contain;border-radius:.75rem;" />
+                            }
+                            else
+                            {
+                                <span class="d-inline-flex align-items-center justify-content-center rounded-3 mb-2"
+                                      style="width:52px;height:52px;background:var(--cb-lime-dim);border:1px solid rgba(163,255,18,0.25);">
+                                    <i class="bi bi-lightning-charge-fill fs-4" style="color:var(--cb-lime);"></i>
+                                </span>
+                            }
                             <h2 class="fw-bold mt-1 mb-1">Create Your Account</h2>
                             <p style="color:var(--cb-text-3);font-size:.875rem;">Choose how you'll use CourtBook.</p>
                         </div>
