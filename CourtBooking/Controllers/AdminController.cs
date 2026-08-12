@@ -2590,6 +2590,756 @@ public class AdminController : Controller
         return RedirectToAction(nameof(AddOns));
     }
 
+    // ── Walk-in booking (owner logging a court booking for a customer themselves) ──
+    // Same idea as StaffController.NewWalkIn/WalkInForm/CreateWalkIn — for when the owner uses
+    // their own Admin account as the front desk (e.g. booking a customer who calls in or walks
+    // up). Cash is confirmed on the spot; any other method sits Pending until the owner confirms
+    // it via the existing Bookings/ConfirmPayment page — there's no separate owner to notify
+    // here since Admin *is* the owner. Reuses the Staff views directly (same pattern as
+    // RentAddOns below) since they only reference relative asp-action links.
+
+    public async Task<IActionResult> NewWalkIn(int? courtId, DateTime? date)
+    {
+        var myCourts = await MyCourts.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
+        ViewBag.Courts = myCourts;
+
+        ViewBag.Settings = await GetMySettingsAsync();
+        ViewBag.RateRanges = await _bookingService.GetRateRangesAsync(myCourts);
+        var myCourtIds = myCourts.Select(c => c.Id).ToList();
+        ViewBag.CourtRateTiers = await _db.CourtRateTiers
+            .Where(t => myCourtIds.Contains(t.CourtId))
+            .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
+            .ToListAsync();
+
+        var todayPht = PhtClock.Today;
+
+        if (courtId is null)
+        {
+            ViewBag.SelectedDate = date.HasValue ? DateOnly.FromDateTime(date.Value) : todayPht;
+            return View("~/Views/Staff/NewWalkIn.cshtml");
+        }
+
+        var court = myCourts.FirstOrDefault(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        var selectedDate = date.HasValue ? DateOnly.FromDateTime(date.Value) : todayPht;
+
+        var slots = await _db.CourtTimeSlots
+            .Where(s => s.CourtId == courtId && s.IsActive && s.SlotDate == selectedDate)
+            .OrderBy(s => s.StartHour)
+            .ToListAsync();
+
+        var vm = new CourtAvailabilityViewModel { Court = court, Date = selectedDate };
+        (vm.RateRangeMin, vm.RateRangeMax) = await _bookingService.GetRateRangeAsync(court);
+
+        if (slots.Any())
+        {
+            vm.TimeSlots = slots;
+            vm.UnavailableSlotIds = await _bookingService.GetUnavailableSlotIdsAsync(courtId.Value, selectedDate, slots);
+            foreach (var s in slots)
+            {
+                vm.SlotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
+                    court, selectedDate, new TimeOnly(s.StartHour % 24, 0), new TimeOnly(s.EndHour % 24, 0));
+            }
+        }
+        else
+        {
+            var bookedHours  = await _bookingService.GetBookedHoursAsync(courtId.Value, selectedDate);
+            var pendingHours = await _bookingService.GetPendingHoursAsync(courtId.Value, selectedDate);
+            var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(courtId.Value, selectedDate);
+            var blockedHours = await _bookingService.GetBlockedHoursAsync(courtId.Value, selectedDate);
+            var blockReasons = await _bookingService.GetBlockReasonsAsync(courtId.Value, selectedDate);
+            var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
+
+            var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
+            var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)>();
+            for (int h = court.OpeningHour; h < court.ClosingHour; h++)
+            {
+                var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
+                if (match is not null) { bundleOnlyHours[h] = match.Value; continue; }
+
+                if (schedule.TryGetValue(h, out var sh) && sh.Type == BookingType.AdminHostedOpenPlay)
+                {
+                    var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
+                    if (block is not null)
+                    {
+                        // Owner can always register a walk-in into an Open Play block, same as staff —
+                        // regardless of whether online self-signup is enabled for customers.
+                        var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingForStaffAsync(block, courtId.Value, selectedDate);
+                        openPlaySignupInfo[h] = (block, spotsRemaining ?? int.MaxValue);
+                    }
+                }
+            }
+
+            vm.BookedHours     = bookedHours;
+            vm.PendingHours    = pendingHours;
+            vm.PendingBundleWindows = pendingBundleWindows;
+            vm.BlockedHours    = blockedHours;
+            vm.BlockReasons    = blockReasons;
+            vm.BundleOnlyHours = bundleOnlyHours;
+            vm.OpenPlaySignupInfo = openPlaySignupInfo;
+            vm.OpenPlayHours   = schedule
+                .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
+                .Select(kv => kv.Key).ToList();
+            vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
+            vm.AvailableHours = Enumerable
+                .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
+                .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
+                         && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
+                .ToList();
+        }
+
+        return View("~/Views/Staff/NewWalkIn.cshtml", vm);
+    }
+
+    public async Task<IActionResult> WalkInForm(int courtId, DateOnly date, int startHour, int? endHour)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        int? fixedEndHour = null;
+        if (endHour.HasValue)
+        {
+            if (endHour.Value <= startHour || endHour.Value > 24)
+            {
+                TempData["Error"] = "Invalid time slot.";
+                return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+            }
+
+            bool slotExists = await _db.CourtTimeSlots.AnyAsync(s =>
+                s.CourtId == courtId
+                && s.SlotDate == date
+                && s.IsActive
+                && s.StartHour == startHour
+                && s.EndHour == endHour.Value);
+            if (!slotExists)
+            {
+                TempData["Error"] = "This time slot is no longer available.";
+                return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+            }
+
+            fixedEndHour = endHour.Value;
+        }
+
+        ViewBag.Court     = court;
+        ViewBag.Date      = date;
+        ViewBag.StartHour = startHour;
+        ViewBag.FixedEndHour = fixedEndHour;
+        ViewBag.TotalPrice = await _bookingService.GetTotalPriceAsync(
+            court,
+            date,
+            new TimeOnly(startHour % 24, 0),
+            new TimeOnly((fixedEndHour ?? (startHour + 1)) % 24, 0));
+
+        ViewBag.AddOns = await _bookingService.GetActiveAddOnsAsync(CurrentUserId);
+        ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(CurrentUserId);
+
+        return View("~/Views/Staff/WalkInForm.cshtml");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateWalkIn(
+        int courtId, DateOnly date, int startHour, int durationHours, string customerName, string customerEmail, string customerPhone,
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, int? fixedEndHour)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
+        {
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
+            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+        }
+
+        if (fixedEndHour.HasValue)
+        {
+            if (fixedEndHour.Value <= startHour || fixedEndHour.Value > 24)
+            {
+                TempData["Error"] = "Invalid time slot.";
+                return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+            }
+
+            bool slotExists = await _db.CourtTimeSlots.AnyAsync(s =>
+                s.CourtId == courtId
+                && s.SlotDate == date
+                && s.IsActive
+                && s.StartHour == startHour
+                && s.EndHour == fixedEndHour.Value);
+            if (!slotExists)
+            {
+                TempData["Error"] = "This time slot is no longer available. Please choose another time.";
+                return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+            }
+
+            durationHours = fixedEndHour.Value - startHour;
+        }
+        if (durationHours < 1) durationHours = 1;
+        if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
+
+        var startTime = new TimeOnly(startHour % 24, 0);
+        var endTime   = new TimeOnly((startHour + durationHours) % 24, 0);
+
+        var available = await _bookingService.IsSlotAvailableAsync(courtId, date, startTime, endTime);
+        if (!available)
+        {
+            TempData["Error"] = "This time slot is no longer available. Please choose another time.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+        if (await _bookingService.HasOpenPlayHoursAsync(court, date, startTime, endTime))
+        {
+            TempData["Error"] = "This time is reserved for Admin-Hosted Open Play and isn't available for direct booking.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+        if (await _bookingService.HasBundleOnlyHoursAsync(court, date, startTime, endTime))
+        {
+            TempData["Error"] = "This time is only available as part of a bundled booking.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+        }
+
+        var totalPrice = await _bookingService.GetTotalPriceAsync(court, date, startTime, endTime);
+        var (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(CurrentUserId, Request.Form, durationHours);
+
+        string? proofPath;
+        try
+        {
+            proofPath = await SavePaymentProofAsync(paymentProof, "walkin");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = $"{ex.Message} — booking was not created.";
+            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour });
+        }
+
+        bool isCash = IsCashPayment(paymentMethod);
+
+        var booking = new Booking
+        {
+            CourtId       = courtId,
+            UserId        = customer.Id,
+            FacilityName  = court.FacilityName,
+            BookingDate   = date,
+            StartTime     = startTime,
+            EndTime       = endTime,
+            TotalPrice    = totalPrice + addOnsTotal,
+            Notes         = notes,
+            Status        = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
+            PaymentStatus = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
+            PaymentMethod = paymentMethod,
+            PaymentReference = paymentReference,
+            PaymentProofPath = proofPath,
+            PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
+            PaidAt        = isCash ? DateTime.UtcNow : null,
+            LoggedByStaffId = CurrentUserId,
+            CustomerNameSnapshot = customerName,
+            AddOns        = addOns
+        };
+        await _bookingService.CreateBookingAsync(booking);
+
+        var customerEmailToNotify = customerEmail.Trim();
+        if (isCash && !string.IsNullOrWhiteSpace(customerEmailToNotify))
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            await _email.SendBookingConfirmedToCustomerAsync(
+                customerEmailToNotify,
+                customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                booking.Id, court.Name, booking.BookingDate, booking.StartTime, booking.EndTime,
+                booking.TotalPrice, booking.PaymentMethod, booking.PaymentReference, baseUrl,
+                isGuest: customer.IsGuest);
+        }
+
+        TempData["Success"] = isCash
+            ? $"Booked {court.Name} for {customerName} ({TimeDisplay.HourRange(startHour, startHour + durationHours)}) — ₱{booking.TotalPrice:N0} via {paymentMethod} logged."
+            : $"Logged {court.Name} for {customerName} ({TimeDisplay.HourRange(startHour, startHour + durationHours)}) — ₱{booking.TotalPrice:N0} via {paymentMethod}, pending confirmation.";
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    // ── Walk-in cart: log several slots (any of the owner's own courts) as one paid transaction ──
+    // Mirrors StaffController.WalkInCartForm/CreateWalkInCart.
+
+    private const int MaxWalkInCartItems = 20;
+
+    public async Task<IActionResult> WalkInCartForm()
+    {
+        ViewBag.AddOns = await _bookingService.GetActiveAddOnsAsync(CurrentUserId);
+        ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(CurrentUserId);
+        return View("~/Views/Staff/WalkInCartForm.cshtml");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateWalkInCart(
+        string cartJson, string customerName, string customerEmail, string customerPhone,
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+    {
+        List<CartController.CartItemRequest>? items;
+        try
+        {
+            items = System.Text.Json.JsonSerializer.Deserialize<List<CartController.CartItemRequest>>(cartJson ?? "[]",
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            items = null;
+        }
+
+        if (items is null || items.Count == 0)
+        {
+            TempData["Error"] = "The cart is empty.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+        if (items.Count > MaxWalkInCartItems)
+        {
+            TempData["Error"] = $"A cart can hold at most {MaxWalkInCartItems} slots. Please log in smaller batches.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
+        {
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+        if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
+
+        var myCourts = await MyCourts.ToListAsync();
+        var courtIds = items.Select(i => i.CourtId).Distinct().ToList();
+        var courtsById = myCourts.Where(c => courtIds.Contains(c.Id)).ToDictionary(c => c.Id);
+
+        var errors = new List<string>();
+        foreach (var item in items)
+        {
+            if (!courtsById.ContainsKey(item.CourtId))
+                errors.Add($"Court #{item.CourtId} does not belong to your facility.");
+        }
+        if (errors.Count > 0)
+        {
+            TempData["Error"] = string.Join(" ", errors);
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+
+        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice)>();
+        foreach (var item in items)
+        {
+            var court = courtsById[item.CourtId];
+            var start = new TimeOnly(item.StartHour % 24, 0);
+            var end   = new TimeOnly(item.EndHour % 24, 0);
+
+            if (item.EndHour <= item.StartHour || item.StartHour < court.OpeningHour || item.EndHour > court.ClosingHour)
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d} falls outside operating hours.");
+                continue;
+            }
+            if (!await _bookingService.IsSlotAvailableAsync(court.Id, item.Date, start, end))
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is no longer available.");
+                continue;
+            }
+            if (await _bookingService.HasOpenPlayHoursAsync(court, item.Date, start, end))
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is reserved for Admin-Hosted Open Play.");
+                continue;
+            }
+            if (await _bookingService.HasBundleOnlyHoursAsync(court, item.Date, start, end))
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is only available as part of a bundle.");
+                continue;
+            }
+
+            var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
+            resolved.Add((item, court, start, end, price));
+        }
+
+        if (errors.Count > 0)
+        {
+            TempData["Error"] = "Some slots are no longer available — please remove them and try again: " + string.Join(" ", errors);
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+
+        string? proofPath;
+        try
+        {
+            proofPath = await SavePaymentProofAsync(paymentProof, "walkincart");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = $"{ex.Message} — booking was not created.";
+            return RedirectToAction(nameof(WalkInCartForm));
+        }
+
+        bool isCash = IsCashPayment(paymentMethod);
+        var groupId = Guid.NewGuid();
+        var bookings = new List<Booking>();
+
+        foreach (var (item, court, start, end, slotPrice) in resolved)
+        {
+            var (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
+                CurrentUserId,
+                (item.AddOns ?? new List<CartController.CartAddOnRequest>())
+                    .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
+                item.EndHour - item.StartHour);
+
+            bookings.Add(new Booking
+            {
+                CourtId              = court.Id,
+                UserId               = customer.Id,
+                FacilityName         = court.FacilityName,
+                BookingDate          = item.Date,
+                StartTime            = start,
+                EndTime              = end,
+                TotalPrice           = slotPrice + addOnsTotal,
+                Notes                = notes,
+                Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
+                PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
+                PaymentMethod        = paymentMethod,
+                PaymentReference     = paymentReference,
+                PaymentProofPath     = proofPath,
+                PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
+                PaidAt               = isCash ? DateTime.UtcNow : null,
+                LoggedByStaffId      = CurrentUserId,
+                BundleGroupId        = groupId,
+                CustomerNameSnapshot = customerName,
+                AddOns               = addOns
+            });
+        }
+
+        _db.Bookings.AddRange(bookings);
+        await _db.SaveChangesAsync();
+
+        var customerEmailToNotify = customerEmail.Trim();
+        if (isCash && !string.IsNullOrWhiteSpace(customerEmailToNotify))
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            foreach (var booking in bookings)
+            {
+                var court = courtsById[booking.CourtId];
+                await _email.SendBookingConfirmedToCustomerAsync(
+                    customerEmailToNotify,
+                    customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                    booking.Id, court.Name, booking.BookingDate, booking.StartTime, booking.EndTime,
+                    booking.TotalPrice, booking.PaymentMethod, booking.PaymentReference, baseUrl,
+                    isGuest: customer.IsGuest);
+            }
+        }
+
+        var grandTotal = bookings.Sum(b => b.TotalPrice);
+        TempData["Success"] = isCash
+            ? $"Logged {bookings.Count} slot{(bookings.Count == 1 ? "" : "s")} for {customerName} — ₱{grandTotal:N0} via {paymentMethod}."
+            : $"Logged {bookings.Count} slot{(bookings.Count == 1 ? "" : "s")} for {customerName} — ₱{grandTotal:N0} via {paymentMethod}, pending confirmation.";
+        TempData["ClearCart"] = true;
+        return RedirectToAction(nameof(Index));
+    }
+
+    // ── Walk-in bundle booking ────────────────────────────────────────────────
+    // Mirrors StaffController.WalkInBundleForm/CreateWalkInBundle.
+
+    public async Task<IActionResult> WalkInBundleForm(int bundleId, int courtId, DateOnly date, int startHour, int endHour)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        var bundle = await _db.CourtBundles
+            .Include(b => b.Courts).ThenInclude(c => c.Court)
+            .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive && b.Courts.Any(c => c.CourtId == courtId));
+        if (bundle is null) return NotFound();
+
+        var block = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
+        if (block is null)
+        {
+            TempData["Error"] = "This bundle window is no longer available.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+
+        ViewBag.Bundle     = bundle;
+        ViewBag.Court      = court;
+        ViewBag.Date       = date;
+        ViewBag.StartHour  = startHour;
+        ViewBag.EndHour    = endHour;
+        ViewBag.TotalPrice = block.FlatPrice;
+        ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(CurrentUserId);
+
+        return View("~/Views/Staff/WalkInBundleForm.cshtml");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateWalkInBundle(
+        int bundleId, int courtId, DateOnly date, int startHour, int endHour,
+        string customerName, string customerEmail, string customerPhone,
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
+        {
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
+            return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+        }
+
+        var bundle = await _db.CourtBundles
+            .Include(b => b.Courts).ThenInclude(c => c.Court)
+            .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive && b.Courts.Any(c => c.CourtId == courtId));
+        if (bundle is null) return NotFound();
+
+        var block = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
+        if (block is null)
+        {
+            TempData["Error"] = "This bundle window is no longer available.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+
+        if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
+
+        var start = new TimeOnly(startHour % 24, 0);
+        var end   = new TimeOnly(endHour % 24, 0);
+
+        if (!await _bookingService.IsSlotAvailableAsync(courtId, date, start, end))
+        {
+            TempData["Error"] = "This time slot is no longer available. Please choose another time.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+        }
+
+        string? proofPath;
+        try
+        {
+            proofPath = await SavePaymentProofAsync(paymentProof, "walkin_bundle");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = $"{ex.Message} — booking was not created.";
+            return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+        }
+
+        bool isCash = IsCashPayment(paymentMethod);
+
+        var booking = new Booking
+        {
+            CourtId              = courtId,
+            UserId               = customer.Id,
+            FacilityName         = court.FacilityName,
+            BookingDate          = date,
+            StartTime            = start,
+            EndTime              = end,
+            TotalPrice           = block.FlatPrice,
+            Notes                = notes,
+            Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
+            PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
+            PaymentMethod        = paymentMethod,
+            PaymentReference     = paymentReference,
+            PaymentProofPath     = proofPath,
+            PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
+            PaidAt               = isCash ? DateTime.UtcNow : null,
+            LoggedByStaffId      = CurrentUserId,
+            CustomerNameSnapshot = customerName,
+            CourtBundleId        = bundle.Id,
+            BundleGroupId        = Guid.NewGuid()
+        };
+        await _bookingService.CreateBookingAsync(booking);
+
+        var customerEmailToNotify = customerEmail.Trim();
+        if (isCash && !string.IsNullOrWhiteSpace(customerEmailToNotify))
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            await _email.SendBookingConfirmedToCustomerAsync(
+                customerEmailToNotify,
+                customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                booking.Id, court.Name, booking.BookingDate, booking.StartTime, booking.EndTime,
+                booking.TotalPrice, booking.PaymentMethod, booking.PaymentReference, baseUrl,
+                isGuest: customer.IsGuest);
+        }
+
+        TempData["Success"] = isCash
+            ? $"Booked {court.Name} ({bundle.Name}) for {customerName} ({TimeDisplay.HourRange(startHour, endHour)}) — ₱{booking.TotalPrice:N0} via {paymentMethod} logged."
+            : $"Logged {court.Name} ({bundle.Name}) for {customerName} ({TimeDisplay.HourRange(startHour, endHour)}) — ₱{booking.TotalPrice:N0} via {paymentMethod}, pending confirmation.";
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    private async Task<CourtBundleRateBlock?> ResolveWalkInBundleBlockAsync(Court court, int bundleId, DateOnly date, int startHour, int endHour)
+    {
+        var resolved = await _bookingService.ResolveBundleForHourAsync(court, date, startHour);
+        return resolved is not null
+            && resolved.Value.Bundle.Id == bundleId
+            && resolved.Value.Block.StartHour == startHour
+            && resolved.Value.Block.EndHour == endHour
+            ? resolved.Value.Block
+            : null;
+    }
+
+    // ── Walk-in Open Play sign-up ────────────────────────────────────────────
+    // Mirrors StaffController.OpenPlayForm/CreateOpenPlaySignup.
+
+    public async Task<IActionResult> OpenPlayForm(int courtId, DateOnly date, int startHour, int endHour)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, date, startHour);
+        if (block is null || block.StartHour != startHour || block.EndHour != endHour)
+            return NotFound();
+
+        var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingForStaffAsync(block, courtId, date);
+        ViewBag.Court          = court;
+        ViewBag.Block          = block;
+        ViewBag.Date           = date;
+        ViewBag.SpotsRemaining = spotsRemaining; // null = unlimited (no MaxPlayers cap configured)
+        ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(CurrentUserId);
+        return View("~/Views/Staff/OpenPlayForm.cshtml");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateOpenPlaySignup(
+        int courtId, DateOnly date, int startHour, int endHour, int spotCount, string customerName, string customerEmail, string customerPhone,
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? playerNames, string? notes)
+    {
+        var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (court is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(customerName) || string.IsNullOrWhiteSpace(customerEmail) || string.IsNullOrWhiteSpace(customerPhone))
+        {
+            TempData["Error"] = "Customer name, email, and phone are required.";
+            return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
+        }
+        if (!new EmailAddressAttribute().IsValid(customerEmail))
+        {
+            TempData["Error"] = "Please enter a valid email address.";
+            return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
+        }
+
+        var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, date, startHour);
+        if (block is null || block.StartHour != startHour || block.EndHour != endHour)
+        {
+            TempData["Error"] = "This Open Play session is no longer available.";
+            return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
+        }
+
+        if (spotCount < 1) spotCount = 1;
+        var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingForStaffAsync(block, courtId, date);
+        if (spotsRemaining.HasValue && spotCount > spotsRemaining.Value)
+        {
+            TempData["Error"] = $"Only {spotsRemaining.Value} spot(s) left for this session.";
+            return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
+        }
+        if (string.IsNullOrWhiteSpace(paymentMethod)) paymentMethod = "Cash";
+
+        ApplicationUser customer;
+        try
+        {
+            customer = await _guestCheckout.GetOrCreateGuestUserAsync(customerName, customerEmail.Trim(), customerPhone);
+        }
+        catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
+        }
+
+        string? proofPath;
+        try
+        {
+            proofPath = await SavePaymentProofAsync(paymentProof, "openplay");
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = $"{ex.Message} — sign-up was not created.";
+            return RedirectToAction(nameof(OpenPlayForm), new { courtId, date, startHour, endHour });
+        }
+
+        var pricePerHead = block.PricePerHead ?? 0;
+
+        var signup = new OpenPlaySignup
+        {
+            CourtId              = courtId,
+            FacilityName         = court.FacilityName,
+            UserId               = customer.Id,
+            BookingDate          = date,
+            StartHour            = startHour,
+            EndHour              = endHour,
+            SpotCount            = spotCount,
+            PricePerHeadSnapshot = pricePerHead,
+            TotalPrice           = pricePerHead * spotCount,
+            Notes                = notes,
+            PlayerNames          = spotCount > 1 && !string.IsNullOrWhiteSpace(playerNames) ? playerNames.Trim() : null,
+            Status               = BookingStatus.Confirmed,
+            PaymentStatus        = PaymentStatus.Paid,
+            PaymentMethod        = paymentMethod,
+            PaymentReference     = paymentReference,
+            PaymentProofPath     = proofPath,
+            PaidAt               = DateTime.UtcNow,
+            LoggedByStaffId      = CurrentUserId,
+            CustomerNameSnapshot = customerName
+        };
+        _db.OpenPlaySignups.Add(signup);
+        await _db.SaveChangesAsync();
+
+        var customerEmailToNotify = customerEmail.Trim();
+        if (!string.IsNullOrWhiteSpace(customerEmailToNotify))
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            await _email.SendOpenPlayConfirmedToCustomerAsync(
+                customerEmailToNotify,
+                customer.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                signup.Id,
+                court.Name,
+                signup.BookingDate,
+                signup.StartHour,
+                signup.EndHour,
+                signup.SpotCount,
+                signup.TotalPrice,
+                signup.PaymentMethod,
+                signup.PaymentReference,
+                baseUrl,
+                isGuest: customer.IsGuest);
+        }
+
+        TempData["Success"] = $"Signed up {customerName} for Open Play ({TimeDisplay.HourRange(startHour, endHour)}, {spotCount} spot{(spotCount != 1 ? "s" : "")}) — ₱{signup.TotalPrice:N0} via {paymentMethod} logged.";
+        return RedirectToAction(nameof(Index));
+    }
+
     // ── Rent add-ons directly (owner logging a counter sale themselves) ─────────
     // Same idea as StaffController.RentAddOns/CreateAddOnRental, just for the owner acting as
     // their own front desk. Since Admin *is* the facility owner, non-cash sales are still logged

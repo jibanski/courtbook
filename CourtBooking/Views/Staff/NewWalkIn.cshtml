@@ -455,4 +455,6 @@
     }
 </div>
 
-@await Html.PartialAsync("_CartWidget", "/Staff/WalkInCartForm")
+@* Resolved relative to whichever controller rendered this view (Staff or Admin), so the
+   cart widget always posts back to the right front-desk's own cart form. *@
+@await Html.PartialAsync("_CartWidget", Url.Action("WalkInCartForm"))
