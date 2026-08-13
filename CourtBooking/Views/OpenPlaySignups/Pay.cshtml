@@ -216,6 +216,7 @@
                         <i class="bi bi-check2-circle me-2 text-primary"></i>Submit Payment Proof
                     </div>
                     <div class="card-body">
+                        <partial name="_InAppBrowserWarning" />
                         <form asp-action="@(isGuest ? "GuestSubmitProof" : "SubmitProof")" method="post" enctype="multipart/form-data">
                             @Html.AntiForgeryToken()
                             @if (isGuest)

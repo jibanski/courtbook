@@ -1,0 +1,18 @@
+@* Facebook/Instagram/Messenger in-app browsers can block the native file chooser used for
+   the screenshot upload below, showing an OS toast like "Please allow all media to use
+   file chooser" instead of opening the picker. Detect via UA and nudge the user to open
+   this page in their real browser. *@
+<div id="inAppBrowserWarning" class="alert alert-warning d-none mb-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    <strong>Can't open the file picker?</strong> You're viewing this inside the Facebook/Instagram app browser,
+    which can block photo uploads. Tap the <strong>&#8942; (or &bull;&bull;&bull;)</strong> menu at the top
+    and choose <strong>&quot;Open in Browser&quot;</strong> (Chrome/Safari), then try uploading again.
+</div>
+<script>
+    (function () {
+        var ua = navigator.userAgent || '';
+        if (/FBAN|FBAV|FB_IAB|Instagram|Line\//i.test(ua)) {
+            document.getElementById('inAppBrowserWarning')?.classList.remove('d-none');
+        }
+    })();
+</script>
