@@ -354,7 +354,7 @@
             {
                 <!-- Table layout for all bookings -->
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle table-sm mb-0" style="font-size:.8125rem;">
                         <thead class="table-light">
                             <tr>
                                 <th>#</th>
@@ -367,6 +367,7 @@
                                 <th>Total Paid</th>
                                 <th>Booking</th>
                                 <th>Payment</th>
+                                <th>Proof</th>
                                 <th>Booked By</th>
                                 <th>Booked On</th>
                                 <th>Action</th>
@@ -443,6 +444,18 @@
                                         }
                                     </td>
                                     <td>
+                                        @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
+                                        {
+                                            <a href="@b.PaymentProofPath" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-image me-1"></i>View
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">—</span>
+                                        }
+                                    </td>
+                                    <td>
                                         @if (b.BookedByStaffName is not null)
                                         {
                                             <span class="badge bg-info-subtle text-info-emphasis" title="Logged by front-desk staff">
@@ -458,7 +471,8 @@
                                     <td>
                                         <form asp-action="@(b.IsOpenPlay ? "UpdateSignupStatus" : "UpdateBookingStatus")" asp-route-id="@b.Id" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
-                                            <select name="status" class="form-select form-select-sm d-inline w-auto" onchange="this.form.submit()">
+                                            <select name="status" class="form-select form-select-sm d-inline" style="width:105px; font-size:.75rem; padding-top:.15rem; padding-bottom:.15rem;" data-current="@b.Status"
+                                                    onchange="if (confirm('Change booking #@b.Id status to ' + this.value + '?')) { this.form.submit(); } else { this.value = this.dataset.current; }">
                                                 @foreach (var s in Enum.GetValues<CourtBooking.Models.BookingStatus>())
                                                 {
                                                     <option value="@s" selected="@(b.Status == s)">@s</option>
