@@ -71,7 +71,8 @@
             }
             else
             {
-                <form asp-action="Create" method="post">
+                <form asp-action="Create" method="post"
+                      onsubmit="var b=this.querySelector('button[type=submit]'); if(b.disabled){return false;} b.disabled=true; b.innerHTML='<span class=&quot;spinner-border spinner-border-sm me-2&quot;></span>Booking...';">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="bundleId" value="@bundle.Id" />
                     <input type="hidden" name="courtId" value="@selectedCourt?.Id" />

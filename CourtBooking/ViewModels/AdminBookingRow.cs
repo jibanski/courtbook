@@ -13,6 +13,7 @@ public class AdminBookingRow
     public string CustomerName { get; set; } = "";
     public string? CustomerPhone { get; set; }
     public bool IsGuest { get; set; }
+    public int CourtId { get; set; }
     public string CourtName { get; set; } = "";
     public string? BundleName { get; set; }
     public int? SpotCount { get; set; }
@@ -32,6 +33,7 @@ public class AdminBookingRow
     public PaymentStatus PaymentStatus { get; set; }
     public bool HasPaymentProof { get; set; }
     public string? PaymentMethod { get; set; }
+    public string? PaymentReference { get; set; }
 
     /// <summary>Name of the Staff account that logged this as a walk-in booking, if any — null for
     /// bookings a customer made themselves online/as a guest.</summary>

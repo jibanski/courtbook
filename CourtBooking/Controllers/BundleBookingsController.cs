@@ -163,6 +163,27 @@ public class BundleBookingsController : Controller
             userId = _userManager.GetUserId(User)!;
         }
 
+        // Guard against a double-submit (e.g. an impatient double-click) racing with the
+        // availability check above and slipping past it before the first request's insert
+        // commits — reuse the still-active hold instead of stacking a second Pending row that
+        // would otherwise just sit unpaid until it expires.
+        var existingHold = await _db.Bookings.FirstOrDefaultAsync(b =>
+            b.UserId == userId &&
+            b.CourtId == selectedCourt.Id &&
+            b.BookingDate == date &&
+            b.StartTime == start &&
+            b.EndTime == end &&
+            b.CourtBundleId == bundle.Id &&
+            b.Status == BookingStatus.Pending &&
+            b.PaymentStatus == PaymentStatus.Unpaid &&
+            (!b.ReservedUntil.HasValue || b.ReservedUntil.Value > DateTime.UtcNow));
+        if (existingHold is not null)
+        {
+            return existingHold.GuestAccessToken.HasValue
+                ? RedirectToAction(nameof(GuestPay), new { token = existingHold.GuestAccessToken })
+                : RedirectToAction(nameof(Pay), new { groupId = existingHold.BundleGroupId });
+        }
+
         var groupId      = Guid.NewGuid();
         var guestToken   = isGuest ? Guid.NewGuid() : (Guid?)null;
         var facilityName = await _db.FacilitySettings
