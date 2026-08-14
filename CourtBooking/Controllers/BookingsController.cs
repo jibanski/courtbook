@@ -204,12 +204,14 @@ public class BookingsController : Controller
         }
 
         string userId;
+        string? customerName;
         if (isGuest)
         {
             try
             {
                 var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(vm.GuestName!, vm.GuestEmail!, vm.GuestPhone!);
                 userId = guestUser.Id;
+                customerName = guestUser.FullName;
             }
             catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
             {
@@ -220,6 +222,7 @@ public class BookingsController : Controller
         else
         {
             userId = _userManager.GetUserId(User)!;
+            customerName = (await _userManager.FindByIdAsync(userId))?.FullName;
         }
 
         // Snapshot the facility name (court owner's facility) onto the booking so
@@ -240,6 +243,8 @@ public class BookingsController : Controller
             CourtId = vm.CourtId,
             UserId = userId,
             FacilityName = facilityName,
+            CourtName = court.Name,
+            CustomerName = customerName,
             BookingDate = vm.BookingDate,
             StartTime = vm.StartTime,
             EndTime = vm.EndTime,

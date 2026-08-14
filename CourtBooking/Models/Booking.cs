@@ -44,6 +44,23 @@ public class Booking
     [MaxLength(200)]
     public string? CustomerNameSnapshot { get; set; }
 
+    /// <summary>
+    /// Always-populated snapshot of the customer's name at booking time (guest name, or the
+    /// logged-in user's full name) — unlike <see cref="CustomerNameSnapshot"/>, which is left
+    /// null for real users so the UI can show their current live name, this field exists purely
+    /// so a booking row can be searched/identified by customer name directly in the database
+    /// (e.g. via SQL or CSV export) without joining to <see cref="ApplicationUser"/>.
+    /// </summary>
+    [MaxLength(200)]
+    public string? CustomerName { get; set; }
+
+    /// <summary>
+    /// Snapshot of the court's name at booking time, denormalized so a booking row can be
+    /// searched/identified directly in the database without joining to <see cref="Court"/>.
+    /// </summary>
+    [MaxLength(100)]
+    public string? CourtName { get; set; }
+
     [Required]
     public string UserId { get; set; } = string.Empty;
     public ApplicationUser User { get; set; } = null!;

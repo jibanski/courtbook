@@ -112,12 +112,14 @@ public class OpenPlaySignupsController : Controller
         }
 
         string userId;
+        string? customerName;
         if (isGuest)
         {
             try
             {
                 var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(guestName!, guestEmail!, guestPhone!);
                 userId = guestUser.Id;
+                customerName = guestUser.FullName;
             }
             catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
             {
@@ -128,6 +130,7 @@ public class OpenPlaySignupsController : Controller
         else
         {
             userId = _userManager.GetUserId(User)!;
+            customerName = (await _userManager.FindByIdAsync(userId))?.FullName;
         }
 
         var pricePerHead = block.PricePerHead ?? 0;
@@ -139,6 +142,8 @@ public class OpenPlaySignupsController : Controller
         {
             CourtId              = courtId,
             FacilityName         = facilityName,
+            CourtName            = court.Name,
+            CustomerName         = customerName,
             UserId               = userId,
             BookingDate          = date,
             StartHour            = startHour,
