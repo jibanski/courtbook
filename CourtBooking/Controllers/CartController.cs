@@ -16,10 +16,12 @@ namespace CourtBooking.Controllers;
 /// client-side (localStorage, see wwwroot/js/cart.js) — this controller only re-validates and
 /// persists it at checkout time.
 ///
-/// The created <see cref="Booking"/> rows share a fresh <see cref="Booking.BundleGroupId"/> with
-/// <see cref="Booking.CourtBundleId"/> left null, so payment/proof/cancel all ride the existing
-/// <see cref="BundleBookingsController"/> Pay/SubmitProof/Cancel flow unchanged — that flow only
-/// ever grouped by BundleGroupId, never required a real CourtBundle.
+/// The created <see cref="Booking"/> rows share a fresh <see cref="Booking.BundleGroupId"/>.
+/// <see cref="Booking.CourtBundleId"/> is set only for a bundle-priced window (see
+/// <see cref="CartItemRequest.CourtBundleId"/>); regular hourly slots leave it null. Either way,
+/// payment/proof/cancel all ride the existing <see cref="BundleBookingsController"/>
+/// Pay/SubmitProof/Cancel flow unchanged — that flow only ever grouped by BundleGroupId, never
+/// required a real CourtBundle.
 /// </summary>
 [AllowAnonymous]
 public class CartController : Controller
@@ -144,7 +146,10 @@ public class CartController : Controller
         // Re-validate availability & recompute price server-side for every item — never trust the
         // client-supplied price. Abort without creating anything if any single item fails, so the
         // customer can drop just that item (the localStorage cart is untouched) and resubmit.
-        var resolved = new List<(CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice)>();
+        // A bundle-priced item (CourtBundleId set client-side) skips the normal hourly-rate path
+        // entirely and is instead re-resolved against the court's current bundle rate blocks, same
+        // check BundleBookingsController.Create uses for a single window.
+        var resolved = new List<(CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
         foreach (var item in items)
         {
             var court = courtsById[item.CourtId];
@@ -164,8 +169,26 @@ public class CartController : Controller
                 continue;
             }
 
+            if (item.CourtBundleId.HasValue)
+            {
+                var resolvedBundle = await _bookingService.ResolveBundleForHourAsync(court, item.Date, item.StartHour);
+                var block = resolvedBundle is not null
+                    && resolvedBundle.Value.Bundle.Id == item.CourtBundleId.Value
+                    && resolvedBundle.Value.Block.StartHour == item.StartHour
+                    && resolvedBundle.Value.Block.EndHour == item.EndHour
+                    ? resolvedBundle.Value.Block
+                    : null;
+                if (block is null)
+                {
+                    errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle window is no longer available.");
+                    continue;
+                }
+                resolved.Add((item, court, start, end, block.FlatPrice, resolvedBundle!.Value.Bundle));
+                continue;
+            }
+
             var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
-            resolved.Add((item, court, start, end, price));
+            resolved.Add((item, court, start, end, price, null));
         }
 
         if (errors.Count > 0)
@@ -201,7 +224,7 @@ public class CartController : Controller
         var guestToken = isGuest ? Guid.NewGuid() : (Guid?)null;
         var bookings   = new List<Booking>();
 
-        foreach (var (item, court, start, end, slotPrice) in resolved)
+        foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
         {
             var (addOns, addOnsTotal) = court.OwnerId != null
                 ? await _bookingService.ResolveAddOnsAsync(
@@ -225,6 +248,7 @@ public class CartController : Controller
                 Status           = BookingStatus.Pending,
                 PaymentStatus    = PaymentStatus.Unpaid,
                 BundleGroupId    = groupId,
+                CourtBundleId    = bundle?.Id,
                 GuestAccessToken = guestToken,
                 CustomerNameSnapshot = isGuest ? guestName!.Trim() : null,
                 ReservedUntil    = DateTime.UtcNow.AddMinutes(15),
@@ -262,6 +286,10 @@ public class CartController : Controller
         public int StartHour { get; set; }
         public int EndHour { get; set; }
         public List<CartAddOnRequest>? AddOns { get; set; }
+        // Set only for a bundle-priced window (see StaffController.CreateWalkInCart) —
+        // the customer-facing cart never populates this, since customers can't add bundle
+        // windows to their cart yet.
+        public int? CourtBundleId { get; set; }
     }
 
     public class CartAddOnRequest

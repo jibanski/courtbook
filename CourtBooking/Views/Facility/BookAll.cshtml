@@ -104,50 +104,354 @@
                     <h5 style="color:var(--cb-text-2);">No courts available</h5>
                 </div>
             }
-            @foreach (var courtVm in Model)
+            @{
+                // Fixed-slot courts (pre-defined CourtTimeSlot rows) don't fit a uniform
+                // hour-per-row grid — keep those in the original per-court card layout below.
+                var gridCourts = Model.Where(c => !c.HasSlots).ToList();
+                var slotCourts = Model.Where(c => c.HasSlots).ToList();
+
+                var localNow    = PhtClock.Now;
+                var today       = DateOnly.FromDateTime(localNow);
+                bool isPastDate = selectedDate < today;
+                bool isToday    = selectedDate == today;
+                int  nowHour    = localNow.Hour;
+                int  nowMinute  = localNow.Minute;
+                bool SlotIsPast(int startHour) => isPastDate || (isToday && (startHour * 60 + 20) < (nowHour * 60 + nowMinute));
+            }
+
+            @if (gridCourts.Any())
             {
+                int minOpen  = gridCourts.Min(c => c.Court.OpeningHour);
+                int maxClose = gridCourts.Max(c => c.Court.ClosingHour);
+
+                // A bundle window is one indivisible flat-priced booking — render it as a single
+                // cell spanning its whole hour range (rowspan) instead of repeating the same price
+                // tile on every hour row. bundleWindowStarts marks the (court, hour) that should
+                // render the merged cell; bundleWindowSkip marks the interior hours whose <td> must
+                // be omitted entirely since the rowspan above already covers that row/column.
+                var bundleWindowStarts = new HashSet<(int CourtId, int Hour)>();
+                var bundleWindowSkip   = new HashSet<(int CourtId, int Hour)>();
+                foreach (var cv in gridCourts)
+                {
+                    var seenBlocks = new HashSet<(int Start, int End)>();
+                    foreach (var entry in cv.BundleOnlyHours.Values)
+                    {
+                        if (!seenBlocks.Add((entry.Block.StartHour, entry.Block.EndHour))) continue;
+
+                        bool wholeBlockFree = true;
+                        for (int bh = entry.Block.StartHour; bh < entry.Block.EndHour; bh++)
+                        {
+                            if (cv.BookedHours.Contains(bh) || cv.PendingHours.Contains(bh) || cv.BlockedHours.Contains(bh))
+                            {
+                                wholeBlockFree = false;
+                                break;
+                            }
+                        }
+                        if (!wholeBlockFree || SlotIsPast(entry.Block.StartHour)) continue;
+
+                        bundleWindowStarts.Add((cv.Court.Id, entry.Block.StartHour));
+                        for (int bh = entry.Block.StartHour + 1; bh < entry.Block.EndHour; bh++)
+                        {
+                            bundleWindowSkip.Add((cv.Court.Id, bh));
+                        }
+                    }
+                }
+
                 <div class="card mb-4 cb-fade-up-delay-1">
-                    <div class="card-header d-flex align-items-center gap-3">
-                        <img src="@(!string.IsNullOrWhiteSpace(courtVm.Court.ImageUrl) ? courtVm.Court.ImageUrl : SportDefaultImage(courtVm.Court.SportType))"
-                             alt="@courtVm.Court.Name"
-                             style="width:48px;height:48px;object-fit:cover;border-radius:8px;" />
-                        <div class="flex-grow-1">
-                            <h5 class="mb-0" style="font-size:1rem;font-weight:700;">
-                                <a asp-controller="Facility" asp-action="BookCourt" asp-route-slug="@slug"
-                                   asp-route-courtId="@courtVm.Court.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                   style="color:inherit;text-decoration:none;">
-                                    @courtVm.Court.Name
-                                </a>
-                            </h5>
-                            <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
-                                <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-2);font-size:.72rem;">@courtVm.Court.SportType</span>
-                                <span class="badge" style="background:var(--cb-blue-dim);color:var(--cb-blue);font-size:.72rem;">
-                                    <i class="bi bi-@(courtVm.Court.IsIndoor ? "house" : "sun") me-1"></i>@(courtVm.Court.IsIndoor ? "Indoor" : "Outdoor")
+                    <div class="card-header">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div>
+                                <h5 class="mb-0" style="font-size:1rem;font-weight:700;">
+                                    <i class="bi bi-grid-3x3-gap me-2" style="color:var(--cb-lime);"></i>Court Availability
+                                </h5>
+                                <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                                    Click an open cell to select it — click again to remove it.
+                                </p>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);font-size:.72rem;padding:.4em .75em;">
+                                    <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Open
+                                </span>
+                                <span class="badge" style="background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);font-size:.72rem;padding:.4em .75em;">
+                                    <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Selected
+                                </span>
+                                <span class="badge" style="background:rgba(148,163,184,0.15);color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);font-size:.72rem;padding:.4em .75em;">
+                                    <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Booked
                                 </span>
                             </div>
                         </div>
-                        <div class="text-end">
-                            <div class="fw-bold" style="font-size:1rem;color:var(--cb-lime);">
-                                @if (courtVm.HasRateRange)
-                                {
-                                    @:₱@courtVm.RateRangeMin.ToString("N0")&ndash;@courtVm.RateRangeMax.ToString("N0")
-                                }
-                                else
-                                {
-                                    @:₱@courtVm.Court.PricePerHour.ToString("N0")
-                                }
-                            </div>
-                            <div style="font-size:.7rem;color:var(--cb-text-3);">/hr</div>
+                    </div>
+                    <div class="card-body p-2 p-md-3">
+                        <div class="table-responsive">
+                            <table class="cb-grid-table">
+                                <thead>
+                                    <tr>
+                                        <th class="cb-grid-time-col">Time</th>
+                                        @foreach (var cv in gridCourts)
+                                        {
+                                            <th class="text-center">
+                                                <a asp-controller="Facility" asp-action="BookCourt" asp-route-slug="@slug"
+                                                   asp-route-courtId="@cv.Court.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                   style="color:inherit;text-decoration:none;">@cv.Court.Name</a>
+                                                <div style="font-size:.68rem;font-weight:400;color:var(--cb-text-3);">@cv.Court.SportType</div>
+                                            </th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int h = minOpen; h < maxClose; h++)
+                                    {
+                                        <tr>
+                                            <td class="cb-grid-time-col" style="font-size:.76rem;color:var(--cb-text-3);white-space:nowrap;">
+                                                @TimeDisplay.HourRange(h, h + 1)
+                                            </td>
+                                            @foreach (var cv in gridCourts)
+                                            {
+                                                if (bundleWindowSkip.Contains((cv.Court.Id, h)))
+                                                {
+                                                    continue;
+                                                }
+
+                                                bool withinHours  = h >= cv.Court.OpeningHour && h < cv.Court.ClosingHour;
+                                                bool isBundleOnly = cv.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
+                                                int  bundleRowspan = isBundleOnly && bundleWindowStarts.Contains((cv.Court.Id, h))
+                                                    ? bundleMatch.Block.EndHour - bundleMatch.Block.StartHour
+                                                    : 1;
+                                                <td class="text-center align-middle p-1" rowspan="@bundleRowspan">
+                                                @if (!withinHours)
+                                                {
+                                                    <div class="cb-cell cb-cell-closed"></div>
+                                                }
+                                                else
+                                                {
+                                                    bool isPast          = SlotIsPast(h);
+                                                    bool isBooked        = cv.BookedHours.Contains(h);
+                                                    bool isPending       = cv.PendingHours.Contains(h);
+                                                    bool isBlocked       = cv.BlockedHours.Contains(h);
+                                                    bool isOpenPlay      = cv.OpenPlayHours.Contains(h);
+                                                    bool isPendingBundle = cv.PendingBundleWindows.TryGetValue(h, out var pendingBundle);
+                                                    bool isSignup        = cv.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
+                                                    var  rate            = cv.HourlyRates.TryGetValue(h, out var r) ? r : cv.Court.PricePerHour;
+
+                                                    if (isPast)
+                                                    {
+                                                        <div class="cb-cell cb-cell-closed" title="Past"></div>
+                                                    }
+                                                    else if (isBooked)
+                                                    {
+                                                        <div class="cb-cell cb-cell-booked" title="Booked">Booked</div>
+                                                    }
+                                                    else if (isPending)
+                                                    {
+                                                        <div class="cb-cell cb-cell-pending" title="Pending payment">Pending</div>
+                                                    }
+                                                    else if (isPendingBundle)
+                                                    {
+                                                        <div class="cb-cell cb-cell-pending" title="Bundle pending payment">Bundle</div>
+                                                    }
+                                                    else if (isBlocked)
+                                                    {
+                                                        var reason = cv.BlockReasons.TryGetValue(h, out var _br) ? _br : "Unavailable";
+                                                        <div class="cb-cell cb-cell-booked" title="@reason">Booked</div>
+                                                    }
+                                                    else if (isBundleOnly)
+                                                    {
+                                                        var blockStart = bundleMatch.Block.StartHour;
+                                                        var blockEnd   = bundleMatch.Block.EndHour;
+
+                                                        if (bundleWindowStarts.Contains((cv.Court.Id, h)))
+                                                        {
+                                                            <div class="cb-select-cell cb-cell cb-cell-bundle position-relative"
+                                                                 data-court-id="@cv.Court.Id" data-court-name="@cv.Court.Name"
+                                                                 data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
+                                                                 data-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                                 data-start-hour="@blockStart" data-end-hour="@blockEnd"
+                                                                 data-price="@bundleMatch.Block.FlatPrice"
+                                                                 data-bundle-id="@bundleMatch.Bundle.Id" data-bundle-name="@bundleMatch.Bundle.Name"
+                                                                 title="Bundle · ₱@bundleMatch.Block.FlatPrice.ToString("N0") for @TimeDisplay.HourRange(blockStart, blockEnd)">
+                                                                <div class="cb-cell-inner">
+                                                                    <div class="cb-cell-label">
+                                                                        <span class="cb-label-open"><i class="bi bi-box-seam me-1"></i>Bundle</span>
+                                                                        <span class="cb-label-selected">Selected</span>
+                                                                    </div>
+                                                                    <div class="cb-cell-price">₱@bundleMatch.Block.FlatPrice.ToString("N0")</div>
+                                                                </div>
+                                                                <a class="cb-cell-directlink" asp-controller="BundleBookings" asp-action="Create"
+                                                                   asp-route-bundleId="@bundleMatch.Bundle.Id" asp-route-courtId="@cv.Court.Id"
+                                                                   asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                                   asp-route-startHour="@blockStart" asp-route-endHour="@blockEnd"
+                                                                   title="Book this bundle now, skipping the cart">
+                                                                    <i class="bi bi-arrow-right-circle"></i>
+                                                                </a>
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <div class="cb-cell cb-cell-booked" title="Bundle window partially booked elsewhere">Booked</div>
+                                                        }
+                                                    }
+                                                    else if (isSignup && signupMatch.SpotsRemaining > 0)
+                                                    {
+                                                        <a asp-controller="OpenPlaySignups" asp-action="Create"
+                                                           asp-route-courtId="@cv.Court.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                           asp-route-startHour="@signupMatch.Block.StartHour" asp-route-endHour="@signupMatch.Block.EndHour"
+                                                           class="cb-cell cb-cell-openplay text-decoration-none" title="Open Play — join">
+                                                            Open Play
+                                                        </a>
+                                                    }
+                                                    else if (isSignup || isOpenPlay)
+                                                    {
+                                                        <div class="cb-cell cb-cell-booked" title="Open Play">Open Play</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="cb-select-cell cb-cell cb-cell-open position-relative"
+                                                             data-court-id="@cv.Court.Id" data-court-name="@cv.Court.Name"
+                                                             data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
+                                                             data-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                             data-start-hour="@h" data-end-hour="@(h + 1)"
+                                                             data-price="@rate"
+                                                             title="Open · ₱@rate.ToString("N0")">
+                                                            <div class="cb-cell-inner">
+                                                                <div class="cb-cell-label">
+                                                                    <span class="cb-label-open">Open</span>
+                                                                    <span class="cb-label-selected">Selected</span>
+                                                                </div>
+                                                                <div class="cb-cell-price">₱@rate.ToString("N0")</div>
+                                                            </div>
+                                                            <a class="cb-cell-directlink" asp-controller="Bookings" asp-action="Create"
+                                                               asp-route-courtId="@cv.Court.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                               asp-route-startHour="@h"
+                                                               title="Book this slot now, skipping the cart">
+                                                                <i class="bi bi-arrow-right-circle"></i>
+                                                            </a>
+                                                        </div>
+                                                    }
+                                                }
+                                                </td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                    <div class="card-body p-3">
-                        @await Html.PartialAsync("_CourtAvailabilityGrid", courtVm)
-                    </div>
                 </div>
+            }
+
+            @if (slotCourts.Any())
+            {
+                @if (gridCourts.Any())
+                {
+                    <h6 class="mt-4 mb-3" style="color:var(--cb-text-2);">
+                        <i class="bi bi-calendar-week me-1"></i>Fixed time-slot courts
+                    </h6>
+                }
+                @foreach (var courtVm in slotCourts)
+                {
+                    <div class="card mb-4 cb-fade-up-delay-1">
+                        <div class="card-header d-flex align-items-center gap-3">
+                            <img src="@(!string.IsNullOrWhiteSpace(courtVm.Court.ImageUrl) ? courtVm.Court.ImageUrl : SportDefaultImage(courtVm.Court.SportType))"
+                                 alt="@courtVm.Court.Name"
+                                 style="width:48px;height:48px;object-fit:cover;border-radius:8px;" />
+                            <div class="flex-grow-1">
+                                <h5 class="mb-0" style="font-size:1rem;font-weight:700;">
+                                    <a asp-controller="Facility" asp-action="BookCourt" asp-route-slug="@slug"
+                                       asp-route-courtId="@courtVm.Court.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                       style="color:inherit;text-decoration:none;">
+                                        @courtVm.Court.Name
+                                    </a>
+                                </h5>
+                                <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
+                                    <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-2);font-size:.72rem;">@courtVm.Court.SportType</span>
+                                    <span class="badge" style="background:var(--cb-blue-dim);color:var(--cb-blue);font-size:.72rem;">
+                                        <i class="bi bi-@(courtVm.Court.IsIndoor ? "house" : "sun") me-1"></i>@(courtVm.Court.IsIndoor ? "Indoor" : "Outdoor")
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold" style="font-size:1rem;color:var(--cb-lime);">
+                                    @if (courtVm.HasRateRange)
+                                    {
+                                        @:₱@courtVm.RateRangeMin.ToString("N0")&ndash;@courtVm.RateRangeMax.ToString("N0")
+                                    }
+                                    else
+                                    {
+                                        @:₱@courtVm.Court.PricePerHour.ToString("N0")
+                                    }
+                                </div>
+                                <div style="font-size:.7rem;color:var(--cb-text-3);">/hr</div>
+                            </div>
+                        </div>
+                        <div class="card-body p-3">
+                            @await Html.PartialAsync("_CourtAvailabilityGrid", courtVm)
+                        </div>
+                    </div>
+                }
             }
         </div>
     </div>
 </div>
+
+<style>
+    .cb-grid-table { border-collapse: separate; border-spacing: 4px; width: 100%; }
+    .cb-grid-table th { font-size: .72rem; color: var(--cb-text-2); font-weight: 700; padding: .4rem .3rem; }
+    .cb-grid-time-col { min-width: 84px; text-align: left; padding-left: .4rem; }
+    .cb-grid-table td { vertical-align: top; }
+    .cb-cell {
+        min-width: 88px;
+        min-height: 48px;
+        height: 100%;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: .72rem;
+        font-weight: 700;
+        user-select: none;
+        position: relative;
+    }
+    .cb-cell-inner { display: flex; flex-direction: column; align-items: center; }
+    .cb-cell-price { font-size: .65rem; font-weight: 600; opacity: .85; margin-top: 1px; }
+    .cb-cell-closed { background: transparent; }
+    .cb-cell-booked, .cb-cell-pending { border: 1px solid var(--cb-border); cursor: default; }
+    .cb-cell-booked { background: var(--cb-surface-2); color: var(--cb-text-3); }
+    .cb-cell-pending { background: rgba(234,179,8,0.12); color: #eab308; border-color: rgba(234,179,8,0.4); }
+    .cb-cell-openplay { background: var(--cb-surface-2); color: var(--cb-text-2); border: 1px solid var(--cb-lime); }
+    .cb-select-cell { cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+    .cb-cell-open { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .cb-cell-open:hover { background: rgba(34,197,94,0.28); }
+    .cb-cell-bundle { background: var(--cb-lime); color: #000; border: 1px solid var(--cb-lime); }
+    .cb-cell-bundle:hover { filter: brightness(0.95); }
+    .cb-cell-selected.cb-cell-open,
+    .cb-cell-selected.cb-cell-bundle {
+        background: rgba(249,115,22,0.22) !important;
+        color: #fb923c !important;
+        border-color: rgba(249,115,22,0.5) !important;
+    }
+    .cb-cell .cb-label-selected { display: none; }
+    .cb-cell-selected .cb-label-open { display: none; }
+    .cb-cell-selected .cb-label-selected { display: inline; }
+    .cb-cell-directlink {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(0,0,0,.35);
+        color: #fff;
+        font-size: .6rem;
+        z-index: 2;
+        text-decoration: none;
+    }
+    .cb-cell-bundle .cb-cell-directlink { background: rgba(0,0,0,.45); }
+    .cb-cell-directlink:hover { background: rgba(0,0,0,.6); color: #fff; }
+</style>
 
 @await Html.PartialAsync("_CartWidget", (string?)null)
 

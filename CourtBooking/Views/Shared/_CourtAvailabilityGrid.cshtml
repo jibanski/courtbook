@@ -192,18 +192,31 @@
                         {
                             var bundleLabel = TimeDisplay.HourRange(blockStart, blockEnd);
                             <div class="col-12">
-                                <a asp-controller="BundleBookings" asp-action="Create"
-                                   asp-route-bundleId="@bundleMatch.Bundle.Id"
-                                                 asp-route-courtId="@Model.Court.Id"
-                                   asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                   asp-route-startHour="@blockStart"
-                                   asp-route-endHour="@blockEnd"
-                                   class="p-2 text-center rounded-3 d-block text-decoration-none" style="background:var(--cb-lime);">
-                                    <div style="font-size:.85rem;color:#000;font-weight:700;">@bundleLabel</div>
-                                    <div style="font-size:.7rem;color:#000;margin-top:2px;font-weight:600;">
-                                        <i class="bi bi-box-seam me-1"></i>Bundle Only
-                                    </div>
-                                </a>
+                                <div class="position-relative">
+                                    <a asp-controller="BundleBookings" asp-action="Create"
+                                       asp-route-bundleId="@bundleMatch.Bundle.Id"
+                                       asp-route-courtId="@Model.Court.Id"
+                                       asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                       asp-route-startHour="@blockStart"
+                                       asp-route-endHour="@blockEnd"
+                                       class="p-2 text-center rounded-3 d-block text-decoration-none" style="background:var(--cb-lime);">
+                                        <div style="font-size:.85rem;color:#000;font-weight:700;">@bundleLabel</div>
+                                        <div style="font-size:.7rem;color:#000;margin-top:2px;font-weight:600;">
+                                            <i class="bi bi-box-seam me-1"></i>Bundle Only &middot; ₱@bundleMatch.Block.FlatPrice.ToString("N0")
+                                        </div>
+                                    </a>
+                                    <button type="button" class="cb-add-to-cart btn btn-sm p-0"
+                                            title="Add this bundle window to cart — book with other slots together"
+                                            data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
+                                            data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
+                                            data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@blockStart" data-end-hour="@blockEnd"
+                                            data-price="@bundleMatch.Block.FlatPrice"
+                                            data-bundle-id="@bundleMatch.Bundle.Id" data-bundle-name="@bundleMatch.Bundle.Name"
+                                            style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
+                                                   background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
+                                        <i class="bi bi-plus-lg" style="font-size:.7rem;"></i>
+                                    </button>
+                                </div>
                             </div>
                             h = blockEnd - 1;
                             continue;

@@ -92,7 +92,12 @@ public class HomeController : Controller
         ViewBag.BpiAccountNumber       = sub["BpiAccountNumber"];
         ViewBag.BpiAccountName         = sub["BpiAccountName"];
 
-        var cfg = await _db.PlatformConfig.FindAsync(1);
+        // Select only the 4 QR columns actually used here — skip the unrelated LogoData blob.
+        var cfg = await _db.PlatformConfig.AsNoTracking()
+            .Where(p => p.Id == 1)
+            .Select(p => new { p.GCashQrData, p.GCashQrContentType, p.MayaQrData, p.MayaQrContentType,
+                                p.MetrobankQrData, p.MetrobankQrContentType, p.BpiQrData, p.BpiQrContentType })
+            .FirstOrDefaultAsync();
         ViewBag.GCashQrSrc     = cfg?.GCashQrData     is { Length: > 0 } ? $"data:{cfg.GCashQrContentType};base64,{Convert.ToBase64String(cfg.GCashQrData)}"         : null;
         ViewBag.MayaQrSrc      = cfg?.MayaQrData      is { Length: > 0 } ? $"data:{cfg.MayaQrContentType};base64,{Convert.ToBase64String(cfg.MayaQrData)}"           : null;
         ViewBag.MetrobankQrSrc = cfg?.MetrobankQrData  is { Length: > 0 } ? $"data:{cfg.MetrobankQrContentType};base64,{Convert.ToBase64String(cfg.MetrobankQrData)}" : null;

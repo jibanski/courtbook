@@ -43,7 +43,11 @@
     // before resorting to the generic lightning icon.
     if (string.IsNullOrWhiteSpace(_logoUrl))
     {
-        var _platformCfg = await _layoutDb.PlatformConfig.AsNoTracking().FirstOrDefaultAsync();
+        // Select only the logo columns — this table also stores 4 separate donation QR
+        // images we don't need here, and this query runs on nearly every page view.
+        var _platformCfg = await _layoutDb.PlatformConfig.AsNoTracking()
+            .Select(p => new { p.LogoData, p.LogoContentType })
+            .FirstOrDefaultAsync();
         if (_platformCfg?.LogoData is { Length: > 0 })
             _logoUrl = $"data:{_platformCfg.LogoContentType};base64,{Convert.ToBase64String(_platformCfg.LogoData)}";
     }

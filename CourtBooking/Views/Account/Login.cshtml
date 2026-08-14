@@ -20,7 +20,10 @@
     // before resorting to the generic lightning icon.
     if (string.IsNullOrWhiteSpace(_logoUrl))
     {
-        var _platformCfg = await _loginDb.PlatformConfig.AsNoTracking().FirstOrDefaultAsync();
+        // Select only the logo columns — avoid pulling the 4 unrelated donation QR blobs too.
+        var _platformCfg = await _loginDb.PlatformConfig.AsNoTracking()
+            .Select(p => new { p.LogoData, p.LogoContentType })
+            .FirstOrDefaultAsync();
         if (_platformCfg?.LogoData is { Length: > 0 })
             _logoUrl = $"data:{_platformCfg.LogoContentType};base64,{Convert.ToBase64String(_platformCfg.LogoData)}";
     }

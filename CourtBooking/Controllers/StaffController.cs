@@ -109,22 +109,45 @@ public class StaffController : Controller
     // ── All bookings (read-only) — lets front-desk staff verify a booking went ──
     // through, or look up a customer's booking, without needing Admin access.
 
-    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, string? search)
+    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, string? search, DateOnly? weekStart, string? view)
     {
         var courtIds = await GetMyCourtIdsAsync();
         BookingStatus? exactStatus = !string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s) ? s : null;
+        bool calendarView = string.Equals(view, "calendar", StringComparison.OrdinalIgnoreCase);
 
-        var rows = await GetBookingRowsAsync(courtIds, dateFrom: dateFrom, dateTo: dateTo, exactStatus: exactStatus);
-
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!calendarView)
         {
-            var term = search.Trim();
-            rows = rows.Where(r => r.CustomerName.Contains(term, StringComparison.OrdinalIgnoreCase)
-                                 || (r.CustomerPhone != null && r.CustomerPhone.Contains(term, StringComparison.OrdinalIgnoreCase)))
-                       .ToList();
+            var rows = await GetBookingRowsAsync(courtIds, dateFrom: dateFrom, dateTo: dateTo, exactStatus: exactStatus);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                rows = rows.Where(r => r.CustomerName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                                     || (r.CustomerPhone != null && r.CustomerPhone.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                           .ToList();
+            }
+
+            ViewBag.Rows = rows.OrderByDescending(r => r.CreatedAt).ToList();
+        }
+        else
+        {
+            // A full Sun–Sat week, independent of the list filters above, so switching tabs
+            // always shows a whole week to browse rather than whatever the list is filtered to.
+            var calAnchor = weekStart ?? PhtClock.Today;
+            // Clamp so the week-start/end arithmetic here and the +/-7 day nav links in the
+            // view never overflow DateOnly's range (e.g. hand-edited query string or repeated
+            // prev/next clicks near the year 1/9999 boundary).
+            if (calAnchor < DateOnly.MinValue.AddDays(14)) calAnchor = DateOnly.MinValue.AddDays(14);
+            if (calAnchor > DateOnly.MaxValue.AddDays(-14)) calAnchor = DateOnly.MaxValue.AddDays(-14);
+            var calWeekStart = calAnchor.AddDays(-(int)calAnchor.DayOfWeek);
+            var calWeekEnd   = calWeekStart.AddDays(6);
+
+            var calRows = await GetBookingRowsAsync(courtIds, dateFrom: calWeekStart, dateTo: calWeekEnd);
+
+            ViewBag.CalendarWeekStart = calWeekStart;
+            ViewBag.CalendarRows = calRows.OrderBy(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();
         }
 
-        ViewBag.Rows = rows.OrderByDescending(r => r.CreatedAt).ToList();
         ViewBag.SelectedStatus   = status;
         ViewBag.SelectedDateFrom = dateFrom;
         ViewBag.SelectedDateTo   = dateTo;
@@ -232,7 +255,7 @@ public class StaffController : Controller
 
     // ── Walk-in booking: pick a court/date, then a slot ──────────────────────
 
-    public async Task<IActionResult> NewWalkIn(int? courtId, DateTime? date)
+    public async Task<IActionResult> NewWalkIn(DateTime? date)
     {
         var myCourts = await (await MyCourtsAsync()).Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
         ViewBag.Courts = myCourts;
@@ -255,20 +278,25 @@ public class StaffController : Controller
         // (e.g. a UTC-hosted server) — otherwise, during PH midnight-8am, defaulting to the
         // server's local "today" silently books the wrong calendar date.
         var todayPht = PhtClock.Today;
-
-        if (courtId is null)
-        {
-            ViewBag.SelectedDate = date.HasValue ? DateOnly.FromDateTime(date.Value) : todayPht;
-            return View();
-        }
-
-        var court = myCourts.FirstOrDefault(c => c.Id == courtId);
-        if (court is null) return NotFound();
-
         var selectedDate = date.HasValue ? DateOnly.FromDateTime(date.Value) : todayPht;
+        ViewBag.SelectedDate = selectedDate;
 
+        var courtAvailability = new List<CourtAvailabilityViewModel>();
+        foreach (var court in myCourts)
+            courtAvailability.Add(await BuildStaffCourtAvailabilityAsync(court, selectedDate));
+
+        return View(courtAvailability);
+    }
+
+    /// <summary>Builds one court's availability for the staff/admin walk-in grid. Unlike
+    /// <see cref="BookingService.GetCourtAvailabilityAsync"/> (the customer-facing equivalent),
+    /// Open Play blocks are surfaced here even when <c>AllowPublicSignup</c> is off — front-desk
+    /// staff can always log a walk-in into an Open Play block regardless of whether online
+    /// self-signup is enabled for customers.</summary>
+    private async Task<CourtAvailabilityViewModel> BuildStaffCourtAvailabilityAsync(Court court, DateOnly selectedDate)
+    {
         var slots = await _db.CourtTimeSlots
-            .Where(s => s.CourtId == courtId && s.IsActive && s.SlotDate == selectedDate)
+            .Where(s => s.CourtId == court.Id && s.IsActive && s.SlotDate == selectedDate)
             .OrderBy(s => s.StartHour)
             .ToListAsync();
 
@@ -278,63 +306,63 @@ public class StaffController : Controller
         if (slots.Any())
         {
             vm.TimeSlots = slots;
-            vm.UnavailableSlotIds = await _bookingService.GetUnavailableSlotIdsAsync(courtId.Value, selectedDate, slots);
+            vm.UnavailableSlotIds = await _bookingService.GetUnavailableSlotIdsAsync(court.Id, selectedDate, slots);
             foreach (var s in slots)
             {
                 vm.SlotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
                     court, selectedDate, new TimeOnly(s.StartHour % 24, 0), new TimeOnly(s.EndHour % 24, 0));
             }
+
+            return vm;
         }
-        else
+
+        var bookedHours  = await _bookingService.GetBookedHoursAsync(court.Id, selectedDate);
+        var pendingHours = await _bookingService.GetPendingHoursAsync(court.Id, selectedDate);
+        var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(court.Id, selectedDate);
+        var blockedHours = await _bookingService.GetBlockedHoursAsync(court.Id, selectedDate);
+        var blockReasons = await _bookingService.GetBlockReasonsAsync(court.Id, selectedDate);
+        var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
+
+        var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
+        var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)>();
+        for (int h = court.OpeningHour; h < court.ClosingHour; h++)
         {
-            var bookedHours  = await _bookingService.GetBookedHoursAsync(courtId.Value, selectedDate);
-            var pendingHours = await _bookingService.GetPendingHoursAsync(courtId.Value, selectedDate);
-            var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(courtId.Value, selectedDate);
-            var blockedHours = await _bookingService.GetBlockedHoursAsync(courtId.Value, selectedDate);
-            var blockReasons = await _bookingService.GetBlockReasonsAsync(courtId.Value, selectedDate);
-            var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
+            var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
+            if (match is not null) { bundleOnlyHours[h] = match.Value; continue; }
 
-            var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
-            var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)>();
-            for (int h = court.OpeningHour; h < court.ClosingHour; h++)
+            if (schedule.TryGetValue(h, out var sh) && sh.Type == BookingType.AdminHostedOpenPlay)
             {
-                var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
-                if (match is not null) { bundleOnlyHours[h] = match.Value; continue; }
-
-                if (schedule.TryGetValue(h, out var sh) && sh.Type == BookingType.AdminHostedOpenPlay)
+                var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
+                if (block is not null)
                 {
-                    var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
-                    if (block is not null)
-                    {
-                        // Staff can always register a walk-in into an Open Play block, regardless of
-                        // whether online self-signup is enabled for customers — a null result (no
-                        // MaxPlayers cap configured) is represented here as "unlimited" (int.MaxValue)
-                        // so the view can merge the whole block into one always-clickable tile.
-                        var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingForStaffAsync(block, courtId.Value, selectedDate);
-                        openPlaySignupInfo[h] = (block, spotsRemaining ?? int.MaxValue);
-                    }
+                    // Staff can always register a walk-in into an Open Play block, regardless of
+                    // whether online self-signup is enabled for customers — a null result (no
+                    // MaxPlayers cap configured) is represented here as "unlimited" (int.MaxValue)
+                    // so the view can merge the whole block into one always-clickable tile.
+                    var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingForStaffAsync(block, court.Id, selectedDate);
+                    openPlaySignupInfo[h] = (block, spotsRemaining ?? int.MaxValue);
                 }
             }
-
-            vm.BookedHours     = bookedHours;
-            vm.PendingHours    = pendingHours;
-            vm.PendingBundleWindows = pendingBundleWindows;
-            vm.BlockedHours    = blockedHours;
-            vm.BlockReasons    = blockReasons;
-            vm.BundleOnlyHours = bundleOnlyHours;
-            vm.OpenPlaySignupInfo = openPlaySignupInfo;
-            vm.OpenPlayHours   = schedule
-                .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
-                .Select(kv => kv.Key).ToList();
-            vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
-            vm.AvailableHours = Enumerable
-                .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
-                .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
-                         && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
-                .ToList();
         }
 
-        return View(vm);
+        vm.BookedHours     = bookedHours;
+        vm.PendingHours    = pendingHours;
+        vm.PendingBundleWindows = pendingBundleWindows;
+        vm.BlockedHours    = blockedHours;
+        vm.BlockReasons    = blockReasons;
+        vm.BundleOnlyHours = bundleOnlyHours;
+        vm.OpenPlaySignupInfo = openPlaySignupInfo;
+        vm.OpenPlayHours   = schedule
+            .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
+            .Select(kv => kv.Key).ToList();
+        vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
+        vm.AvailableHours = Enumerable
+            .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
+            .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
+                     && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
+            .ToList();
+
+        return vm;
     }
 
     // ── Walk-in booking: confirm customer info + duration for a chosen hour ──
@@ -728,7 +756,10 @@ public class StaffController : Controller
 
         // Re-validate availability & recompute price server-side for every item — same guards
         // as CreateWalkIn, just looped. Abort without creating anything if any single item fails.
-        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice)>();
+        // A bundle-priced item (CourtBundleId set client-side) skips the normal hourly-rate path
+        // entirely and is instead re-resolved against the court's current bundle rate blocks,
+        // same check WalkInBundleForm/CreateWalkInBundle use for a single window.
+        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
         foreach (var item in items)
         {
             var court = courtsById[item.CourtId];
@@ -750,6 +781,25 @@ public class StaffController : Controller
                 errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is reserved for Admin-Hosted Open Play.");
                 continue;
             }
+
+            if (item.CourtBundleId.HasValue)
+            {
+                var bundleMatch = await ResolveWalkInBundleBlockAsync(court, item.CourtBundleId.Value, item.Date, item.StartHour, item.EndHour);
+                if (bundleMatch is null)
+                {
+                    errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle window is no longer available.");
+                    continue;
+                }
+                var bundle = await _db.CourtBundles.FirstOrDefaultAsync(b => b.Id == item.CourtBundleId.Value && b.IsActive);
+                if (bundle is null)
+                {
+                    errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle is no longer available.");
+                    continue;
+                }
+                resolved.Add((item, court, start, end, bundleMatch.FlatPrice, bundle));
+                continue;
+            }
+
             if (await _bookingService.HasBundleOnlyHoursAsync(court, item.Date, start, end))
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is only available as part of a bundle.");
@@ -757,7 +807,7 @@ public class StaffController : Controller
             }
 
             var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
-            resolved.Add((item, court, start, end, price));
+            resolved.Add((item, court, start, end, price, null));
         }
 
         if (errors.Count > 0)
@@ -796,7 +846,7 @@ public class StaffController : Controller
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
 
-        foreach (var (item, court, start, end, slotPrice) in resolved)
+        foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
         {
             var (addOns, addOnsTotal) = employerOwnerId != null
                 ? await _bookingService.ResolveAddOnsAsync(
@@ -827,6 +877,7 @@ public class StaffController : Controller
                 PaidAt               = isCash ? DateTime.UtcNow : null,
                 LoggedByStaffId      = CurrentStaffId,
                 BundleGroupId        = groupId,
+                CourtBundleId        = bundle?.Id,
                 CustomerNameSnapshot = customerName,
                 AddOns               = addOns
             });
