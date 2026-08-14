@@ -23,12 +23,15 @@
                     <i class="bi bi-clock me-2" style="color:var(--cb-lime);"></i>Available Slots
                 </h5>
                 <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
-                    Tap an available slot to start your booking
+                    Tap a slot to select it — tap again to remove, or use the arrow to book it instantly
                 </p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
                 <span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);font-size:.72rem;padding:.4em .75em;">
                     <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Available
+                </span>
+                <span class="badge" style="background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);font-size:.72rem;padding:.4em .75em;">
+                    <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Selected
                 </span>
                 <span class="badge" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);font-size:.72rem;padding:.4em .75em;">
                     <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Booked
@@ -91,34 +94,31 @@
                         }
                         else
                         {
-                            <div class="position-relative h-100">
-                                <a asp-controller="Bookings" asp-action="Create"
-                                   asp-route-courtId="@Model.Court.Id"
-                                   asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                   asp-route-startHour="@slot.StartHour"
-                                   asp-route-endHour="@slot.EndHour"
-                                   class="slot-available h-100 p-3 text-center rounded-3 d-block">
-                                    <div class="fw-bold mb-1" style="font-size:.95rem;color:#4ade80;">@slot.TimeLabel</div>
-                                    <div style="font-size:.75rem;color:var(--cb-text-3);">
-                                        @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull;
-                                        <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
-                                    </div>
-                                    <div class="mt-2">
-                                        <span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
-                                            <i class="bi bi-calendar-plus me-1"></i>Book
-                                        </span>
-                                    </div>
+                            <div class="cb-select-cell cbg-tile h-100 p-3 text-center rounded-3 position-relative"
+                                 data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
+                                 data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
+                                 data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@slot.StartHour" data-end-hour="@slot.EndHour"
+                                 data-price="@price"
+                                 style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
+                                <div class="fw-bold mb-1" style="font-size:.95rem;color:#4ade80;">@slot.TimeLabel</div>
+                                <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                    @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &bull;
+                                    <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="badge cbg-label-open" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
+                                        <i class="bi bi-plus-circle me-1"></i>Select
+                                    </span>
+                                    <span class="badge cbg-label-selected" style="background:rgba(249,115,22,0.25);color:#fb923c;font-size:.72rem;">
+                                        <i class="bi bi-check-circle me-1"></i>Selected
+                                    </span>
+                                </div>
+                                <a class="cb-cell-directlink" asp-controller="Bookings" asp-action="Create"
+                                   asp-route-courtId="@Model.Court.Id" asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                                   asp-route-startHour="@slot.StartHour" asp-route-endHour="@slot.EndHour"
+                                   title="Book this slot now, skipping the cart">
+                                    <i class="bi bi-arrow-right-circle"></i>
                                 </a>
-                                <button type="button" class="cb-add-to-cart btn btn-sm p-0"
-                                        title="Add to cart — book with other slots together"
-                                        data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
-                                        data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
-                                        data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@slot.StartHour" data-end-hour="@slot.EndHour"
-                                        data-price="@price"
-                                        style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
-                                               background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
-                                    <i class="bi bi-plus-lg" style="font-size:.7rem;"></i>
-                                </button>
                             </div>
                         }
                     </div>
@@ -192,30 +192,27 @@
                         {
                             var bundleLabel = TimeDisplay.HourRange(blockStart, blockEnd);
                             <div class="col-12">
-                                <div class="position-relative">
-                                    <a asp-controller="BundleBookings" asp-action="Create"
-                                       asp-route-bundleId="@bundleMatch.Bundle.Id"
-                                       asp-route-courtId="@Model.Court.Id"
+                                <div class="cb-select-cell cbg-tile p-2 text-center rounded-3 position-relative"
+                                     data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
+                                     data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
+                                     data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@blockStart" data-end-hour="@blockEnd"
+                                     data-price="@bundleMatch.Block.FlatPrice"
+                                     data-bundle-id="@bundleMatch.Bundle.Id" data-bundle-name="@bundleMatch.Bundle.Name"
+                                     style="background:var(--cb-lime);">
+                                    <div style="font-size:.85rem;color:#000;font-weight:700;">@bundleLabel</div>
+                                    <div style="font-size:.7rem;color:#000;margin-top:2px;font-weight:600;">
+                                        <i class="bi bi-box-seam me-1"></i>Bundle Only &middot; ₱@bundleMatch.Block.FlatPrice.ToString("N0")
+                                    </div>
+                                    <div class="cbg-label-selected mt-1" style="font-size:.68rem;color:#000;font-weight:700;">
+                                        <i class="bi bi-check-circle me-1"></i>Selected
+                                    </div>
+                                    <a class="cb-cell-directlink" asp-controller="BundleBookings" asp-action="Create"
+                                       asp-route-bundleId="@bundleMatch.Bundle.Id" asp-route-courtId="@Model.Court.Id"
                                        asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                       asp-route-startHour="@blockStart"
-                                       asp-route-endHour="@blockEnd"
-                                       class="p-2 text-center rounded-3 d-block text-decoration-none" style="background:var(--cb-lime);">
-                                        <div style="font-size:.85rem;color:#000;font-weight:700;">@bundleLabel</div>
-                                        <div style="font-size:.7rem;color:#000;margin-top:2px;font-weight:600;">
-                                            <i class="bi bi-box-seam me-1"></i>Bundle Only &middot; ₱@bundleMatch.Block.FlatPrice.ToString("N0")
-                                        </div>
+                                       asp-route-startHour="@blockStart" asp-route-endHour="@blockEnd"
+                                       title="Book this bundle now, skipping the cart">
+                                        <i class="bi bi-arrow-right-circle"></i>
                                     </a>
-                                    <button type="button" class="cb-add-to-cart btn btn-sm p-0"
-                                            title="Add this bundle window to cart — book with other slots together"
-                                            data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
-                                            data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
-                                            data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@blockStart" data-end-hour="@blockEnd"
-                                            data-price="@bundleMatch.Block.FlatPrice"
-                                            data-bundle-id="@bundleMatch.Bundle.Id" data-bundle-name="@bundleMatch.Bundle.Name"
-                                            style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
-                                                   background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
-                                        <i class="bi bi-plus-lg" style="font-size:.7rem;"></i>
-                                    </button>
                                 </div>
                             </div>
                             h = blockEnd - 1;
@@ -399,27 +396,22 @@
                         }
                         else
                         {
-                            <div class="position-relative h-100">
-                                <a asp-controller="Bookings" asp-action="Create"
-                                   asp-route-courtId="@Model.Court.Id"
-                                   asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
+                            <div class="cb-select-cell cbg-tile-sm h-100 p-2 text-center rounded-3 position-relative"
+                                 data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
+                                 data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
+                                 data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@h" data-end-hour="@(h + 1)"
+                                 data-price="@rate"
+                                 style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
+                                <div class="cbg-time" style="font-size:.8rem;color:#4ade80;font-weight:600;">@timeLabel</div>
+                                <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
+                                    ₱@rate.ToString("N0")
+                                </div>
+                                <a class="cb-cell-directlink" asp-controller="Bookings" asp-action="Create"
+                                   asp-route-courtId="@Model.Court.Id" asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
                                    asp-route-startHour="@h"
-                                   class="slot-available p-2 text-center rounded-3 d-block">
-                                    <div style="font-size:.8rem;color:#4ade80;font-weight:600;">@timeLabel</div>
-                                    <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
-                                        ₱@rate.ToString("N0")
-                                    </div>
+                                   title="Book this slot now, skipping the cart">
+                                    <i class="bi bi-arrow-right-circle"></i>
                                 </a>
-                                <button type="button" class="cb-add-to-cart btn btn-sm p-0"
-                                        title="Add to cart — book with other slots together"
-                                        data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
-                                        data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
-                                        data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@h" data-end-hour="@(h + 1)"
-                                        data-price="@rate"
-                                        style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;
-                                               background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
-                                    <i class="bi bi-plus-lg" style="font-size:.6rem;"></i>
-                                </button>
                             </div>
                         }
                     </div>
@@ -438,3 +430,33 @@
         }
     </div>
 </div>
+
+<style>
+    .cbg-tile, .cbg-tile-sm { cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+    .cbg-tile .cbg-label-selected { display: none; }
+    .cbg-tile.cb-cell-selected .cbg-label-open { display: none; }
+    .cbg-tile.cb-cell-selected .cbg-label-selected { display: inline-block; }
+    .cbg-tile.cb-cell-selected,
+    .cbg-tile-sm.cb-cell-selected {
+        background: rgba(249,115,22,0.16) !important;
+        border-color: rgba(249,115,22,0.55) !important;
+    }
+    .cbg-tile-sm.cb-cell-selected .cbg-time { color: #fb923c !important; }
+    .cb-cell-directlink {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(0,0,0,.45);
+        color: #fff;
+        font-size: .68rem;
+        z-index: 2;
+        text-decoration: none;
+    }
+    .cb-cell-directlink:hover { background: rgba(0,0,0,.65); color: #fff; }
+</style>
