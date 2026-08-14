@@ -264,8 +264,8 @@
                                                 }
                                                 else if (isBlocked)
                                                 {
-                                                    var reason = cv.BlockReasons.TryGetValue(h, out var _br) ? _br : "Unavailable";
-                                                    <div class="cb-cell cb-cell-booked" title="@reason">Booked</div>
+                                                    var reason = cv.BlockReasons.TryGetValue(h, out var _br) ? _br : "Booked";
+                                                    <div class="cb-cell cb-cell-booked" title="@reason">@reason</div>
                                                 }
                                                 else if (isBundleOnly)
                                                 {
