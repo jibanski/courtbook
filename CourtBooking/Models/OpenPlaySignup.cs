@@ -25,6 +25,15 @@ public class OpenPlaySignup
     [MaxLength(200)]
     public string? CustomerNameSnapshot { get; set; }
 
+    /// <summary>Always-populated customer name snapshot for direct DB lookup — same reasoning and
+    /// pattern as <see cref="Booking.CustomerName"/>.</summary>
+    [MaxLength(200)]
+    public string? CustomerName { get; set; }
+
+    /// <summary>Snapshot of the court's name at sign-up time, same denormalization pattern as <see cref="Booking.CourtName"/>.</summary>
+    [MaxLength(100)]
+    public string? CourtName { get; set; }
+
     [Required]
     public string UserId { get; set; } = string.Empty;
     public ApplicationUser User { get; set; } = null!;

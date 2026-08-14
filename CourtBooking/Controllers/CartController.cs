@@ -176,12 +176,14 @@ public class CartController : Controller
         }
 
         string userId;
+        string? customerName;
         if (isGuest)
         {
             try
             {
                 var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(guestName!, guestEmail!, guestPhone!);
                 userId = guestUser.Id;
+                customerName = guestUser.FullName;
             }
             catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
             {
@@ -192,6 +194,7 @@ public class CartController : Controller
         else
         {
             userId = _userManager.GetUserId(User)!;
+            customerName = (await _userManager.FindByIdAsync(userId))?.FullName;
         }
 
         var groupId    = Guid.NewGuid();
@@ -212,6 +215,8 @@ public class CartController : Controller
             {
                 CourtId          = court.Id,
                 FacilityName     = settings.FacilityName,
+                CourtName        = court.Name,
+                CustomerName     = customerName,
                 UserId           = userId,
                 BookingDate      = item.Date,
                 StartTime        = start,

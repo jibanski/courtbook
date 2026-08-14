@@ -145,12 +145,14 @@ public class BundleBookingsController : Controller
         }
 
         string userId;
+        string? customerName;
         if (isGuest)
         {
             try
             {
                 var guestUser = await _guestCheckout.GetOrCreateGuestUserAsync(guestName!, guestEmail!, guestPhone!);
                 userId = guestUser.Id;
+                customerName = guestUser.FullName;
             }
             catch (Exception ex) when (ex is GuestEmailConflictException or InvalidOperationException)
             {
@@ -161,6 +163,7 @@ public class BundleBookingsController : Controller
         else
         {
             userId = _userManager.GetUserId(User)!;
+            customerName = (await _userManager.FindByIdAsync(userId))?.FullName;
         }
 
         // Guard against a double-submit (e.g. an impatient double-click) racing with the
@@ -197,6 +200,8 @@ public class BundleBookingsController : Controller
             {
                 CourtId       = selectedCourt.Id,
                 FacilityName  = facilityName,
+                CourtName     = selectedCourt.Name,
+                CustomerName  = customerName,
                 UserId        = userId,
                 BookingDate   = date,
                 StartTime     = start,
@@ -270,7 +275,10 @@ public class BundleBookingsController : Controller
             return RedirectToAction(nameof(Pay), new { groupId });
         }
         foreach (var row in rows)
+        {
             row.CustomerNameSnapshot = fullName.Trim();
+            row.CustomerName = fullName.Trim();
+        }
 
         // Check if any of the bookings in this bundle have expired
         var expiredRows = rows.Where(b => b.ReservedUntil.HasValue && DateTime.UtcNow > b.ReservedUntil.Value).ToList();
@@ -406,7 +414,10 @@ public class BundleBookingsController : Controller
             return RedirectToAction(nameof(GuestPay), new { token });
         }
         foreach (var row in rows)
+        {
             row.CustomerNameSnapshot = nameToUse;
+            row.CustomerName = nameToUse;
+        }
 
         // Check if any of the bookings in this bundle have expired
         var expiredRows = rows.Where(b => b.ReservedUntil.HasValue && DateTime.UtcNow > b.ReservedUntil.Value).ToList();
