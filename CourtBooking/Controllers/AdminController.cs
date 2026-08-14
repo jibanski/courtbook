@@ -143,6 +143,7 @@ public class AdminController : Controller
             CustomerName = b.CustomerNameSnapshot ?? b.User.FullName,
             CustomerPhone = b.User.PhoneNumber,
             IsGuest = b.User.IsGuest,
+            CourtId = b.CourtId,
             CourtName = b.Court.Name,
             BundleName = b.CourtBundle?.Name,
             BookingDate = b.BookingDate,
@@ -154,6 +155,7 @@ public class AdminController : Controller
             PaymentStatus = b.PaymentStatus,
             HasPaymentProof = b.HasPaymentProof,
             PaymentMethod = b.PaymentMethod,
+            PaymentReference = b.PaymentReference,
             PaymentProofPath = b.PaymentProofPath,
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
@@ -167,6 +169,7 @@ public class AdminController : Controller
             CustomerName = sg.CustomerNameSnapshot ?? sg.User.FullName,
             CustomerPhone = sg.User.PhoneNumber,
             IsGuest = sg.User.IsGuest,
+            CourtId = sg.CourtId,
             CourtName = sg.Court.Name,
             SpotCount = sg.SpotCount,
             PlayerNames = sg.PlayerNames,
@@ -179,6 +182,7 @@ public class AdminController : Controller
             PaymentStatus = sg.PaymentStatus,
             HasPaymentProof = sg.HasPaymentProof,
             PaymentMethod = sg.PaymentMethod,
+            PaymentReference = sg.PaymentReference,
             PaymentProofPath = sg.PaymentProofPath,
             BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
         }));
@@ -447,7 +451,7 @@ public class AdminController : Controller
         });
     }
 
-    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search)
+    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart)
     {
         var courtIds = await GetMyCourtIdsAsync();
         List<OpenPlaySignup> awaitingSignups = new();
@@ -509,6 +513,27 @@ public class AdminController : Controller
             ViewBag.Rows = rows
                 .OrderByDescending(r => r.CreatedAt)
                 .ToList();
+
+            // Calendar view: a full Sun–Sat week of bookings/sign-ups across all the owner's
+            // courts, independent of the list filters above, so switching tabs always shows a
+            // whole week to browse rather than whatever the list happens to be filtered to.
+            var calAnchor = weekStart ?? PhtClock.Today;
+            var calWeekStart = calAnchor.AddDays(-(int)calAnchor.DayOfWeek);
+            var calWeekEnd = calWeekStart.AddDays(6);
+
+            var calBookings = await _db.Bookings
+                .Where(b => courtIds.Contains(b.CourtId) && b.BookingDate >= calWeekStart && b.BookingDate <= calWeekEnd)
+                .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle)
+                .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
+                .ToListAsync();
+            var calSignups = await _db.OpenPlaySignups
+                .Where(sg => courtIds.Contains(sg.CourtId) && sg.BookingDate >= calWeekStart && sg.BookingDate <= calWeekEnd)
+                .Include(sg => sg.Court).Include(sg => sg.User)
+                .ToListAsync();
+
+            ViewBag.CalendarWeekStart = calWeekStart;
+            ViewBag.CalendarRows = (await BuildAdminBookingRowsAsync(calBookings, calSignups))
+                .OrderBy(r => r.BookingDate).ThenBy(r => r.StartTime).ToList();
         }
 
         ViewBag.SelectedStatus       = status;

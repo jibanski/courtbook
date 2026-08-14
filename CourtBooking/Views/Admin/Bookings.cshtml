@@ -9,6 +9,19 @@
     int  pendingPaymentCount = (int)(ViewBag.PendingPaymentCount ?? 0);
     var rows = ViewBag.Rows as List<CourtBooking.ViewModels.AdminBookingRow>;
     var awaitingSignups = ViewBag.AwaitingSignups as List<CourtBooking.Models.OpenPlaySignup> ?? new();
+
+    bool calendarView       = string.Equals(Context.Request.Query["view"], "calendar", StringComparison.OrdinalIgnoreCase);
+    var calendarWeekStart   = ViewBag.CalendarWeekStart as DateOnly? ?? default;
+    var calendarWeekEnd     = calendarWeekStart.AddDays(6);
+    var calendarRows        = ViewBag.CalendarRows as List<CourtBooking.ViewModels.AdminBookingRow> ?? new();
+
+    string StatusCls(CourtBooking.Models.BookingStatus st) => st switch
+    {
+        CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
+        CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
+        CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
+        _ => "bg-warning text-dark"
+    };
 }
 
 <div class="bg-dark text-white py-4 mb-4">
@@ -37,6 +50,37 @@
     </div>
 
     @if (!awaitingMode)
+    {
+        <!-- List / Calendar view toggle -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div class="btn-group" role="group">
+                <a href="@Url.Action("Bookings", new { status = selectedStatus, dateFrom = selectedDateFrom, dateTo = selectedDateTo, search })"
+                   class="btn btn-sm @(!calendarView ? "btn-primary" : "btn-outline-primary")">
+                    <i class="bi bi-list-ul me-1"></i>List View
+                </a>
+                <a href="@Url.Action("Bookings", new { view = "calendar", weekStart = calendarWeekStart.ToString("yyyy-MM-dd") })"
+                   class="btn btn-sm @(calendarView ? "btn-primary" : "btn-outline-primary")">
+                    <i class="bi bi-calendar-week me-1"></i>Calendar View
+                </a>
+            </div>
+
+            @if (calendarView)
+            {
+                <div class="d-flex align-items-center gap-2">
+                    <a href="@Url.Action("Bookings", new { view = "calendar", weekStart = calendarWeekStart.AddDays(-7).ToString("yyyy-MM-dd") })"
+                       class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
+                    <span class="fw-semibold small text-nowrap">
+                        @calendarWeekStart.ToString("MMM d") – @calendarWeekEnd.ToString("MMM d, yyyy")
+                    </span>
+                    <a href="@Url.Action("Bookings", new { view = "calendar", weekStart = calendarWeekStart.AddDays(7).ToString("yyyy-MM-dd") })"
+                       class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
+                    <a href="@Url.Action("Bookings", new { view = "calendar" })" class="btn btn-sm btn-outline-secondary">Today</a>
+                </div>
+            }
+        </div>
+    }
+
+    @if (!awaitingMode && !calendarView)
     {
         <!-- Filters (shown only in all-bookings mode) -->
         <div class="card shadow-sm mb-4">
@@ -106,7 +150,69 @@
         </div>
     }
 
-    @if (awaitingMode && !Model.Any() && !awaitingSignups.Any())
+    @if (calendarView && !awaitingMode)
+    {
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between">
+                <span class="fw-bold">@calendarRows.Count booking(s) this week</span>
+            </div>
+            <div class="card-body p-2">
+                <div class="calendar-grid">
+                    @for (var d = calendarWeekStart; d <= calendarWeekEnd; d = d.AddDays(1))
+                    {
+                        var day = d;
+                        var dayRows = calendarRows.Where(r => r.BookingDate == day).ToList();
+                        <div class="calendar-day-col @(day == CourtBooking.Helpers.PhtClock.Today ? "calendar-day-today" : "")">
+                            <div class="calendar-day-header">
+                                <div class="fw-bold small">@day.ToString("ddd")</div>
+                                <div class="text-muted" style="font-size:.7rem;">@day.ToString("MMM d")</div>
+                            </div>
+                            <div class="calendar-day-body">
+                                @if (dayRows.Count == 0)
+                                {
+                                    <div class="text-muted fst-italic text-center py-3" style="font-size:.7rem;">No bookings</div>
+                                }
+                                else
+                                {
+                                    @foreach (var b in dayRows)
+                                    {
+                                        <button type="button" class="calendar-event btn @StatusCls(b.Status)"
+                                                data-bs-toggle="modal" data-bs-target="#bookingDetailModal"
+                                                data-id="@b.Id"
+                                                data-is-open-play="@b.IsOpenPlay.ToString().ToLowerInvariant()"
+                                                data-customer="@b.CustomerName"
+                                                data-is-guest="@b.IsGuest.ToString().ToLowerInvariant()"
+                                                data-phone="@b.CustomerPhone"
+                                                data-court="@b.CourtName"
+                                                data-bundle="@b.BundleName"
+                                                data-spot-count="@b.SpotCount"
+                                                data-player-names="@b.PlayerNames"
+                                                data-date-time="@($"{b.BookingDate:MMM d, yyyy} {b.StartTime:h:mm tt}–{b.EndTime:h:mm tt}")"
+                                                data-rental="@((b.TotalPrice - b.AddOnsTotal).ToString("N0"))"
+                                                data-addons-total="@b.AddOnsTotal.ToString("N0")"
+                                                data-addons-summary="@b.AddOnsSummary"
+                                                data-total="@b.TotalPrice.ToString("N0")"
+                                                data-status="@b.Status"
+                                                data-payment-status="@b.PaymentStatus"
+                                                data-method="@b.PaymentMethod"
+                                                data-reference="@b.PaymentReference"
+                                                data-proof="@b.PaymentProofPath"
+                                                data-booked-by="@(b.BookedByStaffName ?? "Online")"
+                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")">
+                                            <div class="fw-semibold" style="font-size:.7rem;">@b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")</div>
+                                            <div class="text-truncate" style="font-size:.7rem;">@b.CourtName</div>
+                                            <div class="text-truncate fw-semibold" style="font-size:.7rem;">@b.CustomerName</div>
+                                        </button>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (awaitingMode && !Model.Any() && !awaitingSignups.Any())
     {
         <div class="text-center py-5">
             <i class="bi bi-check-circle display-1 text-success opacity-50"></i>
@@ -489,3 +595,186 @@
         </div>
     }
 </div>
+
+<!-- Shared booking detail modal (used by the Calendar View's clickable events) -->
+<div class="modal fade" id="bookingDetailModal" tabindex="-1" aria-hidden="true"
+     data-update-booking-url="@Url.Action("UpdateBookingStatus")"
+     data-update-signup-url="@Url.Action("UpdateSignupStatus")">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Booking #<span id="bdId"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <span id="bdStatusBadge" class="badge"></span>
+                    <span id="bdBundleBadge" class="badge bg-info text-dark ms-1 d-none"><i class="bi bi-box-seam"></i> <span id="bdBundleName"></span></span>
+                    <span id="bdOpenPlayBadge" class="badge bg-primary-subtle text-primary-emphasis ms-1 d-none"><i class="bi bi-people"></i> Open Play</span>
+                </div>
+                <div class="mb-2 small">
+                    <div><i class="bi bi-person me-1 text-muted"></i><strong id="bdCustomer"></strong>
+                        <span id="bdGuestBadge" class="badge bg-secondary ms-1 d-none">Guest</span>
+                    </div>
+                    <div id="bdPhoneRow" class="d-none"><i class="bi bi-telephone me-1 text-muted"></i><span id="bdPhone"></span></div>
+                    <div id="bdPlayerNamesRow" class="d-none text-muted"><i class="bi bi-person-bounding-box me-1"></i>with <span id="bdPlayerNames"></span></div>
+                    <div><i class="bi bi-buildings me-1 text-muted"></i><span id="bdCourt"></span></div>
+                    <div><i class="bi bi-calendar me-1 text-muted"></i><span id="bdDateTime"></span></div>
+                </div>
+                <div class="border rounded p-2 bg-light mb-2 small">
+                    <div><strong>Court rental:</strong> ₱<span id="bdRental"></span></div>
+                    <div id="bdAddOnsRow" class="d-none"><strong>Add-ons:</strong> <span id="bdAddOnsSummary"></span> (₱<span id="bdAddOnsTotal"></span>)</div>
+                    <div><strong>Total:</strong> ₱<span id="bdTotal"></span></div>
+                </div>
+                <div class="border rounded p-2 bg-light mb-2 small">
+                    <div><strong>Payment status:</strong> <span id="bdPaymentStatus"></span></div>
+                    <div id="bdMethodRow" class="d-none"><i class="bi bi-phone me-1"></i><strong>Method:</strong> <span id="bdMethod"></span></div>
+                    <div id="bdRefRow" class="d-none"><i class="bi bi-hash me-1"></i><strong>Ref:</strong> <span id="bdReference"></span></div>
+                </div>
+                <div id="bdProofRow" class="mb-2 d-none">
+                    <a id="bdProofLink" href="#" target="_blank" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-image me-1"></i>View Payment Proof
+                    </a>
+                </div>
+                <div class="small text-muted">
+                    <i class="bi bi-person-badge me-1"></i>Booked by: <span id="bdBookedBy"></span>
+                    &bull; <i class="bi bi-clock-history me-1"></i>Booked on: <span id="bdCreated"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <form id="bdStatusForm" method="post" class="d-flex gap-2 w-100">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" id="bdStatusId" />
+                    <select name="status" id="bdStatusSelect" class="form-select form-select-sm" style="max-width:160px;">
+                        @foreach (var s2 in Enum.GetValues<CourtBooking.Models.BookingStatus>())
+                        {
+                            <option value="@s2">@s2</option>
+                        }
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">Update Status</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Close</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .calendar-grid {
+        display: flex;
+        gap: .5rem;
+        overflow-x: auto;
+        padding-bottom: .5rem;
+    }
+
+    .calendar-day-col {
+        flex: 0 0 150px;
+        border: 1px solid #e5e5e5;
+        border-radius: .375rem;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .calendar-day-today {
+        border-color: #A3FF12;
+        box-shadow: 0 0 0 1px #A3FF12;
+    }
+
+    .calendar-day-header {
+        text-align: center;
+        padding: .4rem .25rem;
+        border-bottom: 1px solid #e5e5e5;
+        background: #f8f9fa;
+    }
+
+    .calendar-day-body {
+        flex: 1;
+        padding: .35rem;
+        min-height: 220px;
+    }
+
+    .calendar-event {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: none;
+        border-radius: .25rem;
+        padding: .3rem .4rem;
+        margin-bottom: .3rem;
+        line-height: 1.15;
+    }
+</style>
+
+@section Scripts {
+<script>
+    (function () {
+        var modalEl = document.getElementById('bookingDetailModal');
+        if (!modalEl) return;
+
+        modalEl.addEventListener('show.bs.modal', function (e) {
+            var btn = e.relatedTarget;
+            if (!btn) return;
+            var d = btn.dataset;
+
+            document.getElementById('bdId').textContent = d.id;
+
+            var statusBadge = document.getElementById('bdStatusBadge');
+            statusBadge.textContent = d.status;
+            statusBadge.className = 'badge ' + ({
+                Confirmed: 'bg-success', Cancelled: 'bg-danger', Completed: 'bg-secondary'
+            }[d.status] || 'bg-warning text-dark');
+
+            toggle('bdBundleBadge', !!d.bundle);
+            if (d.bundle) { document.getElementById('bdBundleName').textContent = d.bundle; }
+            toggle('bdOpenPlayBadge', d.isOpenPlay === 'true');
+
+            document.getElementById('bdCustomer').textContent = d.customer;
+            toggle('bdGuestBadge', d.isGuest === 'true');
+            toggle('bdPhoneRow', !!d.phone);
+            document.getElementById('bdPhone').textContent = d.phone || '';
+            toggle('bdPlayerNamesRow', !!d.playerNames);
+            document.getElementById('bdPlayerNames').textContent = d.playerNames || '';
+
+            var courtText = d.court + (d.spotCount ? ' — ' + d.spotCount + ' spot' + (d.spotCount !== '1' ? 's' : '') : '');
+            document.getElementById('bdCourt').textContent = courtText;
+            document.getElementById('bdDateTime').textContent = d.dateTime;
+
+            document.getElementById('bdRental').textContent = d.rental;
+            toggle('bdAddOnsRow', !!d.addonsSummary);
+            document.getElementById('bdAddOnsSummary').textContent = d.addonsSummary || '';
+            document.getElementById('bdAddOnsTotal').textContent = d.addonsTotal || '0';
+            document.getElementById('bdTotal').textContent = d.total;
+
+            document.getElementById('bdPaymentStatus').textContent = d.paymentStatus;
+            toggle('bdMethodRow', !!d.method);
+            document.getElementById('bdMethod').textContent = d.method || '';
+            toggle('bdRefRow', !!d.reference);
+            document.getElementById('bdReference').textContent = d.reference || '';
+
+            toggle('bdProofRow', !!d.proof);
+            if (d.proof) { document.getElementById('bdProofLink').href = d.proof; }
+
+            document.getElementById('bdBookedBy').textContent = d.bookedBy;
+            document.getElementById('bdCreated').textContent = d.created;
+
+            document.getElementById('bdStatusId').value = d.id;
+            document.getElementById('bdStatusSelect').value = d.status;
+            document.getElementById('bdStatusForm').action = d.isOpenPlay === 'true'
+                ? modalEl.dataset.updateSignupUrl
+                : modalEl.dataset.updateBookingUrl;
+
+            function toggle(id, show) {
+                document.getElementById(id).classList.toggle('d-none', !show);
+            }
+        });
+
+        document.getElementById('bdStatusForm').addEventListener('submit', function (e) {
+            var id = document.getElementById('bdId').textContent;
+            var status = document.getElementById('bdStatusSelect').value;
+            if (!confirm('Change booking #' + id + ' status to ' + status + '?')) {
+                e.preventDefault();
+            }
+        });
+    })();
+</script>
+}
