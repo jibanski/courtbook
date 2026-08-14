@@ -31,7 +31,9 @@ window.CBCart = (function () {
         refreshWidget();
     }
 
-    // item: { courtId, courtName, ownerId, facilitySlug, facilityName, date, startHour, endHour, price }
+    // item: { courtId, courtName, ownerId, facilitySlug, facilityName, date, startHour, endHour, price,
+    //         bundleId?, bundleName? } — bundleId/bundleName are only set for a bundle-priced window
+    // (flat price for the whole block instead of the court's normal hourly rate).
     function addItem(item) {
         var cart = getCart();
 
@@ -59,6 +61,8 @@ window.CBCart = (function () {
             startHour: item.startHour,
             endHour: item.endHour,
             price: item.price,
+            courtBundleId: item.bundleId || null,
+            bundleName: item.bundleName || null,
             addOns: []
         });
         saveCart(cart);
@@ -70,6 +74,17 @@ window.CBCart = (function () {
         cart.items.splice(index, 1);
         if (cart.items.length === 0) cart = empty();
         saveCart(cart);
+    }
+
+    // Looks up an existing item's index by its identity key (court+date+start hour) — used by
+    // the click-to-select grid (BookAll) to decide whether a click should add or remove.
+    function findIndex(courtId, date, startHour) {
+        var cart = getCart();
+        for (var i = 0; i < cart.items.length; i++) {
+            var it = cart.items[i];
+            if (it.courtId === courtId && it.date === date && it.startHour === startHour) return i;
+        }
+        return -1;
     }
 
     function count() {
@@ -121,6 +136,7 @@ window.CBCart = (function () {
         getCart: getCart,
         addItem: addItem,
         removeItem: removeItem,
+        findIndex: findIndex,
         clear: clear,
         count: count,
         baseTotal: baseTotal,
@@ -146,11 +162,69 @@ document.addEventListener('click', function (e) {
         date: btn.dataset.date,
         startHour: parseInt(btn.dataset.startHour, 10),
         endHour: parseInt(btn.dataset.endHour, 10),
-        price: parseFloat(btn.dataset.price)
+        price: parseFloat(btn.dataset.price),
+        bundleId: btn.dataset.bundleId ? parseInt(btn.dataset.bundleId, 10) : null,
+        bundleName: btn.dataset.bundleName || null
     });
 
     if (added) {
         var n = window.CBCart.count();
         window.CBCart.toast('Added to cart — ' + n + ' slot' + (n === 1 ? '' : 's'));
     }
+});
+
+// ── Click-to-select grid cells (Book Multiple Courts page) ───────────────────────────
+// Unlike the small ".cb-add-to-cart" icon button above, clicking anywhere on one of these
+// cells directly toggles it between Open and Selected, adding/removing it from the cart —
+// no separate button. A bundle window's cells all share the same start/end hour so one click
+// toggles the whole window together.
+document.addEventListener('click', function (e) {
+    var cell = e.target.closest('.cb-select-cell');
+    if (!cell || e.target.closest('.cb-cell-directlink')) return;
+    e.preventDefault();
+
+    var courtId   = parseInt(cell.dataset.courtId, 10);
+    var date      = cell.dataset.date;
+    var startHour = parseInt(cell.dataset.startHour, 10);
+    var endHour   = parseInt(cell.dataset.endHour, 10);
+
+    var idx = window.CBCart.findIndex(courtId, date, startHour);
+    var nowSelected;
+    if (idx >= 0) {
+        window.CBCart.removeItem(idx);
+        nowSelected = false;
+    } else {
+        nowSelected = window.CBCart.addItem({
+            courtId: courtId,
+            courtName: cell.dataset.courtName,
+            ownerId: cell.dataset.ownerId,
+            facilitySlug: cell.dataset.facilitySlug,
+            facilityName: cell.dataset.facilityName,
+            date: date,
+            startHour: startHour,
+            endHour: endHour,
+            price: parseFloat(cell.dataset.price),
+            bundleId: cell.dataset.bundleId ? parseInt(cell.dataset.bundleId, 10) : null,
+            bundleName: cell.dataset.bundleName || null
+        });
+    }
+
+    // Sync every cell sharing this exact court+date+start/end (a bundle window renders as
+    // several stacked one-hour cells that all belong to the same cart item).
+    var selector = '.cb-select-cell[data-court-id="' + courtId + '"][data-date="' + date + '"]' +
+        '[data-start-hour="' + startHour + '"][data-end-hour="' + endHour + '"]';
+    document.querySelectorAll(selector).forEach(function (c) {
+        c.classList.toggle('cb-cell-selected', nowSelected);
+    });
+});
+
+// On load, mark any grid cells that already match an item in the cart as Selected (e.g. after
+// changing the date/sport filter, which reloads the page but not the localStorage cart).
+document.addEventListener('DOMContentLoaded', function () {
+    var cart = window.CBCart.getCart();
+    cart.items.forEach(function (item) {
+        var selector = '.cb-select-cell[data-court-id="' + item.courtId + '"][data-date="' + item.date + '"]' +
+            '[data-start-hour="' + item.startHour + '"][data-end-hour="' + item.endHour + '"]';
+        document.querySelectorAll(selector).forEach(function (c) { c.classList.add('cb-cell-selected'); });
+    });
 });

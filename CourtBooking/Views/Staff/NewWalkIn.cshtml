@@ -1,4 +1,4 @@
-@model CourtBooking.ViewModels.CourtAvailabilityViewModel
+@model List<CourtBooking.ViewModels.CourtAvailabilityViewModel>
 @{
     ViewData["Title"] = "New Walk-in Booking";
     var courts    = ViewBag.Courts as List<Court>;
@@ -8,7 +8,7 @@
 
     var localNow   = PhtClock.Now;
     var today      = DateOnly.FromDateTime(localNow);
-    var selectedDate = Model?.Date ?? (ViewBag.SelectedDate as DateOnly? ?? today);
+    var selectedDate = ViewBag.SelectedDate as DateOnly? ?? today;
     bool isPastDate = selectedDate < today;
     bool isToday    = selectedDate == today;
     int  nowHour    = localNow.Hour;
@@ -33,7 +33,7 @@
 <div class="cb-page-header">
     <div class="container">
         <h1 class="mb-1" style="font-size:1.75rem;">New Walk-in Booking</h1>
-        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Pick a court, date, and time for the customer paying cash.</p>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Pick a date, see every court's availability side by side, and add slots to one cart for the customer paying cash.</p>
     </div>
 </div>
 
@@ -120,340 +120,429 @@
         </div>
     }
 
-    @* ── Courts — pick one to see its availability grid below ── *@
-    <div class="row g-4 mb-4">
-        @if (courts is null || !courts.Any())
-        {
-            <div class="col-12">
-                <div class="alert alert-warning mb-0">No active courts are set up yet.</div>
-            </div>
-        }
-        else
-        {
-            @foreach (var c in courts)
-            {
-                (decimal Min, decimal Max) range = (c.PricePerHour, c.PricePerHour);
-                if (rateRanges != null && rateRanges.TryGetValue(c.Id, out var foundRange)) range = foundRange;
-                bool hasRange = range.Max > range.Min;
-                bool isSelected = Model?.Court.Id == c.Id;
-
-                <div class="col-sm-6 col-lg-4">
-                    <a asp-action="NewWalkIn" asp-route-courtId="@c.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                       class="card h-100 text-decoration-none" style="overflow:hidden;@(isSelected ? "border-color:var(--cb-lime);" : "")">
-                        <div class="position-relative" style="height:160px;overflow:hidden;">
-                            <img src="@(!string.IsNullOrWhiteSpace(c.ImageUrl) ? c.ImageUrl : SportDefaultImage(c.SportType))"
-                                 alt="@c.Name" style="width:100%;height:160px;object-fit:cover;" />
-                            @if (c.IsIndoor)
-                            {
-                                <span class="badge position-absolute top-0 end-0 m-2"
-                                      style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.3);">Indoor</span>
-                            }
-                        </div>
-                        <div class="card-body p-3">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <h5 class="mb-0" style="font-weight:700;font-size:1rem;color:var(--cb-text);">@c.Name</h5>
-                                <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-2);font-size:.68rem;">@c.SportType</span>
-                            </div>
-                            <div style="color:var(--cb-text-3);font-size:.8rem;">
-                                <i class="bi bi-clock me-1" style="color:var(--cb-lime);"></i>@TimeDisplay.HourRange(c.OpeningHour, c.ClosingHour)
-                            </div>
-                        </div>
-                        <div class="card-footer p-3 d-flex justify-content-between align-items-center">
-                            <span style="font-weight:700;color:var(--cb-lime);font-size:.9rem;">
-                                @if (hasRange)
-                                {
-                                    @:₱@range.Min.ToString("N0")&ndash;@range.Max.ToString("N0")/hr
-                                }
-                                else
-                                {
-                                    @:₱@range.Min.ToString("N0")/hr
-                                }
-                            </span>
-                            <span class="btn btn-sm @(isSelected ? "btn-primary" : "btn-outline-primary")">
-                                @(isSelected ? "Selected" : "Select")
-                            </span>
-                        </div>
-                    </a>
-                </div>
-            }
-        }
+    @* ── Court Availability — click cells across every court to add them to one cart ── *@
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 style="font-size:1.1rem;font-weight:700;margin:0;">
+            <i class="bi bi-grid-3x3-gap me-2" style="color:var(--cb-lime);"></i>Court Availability
+        </h2>
+        <form method="get" asp-action="NewWalkIn" class="d-flex gap-2">
+            <input type="date" name="date" class="form-control form-control-sm" style="width:auto;"
+                   value="@selectedDate.ToString("yyyy-MM-dd")"
+                   onchange="this.form.submit()" />
+        </form>
     </div>
 
-    @if (Model is not null)
+    @if (Model is null || !Model.Any())
     {
-        <div class="card">
-            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h5 class="mb-0" style="font-size:1rem;font-weight:700;">
-                    @Model.Court.Name &mdash; @selectedDate.ToString("dddd, MMMM d, yyyy")
-                </h5>
-                <form method="get" asp-action="NewWalkIn" class="d-flex gap-2">
-                    <input type="hidden" name="courtId" value="@Model.Court.Id" />
-                    <input type="date" name="date" class="form-control form-control-sm" style="width:auto;"
-                           value="@selectedDate.ToString("yyyy-MM-dd")" min="@today.ToString("yyyy-MM-dd")"
-                           onchange="this.form.submit()" />
-                </form>
-            </div>
-            <div class="card-body">
-                @if (Model.HasSlots)
-                {
-                    <div class="row g-3">
-                        @foreach (var slot in Model.TimeSlots)
-                        {
-                            bool isUnavailable = Model.UnavailableSlotIds.Contains(slot.Id);
-                            bool isPast        = SlotIsPast(slot.StartHour);
-                            decimal price = Model.SlotPrices.TryGetValue(slot.Id, out var _p)
-                                ? _p
-                                : Model.Court.PricePerHour * slot.DurationHours;
+        <div class="alert alert-warning mb-0">No active courts are set up yet.</div>
+    }
+    else
+    {
+        var gridCourts = Model.Where(c => !c.HasSlots).ToList();
+        var slotCourts = Model.Where(c => c.HasSlots).ToList();
 
-                            <div class="col-sm-6 col-md-4">
-                                @if (isPast)
+        @if (gridCourts.Any())
+        {
+            int minOpen  = gridCourts.Min(c => c.Court.OpeningHour);
+            int maxClose = gridCourts.Max(c => c.Court.ClosingHour);
+
+            var bundleWindowStarts = new HashSet<(int CourtId, int Hour)>();
+            var bundleWindowSkip   = new HashSet<(int CourtId, int Hour)>();
+            foreach (var cv in gridCourts)
+            {
+                var seenBlocks = new HashSet<(int Start, int End)>();
+                foreach (var entry in cv.BundleOnlyHours.Values)
+                {
+                    if (!seenBlocks.Add((entry.Block.StartHour, entry.Block.EndHour))) continue;
+
+                    bool wholeBlockFree = true;
+                    for (int bh = entry.Block.StartHour; bh < entry.Block.EndHour; bh++)
+                    {
+                        if (cv.BookedHours.Contains(bh) || cv.PendingHours.Contains(bh) || cv.BlockedHours.Contains(bh))
+                        {
+                            wholeBlockFree = false;
+                            break;
+                        }
+                    }
+                    if (!wholeBlockFree || SlotIsPast(entry.Block.StartHour)) continue;
+
+                    bundleWindowStarts.Add((cv.Court.Id, entry.Block.StartHour));
+                    for (int bh = entry.Block.StartHour + 1; bh < entry.Block.EndHour; bh++)
+                    {
+                        bundleWindowSkip.Add((cv.Court.Id, bh));
+                    }
+                }
+            }
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <h5 class="mb-0" style="font-size:1rem;font-weight:700;">Pick slots</h5>
+                            <p class="mb-0 mt-1" style="font-size:.78rem;color:var(--cb-text-3);">
+                                Click an open cell to select it — click again to remove it.
+                            </p>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);font-size:.72rem;padding:.4em .75em;">
+                                <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Open
+                            </span>
+                            <span class="badge" style="background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);font-size:.72rem;padding:.4em .75em;">
+                                <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Selected
+                            </span>
+                            <span class="badge" style="background:rgba(148,163,184,0.15);color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);font-size:.72rem;padding:.4em .75em;">
+                                <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:1px;"></i>Booked
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive">
+                        <table class="cb-grid-table">
+                            <thead>
+                                <tr>
+                                    <th class="cb-grid-time-col">Time</th>
+                                    @foreach (var cv in gridCourts)
+                                    {
+                                        <th class="text-center">
+                                            @cv.Court.Name
+                                            <div style="font-size:.68rem;font-weight:400;color:var(--cb-text-3);">@cv.Court.SportType</div>
+                                        </th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int h = minOpen; h < maxClose; h++)
                                 {
-                                    <div class="h-100 p-3 text-center rounded-3"
-                                         style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.5;cursor:default;">
-                                        <div class="fw-bold mb-1" style="font-size:.95rem;color:var(--cb-text-3);">@slot.TimeLabel</div>
-                                        <div style="font-size:.75rem;color:var(--cb-text-3);">
-                                            @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &middot; ₱@price.ToString("N0")
-                                        </div>
-                                        <div class="mt-2">
-                                            <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-3);font-size:.72rem;">
-                                                <i class="bi bi-clock-history me-1"></i>Past
-                                            </span>
-                                        </div>
-                                    </div>
+                                    <tr>
+                                        <td class="cb-grid-time-col" style="font-size:.76rem;color:var(--cb-text-3);white-space:nowrap;">
+                                            @TimeDisplay.HourRange(h, h + 1)
+                                        </td>
+                                        @foreach (var cv in gridCourts)
+                                        {
+                                            if (bundleWindowSkip.Contains((cv.Court.Id, h)))
+                                            {
+                                                continue;
+                                            }
+
+                                            bool withinHours  = h >= cv.Court.OpeningHour && h < cv.Court.ClosingHour;
+                                            bool isBundleOnly = cv.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
+                                            int  bundleRowspan = isBundleOnly && bundleWindowStarts.Contains((cv.Court.Id, h))
+                                                ? bundleMatch.Block.EndHour - bundleMatch.Block.StartHour
+                                                : 1;
+                                            <td class="text-center align-middle p-1" rowspan="@bundleRowspan">
+                                            @if (!withinHours)
+                                            {
+                                                <div class="cb-cell cb-cell-closed"></div>
+                                            }
+                                            else
+                                            {
+                                                bool isPast          = SlotIsPast(h);
+                                                bool isBooked        = cv.BookedHours.Contains(h);
+                                                bool isPending       = cv.PendingHours.Contains(h);
+                                                bool isBlocked       = cv.BlockedHours.Contains(h);
+                                                bool isOpenPlay      = cv.OpenPlayHours.Contains(h);
+                                                bool isPendingBundle = cv.PendingBundleWindows.TryGetValue(h, out var pendingBundle);
+                                                bool isSignup        = cv.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
+                                                var  rate            = cv.HourlyRates.TryGetValue(h, out var r) ? r : cv.Court.PricePerHour;
+
+                                                if (isPast)
+                                                {
+                                                    <div class="cb-cell cb-cell-closed" title="Past"></div>
+                                                }
+                                                else if (isBooked)
+                                                {
+                                                    <div class="cb-cell cb-cell-booked" title="Booked">Booked</div>
+                                                }
+                                                else if (isPending)
+                                                {
+                                                    <div class="cb-cell cb-cell-pending" title="Pending payment">Pending</div>
+                                                }
+                                                else if (isPendingBundle)
+                                                {
+                                                    <div class="cb-cell cb-cell-pending" title="Bundle pending payment">Bundle</div>
+                                                }
+                                                else if (isBlocked)
+                                                {
+                                                    var reason = cv.BlockReasons.TryGetValue(h, out var _br) ? _br : "Unavailable";
+                                                    <div class="cb-cell cb-cell-booked" title="@reason">Booked</div>
+                                                }
+                                                else if (isBundleOnly)
+                                                {
+                                                    var blockStart = bundleMatch.Block.StartHour;
+                                                    var blockEnd   = bundleMatch.Block.EndHour;
+
+                                                    if (bundleWindowStarts.Contains((cv.Court.Id, h)))
+                                                    {
+                                                        <div class="cb-select-cell cb-cell cb-cell-bundle position-relative"
+                                                             data-court-id="@cv.Court.Id" data-court-name="@cv.Court.Name"
+                                                             data-owner-id="@settings?.OwnerId" data-facility-name="@settings?.FacilityName"
+                                                             data-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                             data-start-hour="@blockStart" data-end-hour="@blockEnd"
+                                                             data-price="@bundleMatch.Block.FlatPrice"
+                                                             data-bundle-id="@bundleMatch.Bundle.Id" data-bundle-name="@bundleMatch.Bundle.Name"
+                                                             title="Bundle · ₱@bundleMatch.Block.FlatPrice.ToString("N0") for @TimeDisplay.HourRange(blockStart, blockEnd)">
+                                                            <div class="cb-cell-inner">
+                                                                <div class="cb-cell-label">
+                                                                    <span class="cb-label-open"><i class="bi bi-box-seam me-1"></i>Bundle</span>
+                                                                    <span class="cb-label-selected">Selected</span>
+                                                                </div>
+                                                                <div class="cb-cell-price">₱@bundleMatch.Block.FlatPrice.ToString("N0")</div>
+                                                            </div>
+                                                            <a class="cb-cell-directlink" asp-action="WalkInBundleForm"
+                                                               asp-route-bundleId="@bundleMatch.Bundle.Id" asp-route-courtId="@cv.Court.Id"
+                                                               asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                               asp-route-startHour="@blockStart" asp-route-endHour="@blockEnd"
+                                                               title="Book this bundle now, skipping the cart">
+                                                                <i class="bi bi-arrow-right-circle"></i>
+                                                            </a>
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="cb-cell cb-cell-booked" title="Bundle window partially booked elsewhere">Booked</div>
+                                                    }
+                                                }
+                                                else if (isSignup && (signupMatch.SpotsRemaining == int.MaxValue || signupMatch.SpotsRemaining > 0))
+                                                {
+                                                    <a asp-action="OpenPlayForm"
+                                                       asp-route-courtId="@cv.Court.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                       asp-route-startHour="@signupMatch.Block.StartHour" asp-route-endHour="@signupMatch.Block.EndHour"
+                                                       class="cb-cell cb-cell-openplay text-decoration-none" title="Open Play">
+                                                        Open Play
+                                                    </a>
+                                                }
+                                                else if (isSignup || isOpenPlay)
+                                                {
+                                                    <div class="cb-cell cb-cell-booked" title="Open Play — Full">Open Play</div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="cb-select-cell cb-cell cb-cell-open position-relative"
+                                                         data-court-id="@cv.Court.Id" data-court-name="@cv.Court.Name"
+                                                         data-owner-id="@settings?.OwnerId" data-facility-name="@settings?.FacilityName"
+                                                         data-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                         data-start-hour="@h" data-end-hour="@(h + 1)"
+                                                         data-price="@rate"
+                                                         title="Open · ₱@rate.ToString("N0")">
+                                                        <div class="cb-cell-inner">
+                                                            <div class="cb-cell-label">
+                                                                <span class="cb-label-open">Open</span>
+                                                                <span class="cb-label-selected">Selected</span>
+                                                            </div>
+                                                            <div class="cb-cell-price">₱@rate.ToString("N0")</div>
+                                                        </div>
+                                                        <a class="cb-cell-directlink" asp-action="WalkInForm"
+                                                           asp-route-courtId="@cv.Court.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                                           asp-route-startHour="@h"
+                                                           title="Book this slot now, skipping the cart">
+                                                            <i class="bi bi-arrow-right-circle"></i>
+                                                        </a>
+                                                    </div>
+                                                }
+                                            }
+                                            </td>
+                                        }
+                                    </tr>
                                 }
-                                else if (isUnavailable)
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (slotCourts.Any())
+        {
+            @if (gridCourts.Any())
+            {
+                <h6 class="mt-4 mb-3" style="color:var(--cb-text-2);">
+                    <i class="bi bi-calendar-week me-1"></i>Fixed time-slot courts
+                </h6>
+            }
+            @foreach (var courtVm in slotCourts)
+            {
+                <div class="card mb-4">
+                    <div class="card-header d-flex align-items-center gap-3">
+                        <img src="@(!string.IsNullOrWhiteSpace(courtVm.Court.ImageUrl) ? courtVm.Court.ImageUrl : SportDefaultImage(courtVm.Court.SportType))"
+                             alt="@courtVm.Court.Name"
+                             style="width:48px;height:48px;object-fit:cover;border-radius:8px;" />
+                        <div class="flex-grow-1">
+                            <h5 class="mb-0" style="font-size:1rem;font-weight:700;">@courtVm.Court.Name</h5>
+                            <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
+                                <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-2);font-size:.72rem;">@courtVm.Court.SportType</span>
+                                <span class="badge" style="background:var(--cb-blue-dim);color:var(--cb-blue);font-size:.72rem;">
+                                    <i class="bi bi-@(courtVm.Court.IsIndoor ? "house" : "sun") me-1"></i>@(courtVm.Court.IsIndoor ? "Indoor" : "Outdoor")
+                                </span>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold" style="font-size:1rem;color:var(--cb-lime);">
+                                @if (courtVm.HasRateRange)
                                 {
-                                    <div class="h-100 p-3 text-center rounded-3"
-                                         style="opacity:.75;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);">
-                                        <div class="fw-bold mb-1" style="font-size:.95rem;color:#f87171;">@slot.TimeLabel</div>
-                                        <div style="font-size:.75rem;color:var(--cb-text-3);">
-                                            @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &middot; ₱@price.ToString("N0")
-                                        </div>
-                                        <div class="mt-2">
-                                            <span class="badge" style="background:rgba(239,68,68,0.2);color:#f87171;font-size:.72rem;">
-                                                <i class="bi bi-x-circle me-1"></i>Booked
-                                            </span>
-                                        </div>
-                                    </div>
+                                    @:₱@courtVm.RateRangeMin.ToString("N0")&ndash;@courtVm.RateRangeMax.ToString("N0")
                                 }
                                 else
                                 {
-                                    <div class="position-relative h-100">
-                                        <a asp-action="WalkInForm"
-                                           asp-route-courtId="@Model.Court.Id"
-                                           asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                           asp-route-startHour="@slot.StartHour"
-                                           asp-route-endHour="@slot.EndHour"
-                                           class="h-100 p-3 text-center rounded-3 d-block text-decoration-none"
-                                           style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
-                                            <div class="fw-bold mb-1" style="font-size:.95rem;color:var(--cb-text);">@slot.TimeLabel</div>
-                                            <div style="font-size:.75rem;color:var(--cb-text-3);">
-                                                @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &middot;
-                                                <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
-                                            </div>
-                                            <div class="mt-2">
-                                                <span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
-                                                    <i class="bi bi-calendar-plus me-1"></i>Book
-                                                </span>
-                                            </div>
-                                        </a>
-                                        <button type="button" class="cb-add-to-cart btn btn-sm p-0"
-                                                title="Add to cart — log with other slots together"
-                                                data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
-                                                data-owner-id="@settings?.OwnerId" data-facility-name="@settings?.FacilityName"
-                                                data-date="@selectedDate.ToString("yyyy-MM-dd")" data-start-hour="@slot.StartHour" data-end-hour="@slot.EndHour"
-                                                data-price="@price"
-                                                style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
-                                                       background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
-                                            <i class="bi bi-plus-lg" style="font-size:.7rem;"></i>
-                                        </button>
-                                    </div>
+                                    @:₱@courtVm.Court.PricePerHour.ToString("N0")
                                 }
                             </div>
-                        }
-                    </div>
-
-                    @if (Model.TimeSlots.All(s => Model.UnavailableSlotIds.Contains(s.Id)))
-                    {
-                        <div class="text-center py-4 mt-3" style="border-top:1px solid var(--cb-border);">
-                            <i class="bi bi-calendar-x display-6 d-block mb-2" style="color:var(--cb-text-3);"></i>
-                            <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">
-                                All slots are booked for this date. Try another day.
-                            </p>
+                            <div style="font-size:.7rem;color:var(--cb-text-3);">/hr</div>
                         </div>
-                    }
-                }
-                else
-                {
-                    <div class="row g-2">
-                        @for (int h = Model.Court.OpeningHour; h < Model.Court.ClosingHour; h++)
-                        {
-                            bool isBooked  = Model.BookedHours.Contains(h);
-                            bool isPending = Model.PendingHours.Contains(h);
-                            bool isBlocked = Model.BlockedHours.Contains(h);
-                            bool isPast    = SlotIsPast(h);
-                            bool isOpenPlay = Model.OpenPlayHours.Contains(h);
-                            bool isBundleOnly = Model.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
-                                bool isPendingBundle = Model.PendingBundleWindows.TryGetValue(h, out var pendingBundle);
-                            var rate = Model.HourlyRates.TryGetValue(h, out var r) ? r : Model.Court.PricePerHour;
-                            var timeLabel = TimeDisplay.HourRange(h, h + 1);
-
-                                if (!isPast && !isBooked && !isBlocked && isPendingBundle)
-                                {
-                                    var bundleEndHour = pendingBundle.EndTime == TimeOnly.MinValue ? 24 : pendingBundle.EndTime.Hour;
-                                    var pendingLabel = TimeDisplay.HourRange(pendingBundle.StartTime.Hour, bundleEndHour);
-                                    <div class="col-12">
-                                        <div class="p-2 text-center rounded-3" style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.4);opacity:.85;cursor:default;">
-                                            <div style="font-size:.85rem;color:#eab308;font-weight:700;">@pendingLabel</div>
-                                            <div style="font-size:.7rem;color:#ca8a04;margin-top:2px;"><i class="bi bi-box-seam me-1"></i>Bundle Pending</div>
-                                            @if (pendingBundle.CourtBundle is not null)
-                                            {
-                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@pendingBundle.CourtBundle.Name</div>
-                                            }
-                                        </div>
-                                    </div>
-                                    h = bundleEndHour - 1;
-                                    continue;
-                                }
-                            if (!isPast && !isBooked && !isPending && !isBlocked && isBundleOnly)
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            @foreach (var slot in courtVm.TimeSlots)
                             {
-                                var bundleLabel = TimeDisplay.HourRange(bundleMatch.Block.StartHour, bundleMatch.Block.EndHour);
-                                <div class="col-12">
-                                    <a asp-action="WalkInBundleForm"
-                                       asp-route-bundleId="@bundleMatch.Bundle.Id"
-                                                    asp-route-courtId="@Model.Court.Id"
-                                       asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                       asp-route-startHour="@bundleMatch.Block.StartHour"
-                                       asp-route-endHour="@bundleMatch.Block.EndHour"
-                                       class="p-2 text-center rounded-3 d-block text-decoration-none"
-                                       style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
-                                        <div style="font-size:.85rem;color:var(--cb-text);font-weight:700;">@bundleLabel</div>
-                                        <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
-                                            <i class="bi bi-box-seam me-1"></i>Bundle Only
-                                        </div>
-                                    </a>
-                                </div>
-                                h = bundleMatch.Block.EndHour - 1;
-                                continue;
-                            }
+                                bool isUnavailable = courtVm.UnavailableSlotIds.Contains(slot.Id);
+                                bool isPast        = SlotIsPast(slot.StartHour);
+                                decimal price = courtVm.SlotPrices.TryGetValue(slot.Id, out var _p)
+                                    ? _p
+                                    : courtVm.Court.PricePerHour * slot.DurationHours;
 
-                            bool isOpenPlaySignup = Model.OpenPlaySignupInfo.TryGetValue(h, out var signupMatch);
-                            if (!isPast && !isBooked && !isPending && !isBlocked && isOpenPlaySignup)
-                            {
-                                var openPlayLabel = TimeDisplay.HourRange(signupMatch.Block.StartHour, signupMatch.Block.EndHour);
-                                bool isUnlimited = signupMatch.SpotsRemaining == int.MaxValue;
-                                <div class="col-12">
-                                    @if (isUnlimited || signupMatch.SpotsRemaining > 0)
+                                <div class="col-sm-6 col-md-4">
+                                    @if (isPast)
                                     {
-                                        <a asp-action="OpenPlayForm"
-                                           asp-route-courtId="@Model.Court.Id"
-                                           asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                           asp-route-startHour="@signupMatch.Block.StartHour"
-                                           asp-route-endHour="@signupMatch.Block.EndHour"
-                                           class="p-2 text-center rounded-3 d-block text-decoration-none"
-                                           style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
-                                            <div style="font-size:.85rem;color:var(--cb-text);font-weight:700;">@openPlayLabel</div>
-                                            <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
-                                                <i class="bi bi-people me-1"></i>Open Play
-                                                @if (signupMatch.Block.PricePerHead.HasValue)
-                                                {
-                                                    <text>&middot; ₱@signupMatch.Block.PricePerHead.Value.ToString("N0")/head</text>
-                                                }
-                                                @if (!isUnlimited)
-                                                {
-                                                    <text>&middot; @signupMatch.SpotsRemaining spot@(signupMatch.SpotsRemaining != 1 ? "s" : "") left</text>
-                                                }
+                                        <div class="h-100 p-3 text-center rounded-3"
+                                             style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.5;cursor:default;">
+                                            <div class="fw-bold mb-1" style="font-size:.95rem;color:var(--cb-text-3);">@slot.TimeLabel</div>
+                                            <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                                @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &middot; ₱@price.ToString("N0")
                                             </div>
-                                            @if (!string.IsNullOrWhiteSpace(signupMatch.Block.Description))
-                                            {
-                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@signupMatch.Block.Description</div>
-                                            }
-                                        </a>
+                                            <div class="mt-2">
+                                                <span class="badge" style="background:var(--cb-surface-3);color:var(--cb-text-3);font-size:.72rem;">
+                                                    <i class="bi bi-clock-history me-1"></i>Past
+                                                </span>
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (isUnavailable)
+                                    {
+                                        <div class="h-100 p-3 text-center rounded-3"
+                                             style="opacity:.75;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);">
+                                            <div class="fw-bold mb-1" style="font-size:.95rem;color:#f87171;">@slot.TimeLabel</div>
+                                            <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                                @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &middot; ₱@price.ToString("N0")
+                                            </div>
+                                            <div class="mt-2">
+                                                <span class="badge" style="background:rgba(239,68,68,0.2);color:#f87171;font-size:.72rem;">
+                                                    <i class="bi bi-x-circle me-1"></i>Booked
+                                                </span>
+                                            </div>
+                                        </div>
                                     }
                                     else
                                     {
-                                        <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.75;">
-                                            <div style="font-size:.85rem;color:var(--cb-text-2);font-weight:700;">@openPlayLabel</div>
-                                            <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">
-                                                Open Play — Full
-                                                @if (signupMatch.Block.PricePerHead.HasValue)
-                                                {
-                                                    <text>&middot; ₱@signupMatch.Block.PricePerHead.Value.ToString("N0")/head</text>
-                                                }
-                                            </div>
-                                            @if (!string.IsNullOrWhiteSpace(signupMatch.Block.Description))
-                                            {
-                                                <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@signupMatch.Block.Description</div>
-                                            }
+                                        <div class="position-relative h-100">
+                                            <a asp-action="WalkInForm"
+                                               asp-route-courtId="@courtVm.Court.Id"
+                                               asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
+                                               asp-route-startHour="@slot.StartHour"
+                                               asp-route-endHour="@slot.EndHour"
+                                               class="h-100 p-3 text-center rounded-3 d-block text-decoration-none"
+                                               style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
+                                                <div class="fw-bold mb-1" style="font-size:.95rem;color:var(--cb-text);">@slot.TimeLabel</div>
+                                                <div style="font-size:.75rem;color:var(--cb-text-3);">
+                                                    @slot.DurationHours hr@(slot.DurationHours != 1 ? "s" : "") &middot;
+                                                    <span style="color:var(--cb-lime);font-weight:600;">₱@price.ToString("N0")</span>
+                                                </div>
+                                                <div class="mt-2">
+                                                    <span class="badge" style="background:rgba(34,197,94,0.2);color:#4ade80;font-size:.72rem;">
+                                                        <i class="bi bi-calendar-plus me-1"></i>Book
+                                                    </span>
+                                                </div>
+                                            </a>
+                                            <button type="button" class="cb-add-to-cart btn btn-sm p-0"
+                                                    title="Add to cart — log with other slots together"
+                                                    data-court-id="@courtVm.Court.Id" data-court-name="@courtVm.Court.Name"
+                                                    data-owner-id="@settings?.OwnerId" data-facility-name="@settings?.FacilityName"
+                                                    data-date="@selectedDate.ToString("yyyy-MM-dd")" data-start-hour="@slot.StartHour" data-end-hour="@slot.EndHour"
+                                                    data-price="@price"
+                                                    style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
+                                                           background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
+                                                <i class="bi bi-plus-lg" style="font-size:.7rem;"></i>
+                                            </button>
                                         </div>
                                     }
                                 </div>
-                                h = signupMatch.Block.EndHour - 1;
-                                continue;
                             }
+                        </div>
 
-                            <div class="col-6 col-sm-4 col-md-3">
-                                @if (isPast)
-                                {
-                                    <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.45;">
-                                        <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
-                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Past</div>
-                                    </div>
-                                }
-                                else if (isBooked)
-                                {
-                                    <div class="p-2 text-center rounded-3" style="opacity:.7;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);">
-                                        <div style="font-size:.8rem;color:#f87171;font-weight:600;">@timeLabel</div>
-                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Booked@(isOpenPlay ? " • Open Play" : "")</div>
-                                    </div>
-                                }
-                                else if (isPending)
-                                {
-                                    <div class="p-2 text-center rounded-3" style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.4);opacity:.85;">
-                                        <div style="font-size:.8rem;color:#eab308;font-weight:600;">@timeLabel</div>
-                                        <div style="font-size:.7rem;color:#ca8a04;margin-top:2px;"><i class="bi bi-hourglass-split me-1"></i>Pending</div>
-                                    </div>
-                                }
-                                else if (isBlocked)
-                                {
-                                    var blockReason = Model.BlockReasons.TryGetValue(h, out var _br) ? _br : null;
-                                    <div class="p-2 text-center rounded-3" style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.55;">
-                                        <div style="font-size:.8rem;color:var(--cb-text-3);font-weight:600;">@timeLabel</div>
-                                        <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">@(blockReason ?? "Unavailable")</div>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="position-relative h-100">
-                                        <a asp-action="WalkInForm"
-                                           asp-route-courtId="@Model.Court.Id"
-                                           asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                           asp-route-startHour="@h"
-                                           class="p-2 text-center rounded-3 d-block text-decoration-none"
-                                           style="background:var(--cb-surface-2);border:1px solid var(--cb-lime);">
-                                            <div style="font-size:.8rem;color:var(--cb-text);font-weight:600;">@timeLabel</div>
-                                            <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">₱@rate.ToString("N0")</div>
-                                        </a>
-                                        <button type="button" class="cb-add-to-cart btn btn-sm p-0"
-                                                title="Add to cart — log with other slots together"
-                                                data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
-                                                data-owner-id="@settings?.OwnerId" data-facility-name="@settings?.FacilityName"
-                                                data-date="@selectedDate.ToString("yyyy-MM-dd")" data-start-hour="@h" data-end-hour="@(h + 1)"
-                                                data-price="@rate"
-                                                style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;
-                                                       background:rgba(0,0,0,.55);color:#fff;line-height:1;z-index:2;">
-                                            <i class="bi bi-plus-lg" style="font-size:.6rem;"></i>
-                                        </button>
-                                    </div>
-                                }
+                        @if (courtVm.TimeSlots.All(s => courtVm.UnavailableSlotIds.Contains(s.Id)))
+                        {
+                            <div class="text-center py-4 mt-3" style="border-top:1px solid var(--cb-border);">
+                                <i class="bi bi-calendar-x display-6 d-block mb-2" style="color:var(--cb-text-3);"></i>
+                                <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">
+                                    All slots are booked for this date. Try another day.
+                                </p>
                             </div>
                         }
                     </div>
-                }
-            </div>
-        </div>
+                </div>
+            }
+        }
     }
 </div>
+
+<style>
+    .cb-grid-table { border-collapse: separate; border-spacing: 4px; width: 100%; }
+    .cb-grid-table th { font-size: .72rem; color: var(--cb-text-2); font-weight: 700; padding: .4rem .3rem; }
+    .cb-grid-time-col { min-width: 84px; text-align: left; padding-left: .4rem; }
+    .cb-grid-table td { vertical-align: top; }
+    .cb-cell {
+        min-width: 88px;
+        min-height: 48px;
+        height: 100%;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: .72rem;
+        font-weight: 700;
+        user-select: none;
+        position: relative;
+    }
+    .cb-cell-inner { display: flex; flex-direction: column; align-items: center; }
+    .cb-cell-price { font-size: .65rem; font-weight: 600; opacity: .85; margin-top: 1px; }
+    .cb-cell-closed { background: transparent; }
+    .cb-cell-booked, .cb-cell-pending { border: 1px solid var(--cb-border); cursor: default; }
+    .cb-cell-booked { background: var(--cb-surface-2); color: var(--cb-text-3); }
+    .cb-cell-pending { background: rgba(234,179,8,0.12); color: #eab308; border-color: rgba(234,179,8,0.4); }
+    .cb-cell-openplay { background: var(--cb-surface-2); color: var(--cb-text-2); border: 1px solid var(--cb-lime); }
+    .cb-select-cell { cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+    .cb-cell-open { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .cb-cell-open:hover { background: rgba(34,197,94,0.28); }
+    .cb-cell-bundle { background: var(--cb-lime); color: #000; border: 1px solid var(--cb-lime); }
+    .cb-cell-bundle:hover { filter: brightness(0.95); }
+    .cb-cell-selected.cb-cell-open,
+    .cb-cell-selected.cb-cell-bundle {
+        background: rgba(249,115,22,0.22) !important;
+        color: #fb923c !important;
+        border-color: rgba(249,115,22,0.5) !important;
+    }
+    .cb-cell .cb-label-selected { display: none; }
+    .cb-cell-selected .cb-label-open { display: none; }
+    .cb-cell-selected .cb-label-selected { display: inline; }
+    .cb-cell-directlink {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(0,0,0,.35);
+        color: #fff;
+        font-size: .6rem;
+        z-index: 2;
+        text-decoration: none;
+    }
+    .cb-cell-bundle .cb-cell-directlink { background: rgba(0,0,0,.45); }
+    .cb-cell-directlink:hover { background: rgba(0,0,0,.6); color: #fff; }
+</style>
 
 @* Resolved relative to whichever controller rendered this view (Staff or Admin), so the
    cart widget always posts back to the right front-desk's own cart form. *@

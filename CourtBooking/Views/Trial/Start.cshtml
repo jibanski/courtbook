@@ -1,4 +1,5 @@
 @model CourtBooking.ViewModels.TrialRegistrationViewModel
+@using Microsoft.EntityFrameworkCore
 @inject CourtBooking.Data.ApplicationDbContext _trialDb
 @{
     ViewData["Title"] = "Create Account";
@@ -12,7 +13,11 @@
 
     // New signups aren't tied to a facility yet, so this mirrors _LandingLayout's own
     // navbar logo (the platform's own uploaded logo), not any one tenant's brand.
-    var _platformCfg = await _trialDb.PlatformConfig.FindAsync(1);
+    // Select only the logo columns — avoid pulling the 4 unrelated donation QR blobs too.
+    var _platformCfg = await _trialDb.PlatformConfig.AsNoTracking()
+        .Where(p => p.Id == 1)
+        .Select(p => new { p.LogoData, p.LogoContentType })
+        .FirstOrDefaultAsync();
     string? _platformLogoSrc = _platformCfg?.LogoData is { Length: > 0 }
         ? $"data:{_platformCfg.LogoContentType};base64,{Convert.ToBase64String(_platformCfg.LogoData)}"
         : null;

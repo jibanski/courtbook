@@ -162,9 +162,12 @@
 
                 var left = document.createElement('div');
                 left.innerHTML = '<div class="fw-semibold">' + item.courtName + '</div>' +
-                    '<div class="small text-muted">' + fmtDate(item.date) + ' &bull; ' + fmtHour(item.startHour) + ' - ' + fmtHour(item.endHour) + '</div>';
+                    '<div class="small text-muted">' + fmtDate(item.date) + ' &bull; ' + fmtHour(item.startHour) + ' - ' + fmtHour(item.endHour) + '</div>' +
+                    (item.courtBundleId ? '<div class="small mt-1"><span class="badge" style="background:var(--cb-surface-3);color:var(--cb-lime);"><i class="bi bi-box-seam me-1"></i>' + (item.bundleName || 'Bundle') + '</span></div>' : '');
 
-                if (addOnCatalog.length) {
+                // Bundle windows are sold at the block's flat price — no per-hour add-ons for those,
+                // same as the single-window WalkInBundleForm flow.
+                if (addOnCatalog.length && !item.courtBundleId) {
                     var addOnWrap = document.createElement('div');
                     addOnWrap.className = 'mt-2';
                     addOnCatalog.forEach(function (a) {

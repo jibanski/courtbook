@@ -247,19 +247,65 @@ public class AdminController : Controller
         var rangeFrom = from ?? rangeTo.AddDays(-29);
         if (rangeFrom > rangeTo) (rangeFrom, rangeTo) = (rangeTo, rangeFrom);
         var todayDt     = today.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);    // PHT midnight today, as a UTC instant
+        var tomorrowDt  = todayDt.AddDays(1);
+        // PHT calendar-day bounds of the selected range, as UTC instants — used to bound the
+        // PaidAt side of the EffectiveDate condition below.
+        var rangeFromUtc        = rangeFrom.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);
+        var rangeToExclusiveUtc = rangeTo.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8);
 
-        // Fetch each source with one round trip each — a prior version ran ~8 separate
-        // Count/Sum/GroupBy queries against a Concat()'d IQueryable spanning three entity
-        // types, which is expensive to re-plan every call and, under Postgres with real
-        // production data volume, could pile up (each poll takes long enough that the next
-        // 10s auto-refresh overlaps it) and leave the dashboard stuck on "Loading…" forever.
-        // A facility's full booking history is small enough to aggregate in memory once.
-        var bookingRows = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId))
+        // All-time / today counters are aggregated in SQL (COUNT/SUM return one row each) instead
+        // of pulling every booking/signup/rental ever made into memory — this endpoint is polled
+        // every 10s by the dashboard, so a full-history fetch here scaled with total data transferred
+        // (Supabase egress) on every poll, forever, as a facility's history grew.
+        var totalBookings = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status != BookingStatus.Cancelled)
+                          + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status != BookingStatus.Cancelled)
+                          + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.Status != BookingStatus.Cancelled));
+        var todayBookings = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == today && b.Status != BookingStatus.Cancelled)
+                          + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == today && s.Status != BookingStatus.Cancelled)
+                          + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.CreatedAt >= todayDt && r.CreatedAt < tomorrowDt));
+        var todayRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && b.PaidAt != null && b.PaidAt >= todayDt).SumAsync(b => (decimal?)b.TotalPrice) ?? 0m)
+                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && s.PaidAt != null && s.PaidAt >= todayDt).SumAsync(s => (decimal?)s.TotalPrice) ?? 0m)
+                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && r.PaidAt != null && r.PaidAt >= todayDt).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
+        var totalRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => (decimal?)b.TotalPrice) ?? 0m)
+                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed)).SumAsync(s => (decimal?)s.TotalPrice) ?? 0m)
+                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed)).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
+        var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null)
+                             + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null)
+                             + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.Status == BookingStatus.Pending && r.PaymentProofPath != null));
+        var pendingNoProof = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentReference == null)
+                            + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentReference == null)
+                            + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.Status == BookingStatus.Pending && r.PaymentReference == null));
+
+        // Add-ons attached to a Booking, plus standalone add-on rentals (same "all courts only"
+        // scoping as above) — split out of totalRevenue so the owner can see rental vs. add-on
+        // sales separately. Both are all-time SQL aggregates, same reasoning as above.
+        var bookingAddOnsRevenue = await _db.BookingAddOns
+            .Where(a => courtIds.Contains(a.Booking.CourtId)
+                     && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed))
+            .SumAsync(a => (decimal?)(a.Quantity * a.UnitPrice)) ?? 0m;
+        var standaloneAddOnRentalsRevenue = courtId.HasValue ? 0m : (await _db.AddOnRentals
+            .Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed))
+            .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m);
+        var addOnsRevenue = bookingAddOnsRevenue + standaloneAddOnRentalsRevenue;
+        var courtRentalRevenue = totalRevenue - addOnsRevenue;
+
+        // Everything below only needs rows whose EffectiveDate falls inside the selected range
+        // (default: last 30 days), so each source is filtered at the DB level to that window
+        // instead of loading a facility's entire booking/signup/rental history into memory —
+        // this is what actually keeps this endpoint's egress bounded regardless of how much
+        // history has built up, since it's polled every 10s while the dashboard is open.
+        var bookingRows = await _db.Bookings
+            .Where(b => courtIds.Contains(b.CourtId)
+                     && ((b.PaidAt != null && b.PaidAt >= rangeFromUtc && b.PaidAt < rangeToExclusiveUtc)
+                         || (b.PaidAt == null && b.BookingDate >= rangeFrom && b.BookingDate <= rangeTo)))
             .Select(b => new AnalyticsRow(b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
                 b.PaidAt, b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod,
                 b.CourtId, b.LoggedByStaffId))
             .ToListAsync();
-        var signupRows = await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId))
+        var signupRows = await _db.OpenPlaySignups
+            .Where(s => courtIds.Contains(s.CourtId)
+                     && ((s.PaidAt != null && s.PaidAt >= rangeFromUtc && s.PaidAt < rangeToExclusiveUtc)
+                         || (s.PaidAt == null && s.BookingDate >= rangeFrom && s.BookingDate <= rangeTo)))
             .Select(s => new AnalyticsRow(s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
                 s.PaidAt, s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod,
                 s.CourtId, s.LoggedByStaffId))
@@ -271,7 +317,10 @@ public class AdminController : Controller
         // even though the same expression translates fine against SQLite locally.
         var addOnRentalRows = courtId.HasValue
             ? new List<AnalyticsRow>()
-            : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId)
+            : (await _db.AddOnRentals
+                .Where(r => r.OwnerId == CurrentUserId
+                         && ((r.PaidAt != null && r.PaidAt >= rangeFromUtc && r.PaidAt < rangeToExclusiveUtc)
+                             || (r.PaidAt == null && r.CreatedAt >= rangeFromUtc && r.CreatedAt < rangeToExclusiveUtc)))
                 .Select(r => new { r.CreatedAt, r.TotalPrice, r.Status, r.PaymentStatus,
                     r.PaidAt, HasProof = r.PaymentProofPath != null, r.PaymentReference, r.PaymentMethod, r.LoggedByStaffId })
                 .ToListAsync())
@@ -281,30 +330,6 @@ public class AdminController : Controller
                 .ToList();
 
         var combined = bookingRows.Concat(signupRows).Concat(addOnRentalRows).ToList();
-
-        var totalBookings   = combined.Count(x => x.Status != BookingStatus.Cancelled);
-        var todayBookings   = combined.Count(x => x.BookingDate == today && x.Status != BookingStatus.Cancelled);
-        var todayRevenue    = combined
-            .Where(x => x.PaidAt != null && x.PaidAt >= todayDt)
-            .Sum(x => x.TotalPrice);
-        var totalRevenue    = combined
-            .Where(x => x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
-            .Sum(x => x.TotalPrice);
-        var awaitingPayment = combined.Count(x => x.Status == BookingStatus.Pending && x.HasProof);
-        var pendingNoProof  = combined.Count(x => x.Status == BookingStatus.Pending && x.PaymentReference == null);
-
-        // Add-ons attached to a Booking, plus standalone add-on rentals (same "all courts only"
-        // scoping as above) — split out of totalRevenue so the owner can see rental vs. add-on
-        // sales separately.
-        var bookingAddOnsRevenue = await _db.BookingAddOns
-            .Where(a => courtIds.Contains(a.Booking.CourtId)
-                     && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed))
-            .SumAsync(a => (decimal?)(a.Quantity * a.UnitPrice)) ?? 0m;
-        var standaloneAddOnRentalsRevenue = addOnRentalRows
-            .Where(r => r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed)
-            .Sum(r => r.TotalPrice);
-        var addOnsRevenue = bookingAddOnsRevenue + standaloneAddOnRentalsRevenue;
-        var courtRentalRevenue = totalRevenue - addOnsRevenue;
 
         var revenueRows = combined
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
@@ -389,9 +414,12 @@ public class AdminController : Controller
             .ToList();
 
         // Top add-on items — separate from courtRentalRevenue/addOnsRevenue above, this breaks
-        // that lump sum down by item so the owner can see what's actually selling.
+        // that lump sum down by item so the owner can see what's actually selling. Filtered to the
+        // same EffectiveDate-in-range window as everything else above, for the same egress reason.
         var bookingAddOnItemRows = (await _db.BookingAddOns
-            .Where(a => courtIds.Contains(a.Booking.CourtId))
+            .Where(a => courtIds.Contains(a.Booking.CourtId)
+                     && ((a.Booking.PaidAt != null && a.Booking.PaidAt >= rangeFromUtc && a.Booking.PaidAt < rangeToExclusiveUtc)
+                         || (a.Booking.PaidAt == null && a.Booking.BookingDate >= rangeFrom && a.Booking.BookingDate <= rangeTo)))
             .Select(a => new { a.AddOnItemId, Name = a.AddOnItem.Name, a.Quantity, a.UnitPrice,
                 a.Booking.BookingDate, a.Booking.PaidAt, a.Booking.Status })
             .ToListAsync())
@@ -401,7 +429,9 @@ public class AdminController : Controller
         var standaloneAddOnItemRows = courtId.HasValue
             ? new List<AddOnItemRow>()
             : (await _db.AddOnRentalItems
-                .Where(i => i.AddOnRental.OwnerId == CurrentUserId)
+                .Where(i => i.AddOnRental.OwnerId == CurrentUserId
+                         && ((i.AddOnRental.PaidAt != null && i.AddOnRental.PaidAt >= rangeFromUtc && i.AddOnRental.PaidAt < rangeToExclusiveUtc)
+                             || (i.AddOnRental.PaidAt == null && i.AddOnRental.CreatedAt >= rangeFromUtc && i.AddOnRental.CreatedAt < rangeToExclusiveUtc)))
                 .Select(i => new { i.AddOnItemId, Name = i.AddOnItem.Name, i.Quantity, i.UnitPrice,
                     i.AddOnRental.CreatedAt, i.AddOnRental.PaidAt, i.AddOnRental.Status })
                 .ToListAsync())
@@ -451,25 +481,35 @@ public class AdminController : Controller
         });
     }
 
-    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart)
+    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart, string? view)
     {
+        // List and Calendar are two full page navigations (separate GET requests, not client-side
+        // tabs), so only the block the visitor actually asked for needs to run each request —
+        // this used to always fetch both regardless of which one was being viewed.
+        bool calendarView = string.Equals(view, "calendar", StringComparison.OrdinalIgnoreCase);
+
         var courtIds = await GetMyCourtIdsAsync();
+        List<Booking> bookings = new();
         List<OpenPlaySignup> awaitingSignups = new();
-        var query = _db.Bookings
-            .Where(b => courtIds.Contains(b.CourtId))
-            .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle)
-            .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
-            .AsQueryable();
 
-        if (awaitingConfirmation == true)
-            query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
-        else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
-            query = query.Where(b => b.Status == s);
+        if (awaitingConfirmation == true || !calendarView)
+        {
+            var query = _db.Bookings
+                .Where(b => courtIds.Contains(b.CourtId))
+                .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle)
+                .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
+                .AsQueryable();
 
-        if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
-        if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
+            if (awaitingConfirmation == true)
+                query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
+            else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
+                query = query.Where(b => b.Status == s);
 
-        var bookings = await query.OrderByDescending(b => b.PaymentProofSubmittedAt ?? b.CreatedAt).ToListAsync();
+            if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
+            if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
+
+            bookings = await query.OrderByDescending(b => b.PaymentProofSubmittedAt ?? b.CreatedAt).ToListAsync();
+        }
 
         if (awaitingConfirmation == true)
         {
@@ -487,7 +527,7 @@ public class AdminController : Controller
         // The "All Bookings" table (not the awaiting-confirmation card list, which has its
         // own dedicated flow on the Open Play Sign-ups page) also lists Open Play sign-ups
         // so the owner has one consolidated view of everything booked on their courts.
-        if (awaitingConfirmation != true)
+        if (awaitingConfirmation != true && !calendarView)
         {
             var signupQuery = _db.OpenPlaySignups
                 .Where(sg => courtIds.Contains(sg.CourtId))
@@ -513,11 +553,19 @@ public class AdminController : Controller
             ViewBag.Rows = rows
                 .OrderByDescending(r => r.CreatedAt)
                 .ToList();
+        }
 
+        if (awaitingConfirmation != true && calendarView)
+        {
             // Calendar view: a full Sun–Sat week of bookings/sign-ups across all the owner's
             // courts, independent of the list filters above, so switching tabs always shows a
             // whole week to browse rather than whatever the list happens to be filtered to.
             var calAnchor = weekStart ?? PhtClock.Today;
+            // Clamp so the week-start/end arithmetic here and the +/-7 day nav links in the
+            // view never overflow DateOnly's range (e.g. hand-edited query string or repeated
+            // prev/next clicks near the year 1/9999 boundary).
+            if (calAnchor < DateOnly.MinValue.AddDays(14)) calAnchor = DateOnly.MinValue.AddDays(14);
+            if (calAnchor > DateOnly.MaxValue.AddDays(-14)) calAnchor = DateOnly.MaxValue.AddDays(-14);
             var calWeekStart = calAnchor.AddDays(-(int)calAnchor.DayOfWeek);
             var calWeekEnd = calWeekStart.AddDays(6);
 
@@ -2625,7 +2673,7 @@ public class AdminController : Controller
     // here since Admin *is* the owner. Reuses the Staff views directly (same pattern as
     // RentAddOns below) since they only reference relative asp-action links.
 
-    public async Task<IActionResult> NewWalkIn(int? courtId, DateTime? date)
+    public async Task<IActionResult> NewWalkIn(DateTime? date)
     {
         var myCourts = await MyCourts.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
         ViewBag.Courts = myCourts;
@@ -2639,20 +2687,23 @@ public class AdminController : Controller
             .ToListAsync();
 
         var todayPht = PhtClock.Today;
-
-        if (courtId is null)
-        {
-            ViewBag.SelectedDate = date.HasValue ? DateOnly.FromDateTime(date.Value) : todayPht;
-            return View("~/Views/Staff/NewWalkIn.cshtml");
-        }
-
-        var court = myCourts.FirstOrDefault(c => c.Id == courtId);
-        if (court is null) return NotFound();
-
         var selectedDate = date.HasValue ? DateOnly.FromDateTime(date.Value) : todayPht;
+        ViewBag.SelectedDate = selectedDate;
 
+        var courtAvailability = new List<CourtAvailabilityViewModel>();
+        foreach (var court in myCourts)
+            courtAvailability.Add(await BuildStaffCourtAvailabilityAsync(court, selectedDate));
+
+        return View("~/Views/Staff/NewWalkIn.cshtml", courtAvailability);
+    }
+
+    /// <summary>Mirrors StaffController.BuildStaffCourtAvailabilityAsync — Open Play blocks are
+    /// surfaced here even when <c>AllowPublicSignup</c> is off, since the owner can always
+    /// register a walk-in into an Open Play block regardless of online self-signup settings.</summary>
+    private async Task<CourtAvailabilityViewModel> BuildStaffCourtAvailabilityAsync(Court court, DateOnly selectedDate)
+    {
         var slots = await _db.CourtTimeSlots
-            .Where(s => s.CourtId == courtId && s.IsActive && s.SlotDate == selectedDate)
+            .Where(s => s.CourtId == court.Id && s.IsActive && s.SlotDate == selectedDate)
             .OrderBy(s => s.StartHour)
             .ToListAsync();
 
@@ -2662,61 +2713,61 @@ public class AdminController : Controller
         if (slots.Any())
         {
             vm.TimeSlots = slots;
-            vm.UnavailableSlotIds = await _bookingService.GetUnavailableSlotIdsAsync(courtId.Value, selectedDate, slots);
+            vm.UnavailableSlotIds = await _bookingService.GetUnavailableSlotIdsAsync(court.Id, selectedDate, slots);
             foreach (var s in slots)
             {
                 vm.SlotPrices[s.Id] = await _bookingService.GetTotalPriceAsync(
                     court, selectedDate, new TimeOnly(s.StartHour % 24, 0), new TimeOnly(s.EndHour % 24, 0));
             }
+
+            return vm;
         }
-        else
+
+        var bookedHours  = await _bookingService.GetBookedHoursAsync(court.Id, selectedDate);
+        var pendingHours = await _bookingService.GetPendingHoursAsync(court.Id, selectedDate);
+        var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(court.Id, selectedDate);
+        var blockedHours = await _bookingService.GetBlockedHoursAsync(court.Id, selectedDate);
+        var blockReasons = await _bookingService.GetBlockReasonsAsync(court.Id, selectedDate);
+        var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
+
+        var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
+        var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)>();
+        for (int h = court.OpeningHour; h < court.ClosingHour; h++)
         {
-            var bookedHours  = await _bookingService.GetBookedHoursAsync(courtId.Value, selectedDate);
-            var pendingHours = await _bookingService.GetPendingHoursAsync(courtId.Value, selectedDate);
-            var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(courtId.Value, selectedDate);
-            var blockedHours = await _bookingService.GetBlockedHoursAsync(courtId.Value, selectedDate);
-            var blockReasons = await _bookingService.GetBlockReasonsAsync(courtId.Value, selectedDate);
-            var schedule     = await _bookingService.GetHourlyScheduleAsync(court, selectedDate);
+            var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
+            if (match is not null) { bundleOnlyHours[h] = match.Value; continue; }
 
-            var bundleOnlyHours = new Dictionary<int, (CourtBundle Bundle, CourtBundleRateBlock Block)>();
-            var openPlaySignupInfo = new Dictionary<int, (CourtScheduleBlock Block, int SpotsRemaining)>();
-            for (int h = court.OpeningHour; h < court.ClosingHour; h++)
+            if (schedule.TryGetValue(h, out var sh) && sh.Type == BookingType.AdminHostedOpenPlay)
             {
-                var match = await _bookingService.ResolveBundleForHourAsync(court, selectedDate, h);
-                if (match is not null) { bundleOnlyHours[h] = match.Value; continue; }
-
-                if (schedule.TryGetValue(h, out var sh) && sh.Type == BookingType.AdminHostedOpenPlay)
+                var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
+                if (block is not null)
                 {
-                    var block = await _bookingService.ResolveScheduleBlockForHourAsync(court, selectedDate, h);
-                    if (block is not null)
-                    {
-                        // Owner can always register a walk-in into an Open Play block, same as staff —
-                        // regardless of whether online self-signup is enabled for customers.
-                        var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingForStaffAsync(block, courtId.Value, selectedDate);
-                        openPlaySignupInfo[h] = (block, spotsRemaining ?? int.MaxValue);
-                    }
+                    // Owner can always register a walk-in into an Open Play block, same as staff —
+                    // regardless of whether online self-signup is enabled for customers.
+                    var spotsRemaining = await _bookingService.GetOpenPlaySpotsRemainingForStaffAsync(block, court.Id, selectedDate);
+                    openPlaySignupInfo[h] = (block, spotsRemaining ?? int.MaxValue);
                 }
             }
-
-            vm.BookedHours     = bookedHours;
-            vm.PendingHours    = pendingHours;
-            vm.PendingBundleWindows = pendingBundleWindows;
-            vm.BlockedHours    = blockedHours;
-            vm.BlockReasons    = blockReasons;
-            vm.BundleOnlyHours = bundleOnlyHours;
-            vm.OpenPlaySignupInfo = openPlaySignupInfo;
-            vm.OpenPlayHours   = schedule
-                .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
-                .Select(kv => kv.Key).ToList();
-            vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
-            vm.AvailableHours = Enumerable
-                .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
-                .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
-                         && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
-                .ToList();
         }
 
-        return View("~/Views/Staff/NewWalkIn.cshtml", vm);
+        vm.BookedHours     = bookedHours;
+        vm.PendingHours    = pendingHours;
+        vm.PendingBundleWindows = pendingBundleWindows;
+        vm.BlockedHours    = blockedHours;
+        vm.BlockReasons    = blockReasons;
+        vm.BundleOnlyHours = bundleOnlyHours;
+        vm.OpenPlaySignupInfo = openPlaySignupInfo;
+        vm.OpenPlayHours   = schedule
+            .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
+            .Select(kv => kv.Key).ToList();
+        vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
+        vm.AvailableHours = Enumerable
+            .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
+            .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
+                     && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
+            .ToList();
+
+        return vm;
     }
 
     public async Task<IActionResult> WalkInForm(int courtId, DateOnly date, int startHour, int? endHour)
@@ -2965,7 +3016,7 @@ public class AdminController : Controller
             return RedirectToAction(nameof(WalkInCartForm));
         }
 
-        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice)>();
+        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
         foreach (var item in items)
         {
             var court = courtsById[item.CourtId];
@@ -2987,6 +3038,25 @@ public class AdminController : Controller
                 errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is reserved for Admin-Hosted Open Play.");
                 continue;
             }
+
+            if (item.CourtBundleId.HasValue)
+            {
+                var bundleMatch = await ResolveWalkInBundleBlockAsync(court, item.CourtBundleId.Value, item.Date, item.StartHour, item.EndHour);
+                if (bundleMatch is null)
+                {
+                    errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle window is no longer available.");
+                    continue;
+                }
+                var bundle = await _db.CourtBundles.FirstOrDefaultAsync(b => b.Id == item.CourtBundleId.Value && b.IsActive);
+                if (bundle is null)
+                {
+                    errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle is no longer available.");
+                    continue;
+                }
+                resolved.Add((item, court, start, end, bundleMatch.FlatPrice, bundle));
+                continue;
+            }
+
             if (await _bookingService.HasBundleOnlyHoursAsync(court, item.Date, start, end))
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is only available as part of a bundle.");
@@ -2994,7 +3064,7 @@ public class AdminController : Controller
             }
 
             var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
-            resolved.Add((item, court, start, end, price));
+            resolved.Add((item, court, start, end, price, null));
         }
 
         if (errors.Count > 0)
@@ -3029,7 +3099,7 @@ public class AdminController : Controller
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
 
-        foreach (var (item, court, start, end, slotPrice) in resolved)
+        foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
         {
             var (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
                 CurrentUserId,
@@ -3058,6 +3128,7 @@ public class AdminController : Controller
                 PaidAt               = isCash ? DateTime.UtcNow : null,
                 LoggedByStaffId      = CurrentUserId,
                 BundleGroupId        = groupId,
+                CourtBundleId        = bundle?.Id,
                 CustomerNameSnapshot = customerName,
                 AddOns               = addOns
             });
