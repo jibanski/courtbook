@@ -218,6 +218,12 @@ public class OpenPlaySignupsController : Controller
             return RedirectToAction(nameof(Index), "FacilityController");
         }
 
+        // Extend the hold now that the customer is actively attempting to pay, so a failed
+        // attempt below (bad file, corrupt image, network hiccup) doesn't burn down the
+        // original window before they get a working upload in.
+        signup.ReservedUntil = ReservationGrace.ExtendOnAttempt(signup.CreatedAt, signup.ReservedUntil);
+        await _db.SaveChangesAsync();
+
         if (screenshot is null || screenshot.Length == 0)
         {
             TempData["Error"] = "Please upload a screenshot of your payment confirmation.";
@@ -244,6 +250,12 @@ public class OpenPlaySignupsController : Controller
         catch (SixLabors.ImageSharp.UnknownImageFormatException)
         {
             TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(Pay), new { id });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[SubmitProof] Failed to process payment-proof upload for signup #{Id}", id);
+            TempData["Error"] = "We couldn't process that screenshot. Please try again — your spot is still reserved.";
             return RedirectToAction(nameof(Pay), new { id });
         }
         await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
@@ -331,6 +343,12 @@ public class OpenPlaySignupsController : Controller
             return RedirectToAction(nameof(GuestPay), new { token });
         }
 
+        // Extend the hold now that the guest is actively attempting to pay, so a failed
+        // attempt below (bad file, corrupt image, network hiccup) doesn't burn down the
+        // original window before they get a working upload in.
+        signup.ReservedUntil = ReservationGrace.ExtendOnAttempt(signup.CreatedAt, signup.ReservedUntil);
+        await _db.SaveChangesAsync();
+
         if (screenshot is null || screenshot.Length == 0)
         {
             TempData["Error"] = "Please upload a screenshot of your payment confirmation.";
@@ -357,6 +375,12 @@ public class OpenPlaySignupsController : Controller
         catch (SixLabors.ImageSharp.UnknownImageFormatException)
         {
             TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[GuestSubmitProof] Failed to process payment-proof upload for signup #{Id}", signup.Id);
+            TempData["Error"] = "We couldn't process that screenshot. Please try again — your spot is still reserved.";
             return RedirectToAction(nameof(GuestPay), new { token });
         }
         await System.IO.File.WriteAllBytesAsync(fullPath, compressed);

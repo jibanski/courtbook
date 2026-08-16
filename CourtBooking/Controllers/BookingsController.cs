@@ -325,6 +325,12 @@ public class BookingsController : Controller
             return RedirectToAction(nameof(Index));
         }
 
+        // Extend the hold now that the customer is actively attempting to pay, so a failed
+        // attempt below (bad file, corrupt image, network hiccup) doesn't burn down the
+        // original window before they get a working upload in.
+        booking.ReservedUntil = ReservationGrace.ExtendOnAttempt(booking.CreatedAt, booking.ReservedUntil);
+        await _db.SaveChangesAsync();
+
         if (screenshot is null || screenshot.Length == 0)
         {
             TempData["Error"] = "Please upload a screenshot of your payment confirmation.";
@@ -352,6 +358,12 @@ public class BookingsController : Controller
         catch (SixLabors.ImageSharp.UnknownImageFormatException)
         {
             TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(Pay), new { id = bookingId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[SubmitProof] Failed to process payment-proof upload for booking #{Id}", bookingId);
+            TempData["Error"] = "We couldn't process that screenshot. Please try again — your slot is still reserved.";
             return RedirectToAction(nameof(Pay), new { id = bookingId });
         }
         await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
@@ -562,6 +574,12 @@ public class BookingsController : Controller
             return RedirectToAction(nameof(GuestPay), new { token });
         }
 
+        // Extend the hold now that the guest is actively attempting to pay, so a failed
+        // attempt below (bad file, corrupt image, network hiccup) doesn't burn down the
+        // original window before they get a working upload in.
+        booking.ReservedUntil = ReservationGrace.ExtendOnAttempt(booking.CreatedAt, booking.ReservedUntil);
+        await _db.SaveChangesAsync();
+
         if (screenshot is null || screenshot.Length == 0)
         {
             TempData["Error"] = "Please upload a screenshot of your payment confirmation.";
@@ -588,6 +606,12 @@ public class BookingsController : Controller
         catch (SixLabors.ImageSharp.UnknownImageFormatException)
         {
             TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[GuestSubmitProof] Failed to process payment-proof upload for booking #{Id}", booking.Id);
+            TempData["Error"] = "We couldn't process that screenshot. Please try again — your slot is still reserved.";
             return RedirectToAction(nameof(GuestPay), new { token });
         }
         await System.IO.File.WriteAllBytesAsync(fullPath, compressed);

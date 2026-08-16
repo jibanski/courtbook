@@ -2209,6 +2209,51 @@ public class AdminController : Controller
 
     // ── Court Date/Time Range Blocks ─────────────────────────────────────────
 
+    /// <summary>
+    /// Returns a description of the first existing Confirmed/Completed booking or Open Play
+    /// sign-up that overlaps the proposed block range, or null if the range is clear. Pending
+    /// bookings are deliberately excluded — they can still expire on their own and shouldn't
+    /// block an admin from blocking that time.
+    /// </summary>
+    private async Task<string?> FindBlockConflictAsync(int courtId,
+        DateOnly startDate, int startHour, DateOnly endDate, int endHour)
+    {
+        static DateTime ToInstant(DateOnly date, int hour) =>
+            date.AddDays(hour / 24).ToDateTime(new TimeOnly(hour % 24, 0));
+        var blockStart = ToInstant(startDate, startHour);
+        var blockEnd   = ToInstant(endDate, endHour);
+
+        var bookings = await _db.Bookings
+            .Where(b => b.CourtId == courtId
+                     && b.BookingDate >= startDate && b.BookingDate <= endDate
+                     && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed))
+            .AsNoTracking()
+            .ToListAsync();
+
+        foreach (var b in bookings)
+        {
+            var bStartHour = b.StartTime.Hour;
+            var bEndHour   = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
+            if (ToInstant(b.BookingDate, bStartHour) < blockEnd && ToInstant(b.BookingDate, bEndHour) > blockStart)
+                return $"{b.BookingDate:MMM d} {TimeDisplay.HourRange(bStartHour, bEndHour)} is already booked";
+        }
+
+        var signups = await _db.OpenPlaySignups
+            .Where(o => o.CourtId == courtId
+                     && o.BookingDate >= startDate && o.BookingDate <= endDate
+                     && (o.Status == BookingStatus.Confirmed || o.Status == BookingStatus.Completed))
+            .AsNoTracking()
+            .ToListAsync();
+
+        foreach (var o in signups)
+        {
+            if (ToInstant(o.BookingDate, o.StartHour) < blockEnd && ToInstant(o.BookingDate, o.EndHour) > blockStart)
+                return $"{o.BookingDate:MMM d} {TimeDisplay.HourRange(o.StartHour, o.EndHour)} already has an Open Play sign-up";
+        }
+
+        return null;
+    }
+
     public async Task<IActionResult> BlockCourt(int id)
     {
         var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == id);
@@ -2241,6 +2286,13 @@ public class AdminController : Controller
         if (endDt <= startDt)
         {
             TempData["Error"] = "End must be after start.";
+            return RedirectToAction(nameof(BlockCourt), new { id = courtId });
+        }
+
+        var conflict = await FindBlockConflictAsync(courtId, startDate, startHour, endDate, endHour);
+        if (conflict is not null)
+        {
+            TempData["Error"] = $"Can't block {court.Name} — {conflict}.";
             return RedirectToAction(nameof(BlockCourt), new { id = courtId });
         }
 
@@ -2279,6 +2331,13 @@ public class AdminController : Controller
         if (ToInstant(endDate, endHour) <= ToInstant(startDate, startHour))
         {
             TempData["Error"] = "End must be after start.";
+            return RedirectToAction(nameof(BlockCourt), new { id = courtId });
+        }
+
+        var conflict = await FindBlockConflictAsync(blk.CourtId, startDate, startHour, endDate, endHour);
+        if (conflict is not null)
+        {
+            TempData["Error"] = $"Can't update block — {conflict}.";
             return RedirectToAction(nameof(BlockCourt), new { id = courtId });
         }
 
@@ -2355,8 +2414,19 @@ public class AdminController : Controller
         }
 
         var reasonTrimmed = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        var courtNamesForBulk = await _db.Courts.Where(c => targetIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+        var addedBulk  = new List<int>();
+        var errorsBulk = new List<string>();
         foreach (var cid in targetIds)
         {
+            var conflict = await FindBlockConflictAsync(cid, startDate, startHour, endDate, endHour);
+            if (conflict is not null)
+            {
+                errorsBulk.Add($"{courtNamesForBulk.GetValueOrDefault(cid, $"Court #{cid}")}: {conflict}.");
+                continue;
+            }
+
             _db.CourtBlocks.Add(new CourtBlock
             {
                 CourtId   = cid,
@@ -2366,11 +2436,17 @@ public class AdminController : Controller
                 EndHour   = endHour,
                 Reason    = reasonTrimmed
             });
+            addedBulk.Add(cid);
         }
-        await _db.SaveChangesAsync();
 
-        TempData["Success"] = $"Blocked {targetIds.Count} court{(targetIds.Count == 1 ? "" : "s")} from " +
-                               $"{startDate:MMM d} {TimeDisplay.Hour(startHour)} to {endDate:MMM d} {TimeDisplay.Hour(endHour)}.";
+        if (addedBulk.Any())
+            await _db.SaveChangesAsync();
+
+        if (addedBulk.Any())
+            TempData["Success"] = $"Blocked {addedBulk.Count} court{(addedBulk.Count == 1 ? "" : "s")} from " +
+                                   $"{startDate:MMM d} {TimeDisplay.Hour(startHour)} to {endDate:MMM d} {TimeDisplay.Hour(endHour)}.";
+        if (errorsBulk.Any())
+            TempData["Error"] = string.Join(" ", errorsBulk);
         return RedirectToAction(nameof(BlockCourts));
     }
 
@@ -2407,6 +2483,13 @@ public class AdminController : Controller
             if (ToInstant(eDate, eHour) <= ToInstant(sDate, sHour))
             {
                 errors.Add($"{name}: end must be after start.");
+                continue;
+            }
+
+            var conflict = await FindBlockConflictAsync(cid, sDate, sHour, eDate, eHour);
+            if (conflict is not null)
+            {
+                errors.Add($"{name}: {conflict}.");
                 continue;
             }
 
@@ -2453,6 +2536,13 @@ public class AdminController : Controller
         if (ToInstant(endDate, endHour) <= ToInstant(startDate, startHour))
         {
             TempData["Error"] = "End must be after start.";
+            return RedirectToAction(nameof(BlockCourts));
+        }
+
+        var conflict = await FindBlockConflictAsync(blk.CourtId, startDate, startHour, endDate, endHour);
+        if (conflict is not null)
+        {
+            TempData["Error"] = $"Can't update block — {conflict}.";
             return RedirectToAction(nameof(BlockCourts));
         }
 
