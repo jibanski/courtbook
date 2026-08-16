@@ -293,6 +293,13 @@ public class BundleBookingsController : Controller
             return RedirectToAction(nameof(Index));
         }
 
+        // Extend the hold now that the customer is actively attempting to pay, so a failed
+        // attempt below (bad file, corrupt image, network hiccup) doesn't burn down the
+        // original window before they get a working upload in.
+        foreach (var row in rows)
+            row.ReservedUntil = ReservationGrace.ExtendOnAttempt(row.CreatedAt, row.ReservedUntil);
+        await _db.SaveChangesAsync();
+
         if (screenshot is null || screenshot.Length == 0)
         {
             TempData["Error"] = "Please upload a screenshot of your payment confirmation.";
@@ -319,6 +326,12 @@ public class BundleBookingsController : Controller
         catch (SixLabors.ImageSharp.UnknownImageFormatException)
         {
             TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(Pay), new { groupId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[SubmitProof] Failed to process payment-proof upload for bundle group {GroupId}", groupId);
+            TempData["Error"] = "We couldn't process that screenshot. Please try again — your slots are still reserved.";
             return RedirectToAction(nameof(Pay), new { groupId });
         }
         await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
@@ -432,6 +445,13 @@ public class BundleBookingsController : Controller
             return RedirectToAction(nameof(GuestPay), new { token });
         }
 
+        // Extend the hold now that the guest is actively attempting to pay, so a failed
+        // attempt below (bad file, corrupt image, network hiccup) doesn't burn down the
+        // original window before they get a working upload in.
+        foreach (var row in rows)
+            row.ReservedUntil = ReservationGrace.ExtendOnAttempt(row.CreatedAt, row.ReservedUntil);
+        await _db.SaveChangesAsync();
+
         if (screenshot is null || screenshot.Length == 0)
         {
             TempData["Error"] = "Please upload a screenshot of your payment confirmation.";
@@ -458,6 +478,12 @@ public class BundleBookingsController : Controller
         catch (SixLabors.ImageSharp.UnknownImageFormatException)
         {
             TempData["Error"] = "That file doesn't look like a valid image. Please upload a JPG, PNG, or WebP screenshot.";
+            return RedirectToAction(nameof(GuestPay), new { token });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[GuestSubmitProof] Failed to process payment-proof upload for bundle token {Token}", token);
+            TempData["Error"] = "We couldn't process that screenshot. Please try again — your slots are still reserved.";
             return RedirectToAction(nameof(GuestPay), new { token });
         }
         await System.IO.File.WriteAllBytesAsync(fullPath, compressed);
