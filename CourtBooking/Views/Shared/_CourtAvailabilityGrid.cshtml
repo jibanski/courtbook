@@ -230,12 +230,29 @@
                             runEnd++;
                         }
                         var placeholderLabel = TimeDisplay.HourRange(h, runEnd);
+
+                        // Point at the actual taken hour(s) so customers/staff can see why, instead of a generic "unavailable".
+                        var takenRanges = new List<string>();
+                        for (int bh = blockStart; bh < blockEnd; bh++)
+                        {
+                            if (!Model.BookedHours.Contains(bh) && !Model.PendingHours.Contains(bh) && !Model.BlockedHours.Contains(bh)) continue;
+                            int takenEnd = bh + 1;
+                            while (takenEnd < blockEnd
+                                   && (Model.BookedHours.Contains(takenEnd) || Model.PendingHours.Contains(takenEnd) || Model.BlockedHours.Contains(takenEnd)))
+                            {
+                                takenEnd++;
+                            }
+                            takenRanges.Add(TimeDisplay.HourRange(bh, takenEnd));
+                            bh = takenEnd - 1;
+                        }
+                        var takenSummary = string.Join(", ", takenRanges);
                         <div class="col-12">
                             <div class="p-2 text-center rounded-3"
-                                 style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.6;cursor:default;">
+                                 style="background:var(--cb-surface-2);border:1px solid var(--cb-border);opacity:.6;cursor:default;"
+                                 title="@takenSummary already reserved, so this bundle window can't be sold as a package">
                                 <div style="font-size:.85rem;color:var(--cb-text-2);font-weight:700;">@placeholderLabel</div>
                                 <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;font-weight:600;">
-                                    <i class="bi bi-box-seam me-1"></i>Bundle Only &bull; unavailable (window partially booked)
+                                    <i class="bi bi-box-seam me-1"></i>Bundle Only &bull; unavailable (@takenSummary already reserved)
                                 </div>
                             </div>
                         </div>

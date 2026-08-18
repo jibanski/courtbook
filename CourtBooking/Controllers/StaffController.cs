@@ -115,6 +115,14 @@ public class StaffController : Controller
         BookingStatus? exactStatus = !string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s) ? s : null;
         bool calendarView = string.Equals(view, "calendar", StringComparison.OrdinalIgnoreCase);
 
+        // No default date bound previously meant an unfiltered list fetched the entire
+        // booking/signup history — default to the last 30 days; staff can widen it manually.
+        if (!calendarView && !dateFrom.HasValue && !dateTo.HasValue)
+        {
+            dateTo   = PhtClock.Today;
+            dateFrom = dateTo.Value.AddDays(-29);
+        }
+
         if (!calendarView)
         {
             var rows = await GetBookingRowsAsync(courtIds, dateFrom: dateFrom, dateTo: dateTo, exactStatus: exactStatus);

@@ -488,6 +488,16 @@ public class AdminController : Controller
         // this used to always fetch both regardless of which one was being viewed.
         bool calendarView = string.Equals(view, "calendar", StringComparison.OrdinalIgnoreCase);
 
+        // The list view previously had no default date bound, so with no filter set it fetched
+        // the entire booking/signup history (with several joined tables) on every page view —
+        // the biggest remaining Supabase egress source as a facility's history grows. Default to
+        // the last 30 days when neither end is specified; owners can still widen/clear it manually.
+        if (awaitingConfirmation != true && !calendarView && !dateFrom.HasValue && !dateTo.HasValue)
+        {
+            dateTo   = PhtClock.Today;
+            dateFrom = dateTo.Value.AddDays(-29);
+        }
+
         var courtIds = await GetMyCourtIdsAsync();
         List<Booking> bookings = new();
         List<OpenPlaySignup> awaitingSignups = new();

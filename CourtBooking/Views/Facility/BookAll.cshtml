@@ -287,7 +287,20 @@
                                                         }
                                                         else
                                                         {
-                                                            <div class="cb-cell cb-cell-booked" title="Bundle window partially booked elsewhere">Booked</div>
+                                                            var takenRanges = new List<string>();
+                                                            for (int bh = blockStart; bh < blockEnd; bh++)
+                                                            {
+                                                                if (!cv.BookedHours.Contains(bh) && !cv.PendingHours.Contains(bh) && !cv.BlockedHours.Contains(bh)) continue;
+                                                                int takenEnd = bh + 1;
+                                                                while (takenEnd < blockEnd
+                                                                       && (cv.BookedHours.Contains(takenEnd) || cv.PendingHours.Contains(takenEnd) || cv.BlockedHours.Contains(takenEnd)))
+                                                                {
+                                                                    takenEnd++;
+                                                                }
+                                                                takenRanges.Add(TimeDisplay.HourRange(bh, takenEnd));
+                                                                bh = takenEnd - 1;
+                                                            }
+                                                            <div class="cb-cell cb-cell-booked" title="@(string.Join(", ", takenRanges)) already reserved, so this bundle window can't be sold as a package">Booked</div>
                                                         }
                                                     }
                                                     else if (isSignup && signupMatch.SpotsRemaining > 0)
