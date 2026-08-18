@@ -3,6 +3,7 @@ using CourtBooking.Models;
 using CourtBooking.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -106,6 +107,17 @@ builder.Services.AddHostedService<SubscriptionReminderHostedService>();
 builder.Services.AddHostedService<ReservationExpiryCleanupService>();
 builder.Services.AddControllersWithViews();
 
+// Compress HTML/CSS/JS/JSON responses (Brotli preferred, gzip fallback) — smaller
+// payloads over the wire on every request, not just static files. Railway terminates
+// TLS at its edge proxy so Kestrel sees plain HTTP here; EnableForHttps only matters
+// if this app itself terminates TLS (e.g. local `dotnet run` with HTTPS profile).
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
+
 // ── Data Protection key persistence ───────────────────────────────────────
 // Anti-forgery tokens, auth cookies, and password-reset tokens are signed
 // with keys managed by the Data Protection stack. On Railway the default
@@ -137,6 +149,7 @@ if (!app.Environment.IsDevelopment())
 if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 
+app.UseResponseCompression();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();

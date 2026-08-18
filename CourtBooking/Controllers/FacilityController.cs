@@ -65,9 +65,11 @@ public class FacilityController : Controller
         bool showBackToDirectory = false;
         if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Admin"))
         {
-            var uid  = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var user = uid != null ? await _db.Users.FindAsync(uid) : null;
-            showBackToDirectory = string.IsNullOrEmpty((user as CourtBooking.Models.ApplicationUser)?.PreferredFacilitySlug);
+            var uid = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var preferredSlug = uid != null
+                ? await _db.Users.Where(u => u.Id == uid).Select(u => u.PreferredFacilitySlug).FirstOrDefaultAsync()
+                : null;
+            showBackToDirectory = string.IsNullOrEmpty(preferredSlug);
         }
 
         ViewBag.FacilitySettings    = settings;
