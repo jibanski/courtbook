@@ -42,7 +42,7 @@
                     }
                     else
                     {
-                        <form asp-action="CreateAddOnRental" method="post" enctype="multipart/form-data">
+                        <form asp-action="CreateAddOnRental" method="post" enctype="multipart/form-data" id="cbRentAddOnsForm">
                             @Html.AntiForgeryToken()
 
                             <div class="mb-3">
@@ -184,5 +184,12 @@
     }
     paymentMethodSelect?.addEventListener('change', toggleReferenceField);
     toggleReferenceField();
+
+    // Guard against double-click/double-submit creating duplicate rentals.
+    document.getElementById('cbRentAddOnsForm')?.addEventListener('submit', function (e) {
+        if (submitBtn.disabled) { e.preventDefault(); return; }
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
+    });
 </script>
 }

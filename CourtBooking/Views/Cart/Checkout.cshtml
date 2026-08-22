@@ -202,8 +202,13 @@
             render();
         });
 
-        document.getElementById('cbCheckoutForm').addEventListener('submit', function () {
+        document.getElementById('cbCheckoutForm').addEventListener('submit', function (e) {
+            // Guard against double-click/double-submit creating duplicate bookings.
+            var btn = this.querySelector('button[type=submit]');
+            if (btn.disabled) { e.preventDefault(); return; }
             document.getElementById('cbCartJson').value = JSON.stringify(window.CBCart.getCart().items);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
         });
 
         render();

@@ -29,7 +29,7 @@
                     {
                         <div class="alert alert-danger">@TempData["Error"]</div>
                     }
-                    <form asp-action="CreateWalkIn" method="post" enctype="multipart/form-data">
+                    <form asp-action="CreateWalkIn" method="post" enctype="multipart/form-data" id="cbWalkInForm">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="courtId" value="@court?.Id" />
                         <input type="hidden" name="date" value="@date.ToString("yyyy-MM-dd")" />
@@ -197,5 +197,12 @@
     }
     paymentMethodSelect?.addEventListener('change', toggleReferenceField);
     toggleReferenceField();
+
+    // Guard against double-click/double-submit creating duplicate bookings.
+    document.getElementById('cbWalkInForm')?.addEventListener('submit', function (e) {
+        if (submitBtn.disabled) { e.preventDefault(); return; }
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
+    });
 </script>
 }

@@ -31,7 +31,7 @@
                     {
                         <div class="alert alert-danger">@TempData["Error"]</div>
                     }
-                    <form asp-action="CreateWalkInBundle" method="post" enctype="multipart/form-data">
+                    <form asp-action="CreateWalkInBundle" method="post" enctype="multipart/form-data" id="cbWalkInBundleForm">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="bundleId" value="@bundle?.Id" />
                         <input type="hidden" name="courtId" value="@court?.Id" />
@@ -121,5 +121,12 @@
     }
     paymentMethodSelect?.addEventListener('change', toggleReferenceField);
     toggleReferenceField();
+
+    // Guard against double-click/double-submit creating duplicate bookings.
+    document.getElementById('cbWalkInBundleForm')?.addEventListener('submit', function (e) {
+        if (submitBtn.disabled) { e.preventDefault(); return; }
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
+    });
 </script>
 }
