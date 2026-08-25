@@ -104,6 +104,13 @@ public class Booking
     /// = "Cash"). Null for every online/guest-checkout booking.</summary>
     public string? LoggedByStaffId { get; set; }
 
+    /// <summary>Snapshot of the logging staff account's name at booking time, mirroring
+    /// <see cref="CustomerName"/> — lets a booking row be attributed to a staff member directly in
+    /// the database (SQL/CSV) without joining to <see cref="ApplicationUser"/> via <see cref="LoggedByStaffId"/>.
+    /// Null whenever <see cref="LoggedByStaffId"/> is null.</summary>
+    [MaxLength(200)]
+    public string? LoggedByStaffName { get; set; }
+
     /// <summary>Rented add-on items (e.g. paddles) attached to this booking. <see cref="TotalPrice"/>
     /// already includes their cost — this collection is for itemized display only.</summary>
     public ICollection<BookingAddOn> AddOns { get; set; } = new List<BookingAddOn>();

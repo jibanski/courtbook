@@ -49,6 +49,8 @@ public class StaffController : Controller
     // ── Employer scoping ─────────────────────────────────────────────────────
 
     private string CurrentStaffId => _userManager.GetUserId(User)!;
+    private async Task<string?> CurrentStaffNameAsync() =>
+        (await _userManager.GetUserAsync(User))?.FullName;
 
     private async Task<string?> GetEmployerOwnerIdAsync() =>
         (await _userManager.GetUserAsync(User))?.EmployerOwnerId;
@@ -587,6 +589,7 @@ public class StaffController : Controller
             PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
             PaidAt        = isCash ? DateTime.UtcNow : null,
             LoggedByStaffId = CurrentStaffId,
+            LoggedByStaffName = await CurrentStaffNameAsync(),
             CustomerNameSnapshot = customerName,
             AddOns        = addOns
         };
@@ -853,6 +856,7 @@ public class StaffController : Controller
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
+        var staffName = await CurrentStaffNameAsync();
 
         foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
         {
@@ -884,6 +888,7 @@ public class StaffController : Controller
                 PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
                 PaidAt               = isCash ? DateTime.UtcNow : null,
                 LoggedByStaffId      = CurrentStaffId,
+                LoggedByStaffName    = staffName,
                 BundleGroupId        = groupId,
                 CourtBundleId        = bundle?.Id,
                 CustomerNameSnapshot = customerName,
@@ -1011,6 +1016,7 @@ public class StaffController : Controller
             PaymentProofPath     = proofPath,
             PaidAt               = isCash ? DateTime.UtcNow : null,
             LoggedByStaffId      = CurrentStaffId,
+            LoggedByStaffName    = await CurrentStaffNameAsync(),
             Items                = items
         };
         _db.AddOnRentals.Add(rental);
@@ -1193,6 +1199,7 @@ public class StaffController : Controller
             PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
             PaidAt               = isCash ? DateTime.UtcNow : null,
             LoggedByStaffId      = CurrentStaffId,
+            LoggedByStaffName    = await CurrentStaffNameAsync(),
             CustomerNameSnapshot = customerName,
             CourtBundleId        = bundle.Id,
             BundleGroupId        = Guid.NewGuid()
@@ -1347,6 +1354,7 @@ public class StaffController : Controller
             PaymentProofPath     = proofPath,
             PaidAt               = DateTime.UtcNow,
             LoggedByStaffId      = CurrentStaffId,
+            LoggedByStaffName    = await CurrentStaffNameAsync(),
             CustomerNameSnapshot = customerName
         };
         _db.OpenPlaySignups.Add(signup);
