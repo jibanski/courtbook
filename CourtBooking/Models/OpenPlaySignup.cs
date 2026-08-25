@@ -97,4 +97,9 @@ public class OpenPlaySignup
     /// <summary>The Staff account that logged this as a walk-in Open Play sign-up, if any —
     /// null for sign-ups a customer made themselves online/as a guest.</summary>
     public string? LoggedByStaffId { get; set; }
+
+    /// <summary>Snapshot of the logging staff account's name at sign-up time, mirroring
+    /// <see cref="Booking.LoggedByStaffName"/>. Null whenever <see cref="LoggedByStaffId"/> is null.</summary>
+    [MaxLength(200)]
+    public string? LoggedByStaffName { get; set; }
 }

@@ -49,6 +49,11 @@ public class AddOnRental
     /// customer-facing self-service flow for a standalone add-on rental.</summary>
     public string? LoggedByStaffId { get; set; }
 
+    /// <summary>Snapshot of the logging staff account's name at sale time, mirroring
+    /// <see cref="Booking.LoggedByStaffName"/>.</summary>
+    [MaxLength(200)]
+    public string? LoggedByStaffName { get; set; }
+
     public bool HasPaymentProof => !string.IsNullOrEmpty(PaymentProofPath);
 
     public ICollection<AddOnRentalItem> Items { get; set; } = new List<AddOnRentalItem>();

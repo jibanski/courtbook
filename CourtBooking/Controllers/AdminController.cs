@@ -48,6 +48,8 @@ public class AdminController : Controller
 
     // ── Current-owner helpers ─────────────────────────────────────────────────
     private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+    private async Task<string?> CurrentUserFullNameAsync() =>
+        (await _userManager.FindByIdAsync(CurrentUserId))?.FullName;
     private IQueryable<Court> MyCourts => _db.Courts.Where(c => c.OwnerId == CurrentUserId);
     private async Task<FacilitySettings?> GetMySettingsAsync() =>
         await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
@@ -3027,6 +3029,7 @@ public class AdminController : Controller
             PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
             PaidAt        = isCash ? DateTime.UtcNow : null,
             LoggedByStaffId = CurrentUserId,
+            LoggedByStaffName = await CurrentUserFullNameAsync(),
             CustomerNameSnapshot = customerName,
             AddOns        = addOns
         };
@@ -3199,6 +3202,7 @@ public class AdminController : Controller
         bool isCash = IsCashPayment(paymentMethod);
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
+        var staffName = await CurrentUserFullNameAsync();
 
         foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
         {
@@ -3228,6 +3232,7 @@ public class AdminController : Controller
                 PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
                 PaidAt               = isCash ? DateTime.UtcNow : null,
                 LoggedByStaffId      = CurrentUserId,
+                LoggedByStaffName    = staffName,
                 BundleGroupId        = groupId,
                 CourtBundleId        = bundle?.Id,
                 CustomerNameSnapshot = customerName,
@@ -3380,6 +3385,7 @@ public class AdminController : Controller
             PaymentProofSubmittedAt = isCash ? null : DateTime.UtcNow,
             PaidAt               = isCash ? DateTime.UtcNow : null,
             LoggedByStaffId      = CurrentUserId,
+            LoggedByStaffName    = await CurrentUserFullNameAsync(),
             CustomerNameSnapshot = customerName,
             CourtBundleId        = bundle.Id,
             BundleGroupId        = Guid.NewGuid()
@@ -3518,6 +3524,7 @@ public class AdminController : Controller
             PaymentProofPath     = proofPath,
             PaidAt               = DateTime.UtcNow,
             LoggedByStaffId      = CurrentUserId,
+            LoggedByStaffName    = await CurrentUserFullNameAsync(),
             CustomerNameSnapshot = customerName
         };
         _db.OpenPlaySignups.Add(signup);
@@ -3621,6 +3628,7 @@ public class AdminController : Controller
             PaymentProofPath     = proofPath,
             PaidAt               = isCash ? DateTime.UtcNow : null,
             LoggedByStaffId      = CurrentUserId,
+            LoggedByStaffName    = await CurrentUserFullNameAsync(),
             Items                = items
         };
         _db.AddOnRentals.Add(rental);
