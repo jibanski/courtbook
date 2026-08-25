@@ -1,4 +1,7 @@
-const CACHE_NAME = 'courtbook-v1';
+// Bumped to v2 to purge stale page entries cached by the old (buggy) fetch handler,
+// which used to cache dynamic pages like MyCashLog/Bookings and could silently
+// serve stale statuses (e.g. a cancelled booking still showing "Confirmed").
+const CACHE_NAME = 'courtbook-v2';
 
 const STATIC_ASSETS = [
     '/css/site.css',
@@ -27,8 +30,11 @@ self.addEventListener('activate', event => {
 });
 
 // Fetch strategy:
-// - Static assets (css/js/icons) → cache-first
-// - Everything else (pages/API) → network-first with offline fallback
+// - Static assets (css/js/icons) → cache-first (safe: filenames are content-versioned)
+// - Everything else (pages/API) → network-only, no caching, no stale fallback.
+//   Booking/cash-log/status pages must NEVER silently show stale data (e.g. a
+//   cancelled booking still reading "Confirmed") just because a fetch hiccuped —
+//   that's worse than a normal offline error, so no offline fallback is used here.
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
@@ -41,18 +47,6 @@ self.addEventListener('fetch', event => {
         event.respondWith(
             caches.match(event.request).then(cached => cached || fetch(event.request))
         );
-    } else {
-        event.respondWith(
-            fetch(event.request)
-                .then(response => {
-                    // Cache successful GET page responses
-                    if (event.request.method === 'GET' && response.ok) {
-                        const clone = response.clone();
-                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-                    }
-                    return response;
-                })
-                .catch(() => caches.match(event.request))
-        );
     }
+    // Non-static requests: let the browser handle them normally (no respondWith override).
 });
