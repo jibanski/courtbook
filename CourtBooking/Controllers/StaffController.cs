@@ -1405,11 +1405,18 @@ public class StaffController : Controller
         return RedirectToAction(nameof(Bookings), new { status = "Pending" });
     }
 
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public async Task<IActionResult> MyCashLog(DateOnly? from, DateOnly? to)
     {
         var courtIds = await GetMyCourtIdsAsync();
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         var bookings = await _bookingService.GetCashLogAsync(courtIds, CurrentStaffId, from, to, employerOwnerId);
+
+        // Shown on the page so it's unmistakable whose sales are being viewed, in case of a
+        // shared front-desk device where the wrong staff account was left signed in.
+        var currentStaff = await _userManager.GetUserAsync(User);
+        ViewBag.CurrentStaffName  = currentStaff?.FullName;
+        ViewBag.CurrentStaffEmail = currentStaff?.Email;
 
         ViewBag.From = from;
         ViewBag.To   = to;

@@ -77,6 +77,18 @@
     <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
 </head>
 <body>
+    @if (User.HasClaim(c => c.Type == CourtBooking.Controllers.DevController.ImpersonationClaimType))
+    {
+        <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 py-1 px-2 text-center"
+             style="background:#b91c1c;color:#fff;font-size:.8rem;">
+            <i class="bi bi-incognito"></i>
+            <span>Impersonating <strong>@User.Identity?.Name</strong> — actions here are logged as this account.</span>
+            <form asp-controller="Dev" asp-action="ExitImpersonation" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-sm btn-light py-0 px-2">Exit impersonation</button>
+            </form>
+        </div>
+    }
     <nav class="navbar navbar-expand-lg cb-navbar sticky-top">
         <div class="container">
             <a class="navbar-brand" asp-controller="Home" asp-action="Index">

@@ -9,13 +9,18 @@
     decimal digitalTotal = ViewBag.DigitalTotal;
     decimal pendingTotal = ViewBag.PendingTotal;
     int pendingCount = ViewBag.PendingCount;
+    string? currentStaffName = ViewBag.CurrentStaffName;
+    string? currentStaffEmail = ViewBag.CurrentStaffEmail;
     var byDay = Model.GroupBy(b => b.LoggedDate).OrderByDescending(g => g.Key);
 }
 
 <div class="cb-page-header">
     <div class="container">
         <h1 class="mb-1" style="font-size:1.75rem;">My Sales Log</h1>
-        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">Bookings, sign-ups, and add-on rentals you've logged &mdash; any payment method &mdash; for reconciliation.</p>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+            Bookings, sign-ups, and add-on rentals you've logged &mdash; any payment method &mdash; for reconciliation.
+            Signed in as <strong>@currentStaffName</strong> (@currentStaffEmail) &mdash; only sales logged under this account appear below.
+        </p>
     </div>
 </div>
 

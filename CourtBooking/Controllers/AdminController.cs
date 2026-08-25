@@ -2696,6 +2696,7 @@ public class AdminController : Controller
 
     // ── Cash reconciliation: every staff member's logged cash bookings ──────────
 
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public async Task<IActionResult> CashLog(DateOnly? from, DateOnly? to, string? staffId)
     {
         var courtIds = await GetMyCourtIdsAsync();
