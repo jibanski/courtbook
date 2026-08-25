@@ -720,6 +720,71 @@ public class DevController : Controller
         return RedirectToAction(nameof(Impersonate));
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Raw booking inspector — bypasses every UI-level date/status filter so a
+    // reported "status looks different on two pages" bug can be checked against
+    // the actual DB rows directly (row count, raw CreatedAt/BookingDate/Status).
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // GET /Dev/InspectBookings
+    public IActionResult InspectBookings() => View();
+
+    // POST /Dev/InspectBookings
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> InspectBookings(string password, string search)
+    {
+        if (!IsValidPassword(password))
+        {
+            ViewBag.Error = "Incorrect developer password.";
+            return View();
+        }
+
+        ViewBag.Search = search;
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            ViewBag.Error = "Enter a customer name or phone number to search for.";
+            return View();
+        }
+
+        var term = search.Trim();
+        var bookings = await _db.Bookings
+            .Include(b => b.Court)
+            .Include(b => b.User)
+            .Where(b => (b.CustomerName != null && b.CustomerName.Contains(term))
+                     || (b.User.PhoneNumber != null && b.User.PhoneNumber.Contains(term))
+                     || (b.User.FullName != null && b.User.FullName.Contains(term)))
+            .OrderBy(b => b.CreatedAt)
+            .ToListAsync();
+
+        var staffIds = bookings.Where(b => b.LoggedByStaffId != null)
+            .Select(b => b.LoggedByStaffId!).Distinct().ToList();
+        var staffNames = await _db.Users.Where(u => staffIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.FullName);
+
+        ViewBag.Rows = bookings.Select(b => new RawBookingRow(
+            b.Id,
+            b.CourtId,
+            b.Court.Name,
+            b.BookingDate,
+            b.StartTime,
+            b.EndTime,
+            b.Status,
+            b.CreatedAt,
+            b.LoggedByStaffId,
+            b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
+            b.PaymentMethod,
+            b.TotalPrice,
+            b.CustomerName,
+            b.User.PhoneNumber)).ToList();
+
+        return View();
+    }
+
+    public record RawBookingRow(
+        int Id, int CourtId, string CourtName, DateOnly BookingDate, TimeOnly StartTime, TimeOnly EndTime,
+        BookingStatus Status, DateTime CreatedAtUtc, string? LoggedByStaffId, string? LoggedByStaffName,
+        string? PaymentMethod, decimal TotalPrice, string? CustomerName, string? Phone);
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     // Returns false when _devPassword is empty (not configured) so all /Dev
