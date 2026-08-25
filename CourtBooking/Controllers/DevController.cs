@@ -17,20 +17,30 @@ public class DevController : Controller
     private readonly KeyGeneratorService _keyGen;
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly EmailService _email;
+    private readonly ILogger<DevController> _logger;
     private readonly string _devPassword;
+
+    /// <summary>Claim stamped onto the auth cookie by <see cref="Impersonate(string, string)"/> so
+    /// _Layout.cshtml can show a persistent "you are impersonating" banner site-wide.</summary>
+    public const string ImpersonationClaimType = "ImpersonatedByDev";
 
     public DevController(
         KeyGeneratorService keyGen,
         ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
+        SignInManager<ApplicationUser> signInManager,
         EmailService email,
+        ILogger<DevController> logger,
         IConfiguration config)
     {
-        _keyGen      = keyGen;
-        _db          = db;
-        _userManager = userManager;
-        _email       = email;
+        _keyGen        = keyGen;
+        _db            = db;
+        _userManager   = userManager;
+        _signInManager = signInManager;
+        _email         = email;
+        _logger        = logger;
         // Empty string means /Dev routes are locked out (password gate always rejects).
         // Set Dev:Password via appsettings.Development.local.json locally,
         // or the Dev__Password environment variable on Railway.
@@ -643,6 +653,71 @@ public class DevController : Controller
         await _db.SaveChangesAsync();
         TempData["Success"] = "Platform logo updated. Refresh the landing page to see it.";
         return RedirectToAction(nameof(Logo), new { password });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Impersonation — sign in as any owner/staff/customer account for support,
+    // without ever knowing (or resetting) their real password.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // GET /Dev/Impersonate
+    public IActionResult Impersonate() => View();
+
+    // POST /Dev/Impersonate — password gate, then sign in as the target account
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Impersonate(string password, string email)
+    {
+        if (!IsValidPassword(password))
+        {
+            ViewBag.Error = "Incorrect developer password.";
+            ViewBag.Email = email;
+            return View();
+        }
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            ViewBag.Error = "Enter the account's email address.";
+            return View();
+        }
+
+        var target = await _userManager.FindByEmailAsync(email.Trim());
+        if (target is null)
+        {
+            ViewBag.Error = $"No account found for {email}.";
+            ViewBag.Email = email;
+            return View();
+        }
+
+        var roles = await _userManager.GetRolesAsync(target);
+        _logger.LogWarning(
+            "[Impersonation] Dev started impersonating {Email} (Id={UserId}, Roles={Roles}) from {RemoteIp} at {Time:o}",
+            target.Email, target.Id, string.Join(",", roles), HttpContext.Connection.RemoteIpAddress, DateTime.UtcNow);
+
+        // A plain SignInAsync would silently drop this claim on the next token refresh —
+        // SignInWithClaimsAsync bakes it into the cookie itself so the banner survives
+        // the whole impersonated session.
+        await _signInManager.SignOutAsync();
+        await _signInManager.SignInWithClaimsAsync(target, isPersistent: false,
+            new[] { new System.Security.Claims.Claim(ImpersonationClaimType, "true") });
+
+        TempData["Success"] = $"Signed in as {target.Email}. Use the banner at the top of any page to exit.";
+        return RedirectToAction("Index", "Home");
+    }
+
+    // POST /Dev/ExitImpersonation — available from the site-wide banner, no password needed
+    // since it only ever signs the CURRENT (impersonated) session out.
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ExitImpersonation()
+    {
+        if (User.HasClaim(c => c.Type == ImpersonationClaimType))
+        {
+            _logger.LogWarning(
+                "[Impersonation] Dev ended impersonating {Email} (Id={UserId}) at {Time:o}",
+                User.Identity?.Name, _userManager.GetUserId(User), DateTime.UtcNow);
+        }
+
+        await _signInManager.SignOutAsync();
+        return RedirectToAction(nameof(Impersonate));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

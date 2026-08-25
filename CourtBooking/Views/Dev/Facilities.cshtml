@@ -56,6 +56,8 @@
             <a href="/Dev/DonationQr" class="nav-link d-inline-block">Donation QR</a>
             <span class="text-secondary mx-1">·</span>
             <a href="/Dev/Logo" class="nav-link d-inline-block">Platform Logo</a>
+            <span class="text-secondary mx-1">&middot;</span>
+            <a href="/Dev/Impersonate" class="nav-link d-inline-block">Impersonate</a>
         </div>
     </div>
 
@@ -263,7 +265,7 @@
                     </div>
 
                     <!-- Action row 3: reset forgotten password -->
-                    <div class="row g-2 align-items-center">
+                    <div class="row g-2 align-items-center mb-2">
                         <div class="col-md-4 small text-secondary">
                             <i class="bi bi-key me-1"></i>Forgot Password
                         </div>
@@ -277,6 +279,24 @@
                                 <button type="submit" class="btn btn-sm btn-outline-warning text-nowrap"
                                         onclick="return confirm('Set a new password for @row.OwnerEmail?')">
                                     <i class="bi bi-arrow-repeat me-1"></i>Reset
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Action row 4: impersonate this owner -->
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-4 small text-secondary">
+                            <i class="bi bi-incognito me-1"></i>Troubleshoot As Owner
+                        </div>
+                        <div class="col-md-8">
+                            <form asp-action="Impersonate" method="post">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="password" value="@password" />
+                                <input type="hidden" name="email"    value="@row.OwnerEmail" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap"
+                                        onclick="return confirm('Sign in as @row.OwnerEmail? This is logged.')">
+                                    <i class="bi bi-box-arrow-in-right me-1"></i>Impersonate
                                 </button>
                             </form>
                         </div>
