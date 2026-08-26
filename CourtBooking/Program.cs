@@ -66,6 +66,15 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/Account/Login";
     options.AccessDeniedPath = "/Account/Login";
+
+    // Was left at Identity's default 14-day sliding expiration, which meant a staff account
+    // signed into a shared front-desk device/browser stayed authenticated for up to two weeks
+    // without re-login — a walk-in booking created by whoever is physically at the counter gets
+    // correctly (from the app's perspective) attributed to whoever's session cookie is still
+    // active, which isn't necessarily the same person, on a device nobody explicitly logs out of
+    // between shifts. Shortened so an overnight/multi-hour gap in activity forces re-login.
+    options.ExpireTimeSpan = TimeSpan.FromHours(12);
+    options.SlidingExpiration = true;
 });
 
 // ── External OAuth providers (Google & Facebook) ───────────────────────────

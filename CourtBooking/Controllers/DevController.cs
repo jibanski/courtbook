@@ -739,11 +739,76 @@ public class DevController : Controller
             return View();
         }
 
+        ViewBag.Password = password;
+        await PopulateInspectBookingsResultsAsync(search);
+        return View();
+    }
+
+    // POST /Dev/ReassignBookingStaff — one-off correction tool: re-points a booking/sign-up's
+    // LoggedByStaffId to a different staff account when it was recorded under the wrong one
+    // (e.g. a shared front-desk device left signed into another staff member's session — see
+    // repo memory "Reproduced Booked By: Mae Cagamcam mystery a 2nd time").
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReassignBookingStaff(string password, int id, bool isOpenPlay, string staffEmail, string search)
+    {
+        if (!IsValidPassword(password))
+        {
+            ViewBag.Error = "Incorrect developer password.";
+            return View(nameof(InspectBookings));
+        }
+
+        ViewBag.Password = password;
+        var newStaff = await _userManager.FindByEmailAsync(staffEmail.Trim());
+        if (newStaff == null)
+        {
+            ViewBag.Error = $"No account found for {staffEmail}.";
+            await PopulateInspectBookingsResultsAsync(search);
+            return View(nameof(InspectBookings));
+        }
+
+        if (isOpenPlay)
+        {
+            var signup = await _db.OpenPlaySignups.FindAsync(id);
+            if (signup == null)
+            {
+                ViewBag.Error = $"Open Play sign-up #{id} not found.";
+                await PopulateInspectBookingsResultsAsync(search);
+                return View(nameof(InspectBookings));
+            }
+            signup.LoggedByStaffId = newStaff.Id;
+            signup.LoggedByStaffName = newStaff.FullName;
+        }
+        else
+        {
+            var booking = await _db.Bookings.FindAsync(id);
+            if (booking == null)
+            {
+                ViewBag.Error = $"Booking #{id} not found.";
+                await PopulateInspectBookingsResultsAsync(search);
+                return View(nameof(InspectBookings));
+            }
+            booking.LoggedByStaffId = newStaff.Id;
+            booking.LoggedByStaffName = newStaff.FullName;
+        }
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "Dev reassigned {Kind} #{Id} LoggedByStaffId to {NewStaffEmail} ({NewStaffId}) from {Ip} at {Time}",
+            isOpenPlay ? "OpenPlaySignup" : "Booking", id, staffEmail, newStaff.Id,
+            HttpContext.Connection.RemoteIpAddress, DateTime.UtcNow);
+
+        ViewBag.Success = $"{(isOpenPlay ? "Sign-up" : "Booking")} #{id} reassigned to {newStaff.FullName}.";
+        await PopulateInspectBookingsResultsAsync(search);
+        return View(nameof(InspectBookings));
+    }
+
+    private async Task PopulateInspectBookingsResultsAsync(string search)
+    {
         ViewBag.Search = search;
         if (string.IsNullOrWhiteSpace(search))
         {
             ViewBag.Error = "Enter a customer name or phone number to search for.";
-            return View();
+            return;
         }
 
         var term = search.Trim();
@@ -776,8 +841,6 @@ public class DevController : Controller
             b.TotalPrice,
             b.CustomerName,
             b.User.PhoneNumber)).ToList();
-
-        return View();
     }
 
     public record RawBookingRow(
