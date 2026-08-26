@@ -2266,6 +2266,23 @@ public class AdminController : Controller
         return null;
     }
 
+    // Structured audit trail for CourtBlock mutations — there's no soft-delete/history table for
+    // blocks, so this is the only way to trace who removed/changed one after the fact (e.g. a
+    // client reporting a block "mysteriously" disappeared). Pass `previous` for edits to log the
+    // old range alongside the new one.
+    private void LogCourtBlockAudit(string action, CourtBlock blk, CourtBlock? previous = null)
+    {
+        var impersonated = User.HasClaim(c => c.Type == DevController.ImpersonationClaimType);
+        var rangeDesc = previous is null
+            ? $"{blk.StartDate:MMM d}h{blk.StartHour}\u2192{blk.EndDate:MMM d}h{blk.EndHour} Reason={blk.Reason ?? "-"}"
+            : $"{previous.StartDate:MMM d}h{previous.StartHour}\u2192{previous.EndDate:MMM d}h{previous.EndHour} Reason={previous.Reason ?? "-"} => " +
+              $"{blk.StartDate:MMM d}h{blk.StartHour}\u2192{blk.EndDate:MMM d}h{blk.EndHour} Reason={blk.Reason ?? "-"}";
+        _logger.LogWarning(
+            "[CourtBlock] {Action} BlockId={BlockId} CourtId={CourtId} {Range} By={Email} (Id={UserId}, Impersonated={Impersonated}) from {RemoteIp} at {Time:o}",
+            action, blk.Id, blk.CourtId, rangeDesc, User.Identity?.Name, CurrentUserId, impersonated,
+            HttpContext.Connection.RemoteIpAddress, DateTime.UtcNow);
+    }
+
     public async Task<IActionResult> BlockCourt(int id)
     {
         var court = await MyCourts.FirstOrDefaultAsync(c => c.Id == id);
@@ -2308,7 +2325,7 @@ public class AdminController : Controller
             return RedirectToAction(nameof(BlockCourt), new { id = courtId });
         }
 
-        _db.CourtBlocks.Add(new CourtBlock
+        var newBlock = new CourtBlock
         {
             CourtId   = courtId,
             StartDate = startDate,
@@ -2316,8 +2333,10 @@ public class AdminController : Controller
             EndDate   = endDate,
             EndHour   = endHour,
             Reason    = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
-        });
+        };
+        _db.CourtBlocks.Add(newBlock);
         await _db.SaveChangesAsync();
+        LogCourtBlockAudit("Created", newBlock);
 
         TempData["Success"] = $"Court blocked from {startDate:MMM d} {TimeDisplay.Hour(startHour)} to {endDate:MMM d} {TimeDisplay.Hour(endHour)}.";
         return RedirectToAction(nameof(BlockCourt), new { id = courtId });
@@ -2353,12 +2372,14 @@ public class AdminController : Controller
             return RedirectToAction(nameof(BlockCourt), new { id = courtId });
         }
 
+        var previous = new CourtBlock { Id = blk.Id, CourtId = blk.CourtId, StartDate = blk.StartDate, StartHour = blk.StartHour, EndDate = blk.EndDate, EndHour = blk.EndHour, Reason = blk.Reason };
         blk.StartDate = startDate;
         blk.StartHour = startHour;
         blk.EndDate   = endDate;
         blk.EndHour   = endHour;
         blk.Reason    = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         await _db.SaveChangesAsync();
+        LogCourtBlockAudit("Edited", blk, previous);
 
         TempData["Success"] = "Block updated.";
         return RedirectToAction(nameof(BlockCourt), new { id = courtId });
@@ -2372,6 +2393,7 @@ public class AdminController : Controller
             b.Id == id && myCourtIds.Contains(b.CourtId));
         if (blk is not null)
         {
+            LogCourtBlockAudit("Deleted", blk);
             _db.CourtBlocks.Remove(blk);
             await _db.SaveChangesAsync();
             TempData["Success"] = "Block removed.";
@@ -2429,6 +2451,7 @@ public class AdminController : Controller
         var courtNamesForBulk = await _db.Courts.Where(c => targetIds.Contains(c.Id))
             .ToDictionaryAsync(c => c.Id, c => c.Name);
         var addedBulk  = new List<int>();
+        var addedBulkBlocks = new List<CourtBlock>();
         var errorsBulk = new List<string>();
         foreach (var cid in targetIds)
         {
@@ -2439,7 +2462,7 @@ public class AdminController : Controller
                 continue;
             }
 
-            _db.CourtBlocks.Add(new CourtBlock
+            var newBulkBlock = new CourtBlock
             {
                 CourtId   = cid,
                 StartDate = startDate,
@@ -2447,12 +2470,16 @@ public class AdminController : Controller
                 EndDate   = endDate,
                 EndHour   = endHour,
                 Reason    = reasonTrimmed
-            });
+            };
+            _db.CourtBlocks.Add(newBulkBlock);
             addedBulk.Add(cid);
+            addedBulkBlocks.Add(newBulkBlock);
         }
 
         if (addedBulk.Any())
             await _db.SaveChangesAsync();
+        foreach (var b in addedBulkBlocks)
+            LogCourtBlockAudit("Created (bulk)", b);
 
         if (addedBulk.Any())
             TempData["Success"] = $"Blocked {addedBulk.Count} court{(addedBulk.Count == 1 ? "" : "s")} from " +
@@ -2473,6 +2500,7 @@ public class AdminController : Controller
             .ToDictionaryAsync(c => c.Id, c => c.Name);
 
         var added  = new List<string>();
+        var addedCustomBlocks = new List<CourtBlock>();
         var errors = new List<string>();
 
         foreach (var cid in targetIds)
@@ -2505,7 +2533,7 @@ public class AdminController : Controller
                 continue;
             }
 
-            _db.CourtBlocks.Add(new CourtBlock
+            var newCustomBlock = new CourtBlock
             {
                 CourtId   = cid,
                 StartDate = sDate,
@@ -2513,12 +2541,16 @@ public class AdminController : Controller
                 EndDate   = eDate,
                 EndHour   = eHour,
                 Reason    = string.IsNullOrWhiteSpace(rs) ? null : rs.Trim()
-            });
+            };
+            _db.CourtBlocks.Add(newCustomBlock);
             added.Add(name);
+            addedCustomBlocks.Add(newCustomBlock);
         }
 
         if (added.Any())
             await _db.SaveChangesAsync();
+        foreach (var b in addedCustomBlocks)
+            LogCourtBlockAudit("Created (bulk custom)", b);
 
         if (added.Any())
             TempData["Success"] = $"Blocked {added.Count} court{(added.Count == 1 ? "" : "s")} with custom timing: {string.Join(", ", added)}.";
@@ -2558,12 +2590,14 @@ public class AdminController : Controller
             return RedirectToAction(nameof(BlockCourts));
         }
 
+        var previousBulk = new CourtBlock { Id = blk.Id, CourtId = blk.CourtId, StartDate = blk.StartDate, StartHour = blk.StartHour, EndDate = blk.EndDate, EndHour = blk.EndHour, Reason = blk.Reason };
         blk.StartDate = startDate;
         blk.StartHour = startHour;
         blk.EndDate   = endDate;
         blk.EndHour   = endHour;
         blk.Reason    = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         await _db.SaveChangesAsync();
+        LogCourtBlockAudit("Edited (bulk)", blk, previousBulk);
 
         TempData["Success"] = "Block updated.";
         return RedirectToAction(nameof(BlockCourts));
@@ -2577,6 +2611,7 @@ public class AdminController : Controller
             b.Id == id && myCourtIds.Contains(b.CourtId));
         if (blk is not null)
         {
+            LogCourtBlockAudit("Deleted (bulk)", blk);
             _db.CourtBlocks.Remove(blk);
             await _db.SaveChangesAsync();
             TempData["Success"] = "Block removed.";
