@@ -2,9 +2,10 @@
     Layout = null;   // Standalone page — no nav, no branding
     ViewData["Title"] = "CourtBook — Raw Booking Inspector";
 
-    var errorMsg = ViewBag.Error as string;
-    var search   = ViewBag.Search as string ?? "";
-    var rows     = ViewBag.Rows as List<CourtBooking.Controllers.DevController.RawBookingRow>;
+    var errorMsg   = ViewBag.Error as string;
+    var successMsg = ViewBag.Success as string;
+    var search     = ViewBag.Search as string ?? "";
+    var rows       = ViewBag.Rows as List<CourtBooking.Controllers.DevController.RawBookingRow>;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -52,6 +53,13 @@
         </div>
     }
 
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
+            <i class="bi bi-check-circle-fill"></i> @successMsg
+        </div>
+    }
+
     <div class="dev-card p-4 mb-4">
         <form method="post" asp-action="InspectBookings" asp-controller="Dev" class="d-flex gap-2">
             @Html.AntiForgeryToken()
@@ -75,7 +83,7 @@
                         <tr>
                             <th>Id</th><th>Court</th><th>Booking Date</th><th>Time</th>
                             <th>Status</th><th>Created At (UTC)</th><th>Logged By</th>
-                            <th>Payment</th><th>Total</th><th>Customer</th><th>Phone</th>
+                            <th>Payment</th><th>Total</th><th>Customer</th><th>Phone</th><th>Reassign staff</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -97,6 +105,20 @@
                                 <td>&#8369;@r.TotalPrice.ToString("N0")</td>
                                 <td>@r.CustomerName</td>
                                 <td>@r.Phone</td>
+                                <td>
+                                    <form method="post" asp-action="ReassignBookingStaff" asp-controller="Dev" class="d-flex gap-1">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="password" value="@(ViewBag.Password as string)" />
+                                        <input type="hidden" name="id" value="@r.Id" />
+                                        <input type="hidden" name="isOpenPlay" value="false" />
+                                        <input type="hidden" name="search" value="@search" />
+                                        <input type="email" name="staffEmail" class="form-control form-control-sm"
+                                               style="min-width:160px;" placeholder="Correct staff email" required />
+                                        <button type="submit" class="btn btn-sm btn-outline-warning text-nowrap">
+                                            <i class="bi bi-arrow-repeat"></i>
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                         }
                     </tbody>
