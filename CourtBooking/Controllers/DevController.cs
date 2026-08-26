@@ -817,7 +817,10 @@ public class DevController : Controller
             .Include(b => b.User)
             .Where(b => (b.CustomerName != null && b.CustomerName.Contains(term))
                      || (b.User.PhoneNumber != null && b.User.PhoneNumber.Contains(term))
-                     || (b.User.FullName != null && b.User.FullName.Contains(term)))
+                     // User.FullName is a C#-only computed property (not a mapped column) —
+                     // EF Core can't translate it to SQL, so match on the raw columns instead.
+                     || b.User.FirstName.Contains(term)
+                     || b.User.LastName.Contains(term))
             .OrderBy(b => b.CreatedAt)
             .ToListAsync();
 
