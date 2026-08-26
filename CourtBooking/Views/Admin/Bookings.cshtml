@@ -471,24 +471,20 @@
                                 <th>Court</th>
                                 <th>Date</th>
                                 <th>Time</th>
-                                <th>Court Rental</th>
-                                <th>Add-ons</th>
-                                <th>Total Paid</th>
-                                <th>Booking</th>
+                                <th>Total</th>
                                 <th>Payment</th>
-                                <th>Proof</th>
+                                <th>Status</th>
                                 <th>Booked By</th>
-                                <th>Booked On</th>
-                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var b in rows!)
                             {
-                                var cls = b.Status switch {
-                                    CourtBooking.Models.BookingStatus.Confirmed => "bg-success",
-                                    CourtBooking.Models.BookingStatus.Cancelled => "bg-danger",
-                                    CourtBooking.Models.BookingStatus.Completed => "bg-secondary",
+                                // Colors the status <select> itself so it doubles as the status badge — no separate columns needed.
+                                var selectCls = b.Status switch {
+                                    CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
+                                    CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
+                                    CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
                                     _ => "bg-warning text-dark"
                                 };
                                 <tr>
@@ -521,19 +517,15 @@
                                     </td>
                                     <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
                                     <td>@b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")</td>
-                                    <td>₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0"))</td>
                                     <td>
+                                        <div class="fw-semibold">₱@b.TotalPrice.ToString("N0")</div>
                                         @if (b.AddOnsSummary is not null)
                                         {
-                                            <span title="@b.AddOnsSummary">₱@b.AddOnsTotal.ToString("N0")</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">—</span>
+                                            <div class="text-muted text-nowrap" style="font-size:.7rem;" title="@b.AddOnsSummary">
+                                                Court ₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0")) + Add-ons ₱@b.AddOnsTotal.ToString("N0")
+                                            </div>
                                         }
                                     </td>
-                                    <td>₱@b.TotalPrice.ToString("N0")</td>
-                                    <td><span class="badge @cls">@b.Status</span></td>
                                     <td>
                                         @if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid)
                                         {
@@ -551,18 +543,22 @@
                                         {
                                             <span class="badge bg-warning text-dark">Unpaid</span>
                                         }
-                                    </td>
-                                    <td>
                                         @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
                                         {
-                                            <a href="@b.PaymentProofPath" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                                <i class="bi bi-image me-1"></i>View
-                                            </a>
+                                            <div><a href="@b.PaymentProofPath" target="_blank" style="font-size:.7rem;">View proof</a></div>
                                         }
-                                        else
-                                        {
-                                            <span class="text-muted small">—</span>
-                                        }
+                                    </td>
+                                    <td>
+                                        <form asp-action="@(b.IsOpenPlay ? "UpdateSignupStatus" : "UpdateBookingStatus")" asp-route-id="@b.Id" method="post">
+                                            @Html.AntiForgeryToken()
+                                            <select name="status" class="form-select form-select-sm @selectCls" style="width:110px; font-size:.75rem; padding-top:.15rem; padding-bottom:.15rem;" data-current="@b.Status"
+                                                    onchange="if (confirm('Change booking #@b.Id status to ' + this.value + '?')) { this.form.submit(); } else { this.value = this.dataset.current; }">
+                                                @foreach (var s in Enum.GetValues<CourtBooking.Models.BookingStatus>())
+                                                {
+                                                    <option value="@s" selected="@(b.Status == s)">@s</option>
+                                                }
+                                            </select>
+                                        </form>
                                     </td>
                                     <td>
                                         @if (b.BookedByStaffName is not null)
@@ -575,19 +571,7 @@
                                         {
                                             <span class="text-muted small">Online</span>
                                         }
-                                    </td>
-                                    <td class="text-muted small text-nowrap">@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")</td>
-                                    <td>
-                                        <form asp-action="@(b.IsOpenPlay ? "UpdateSignupStatus" : "UpdateBookingStatus")" asp-route-id="@b.Id" method="post" class="d-inline">
-                                            @Html.AntiForgeryToken()
-                                            <select name="status" class="form-select form-select-sm d-inline" style="width:105px; font-size:.75rem; padding-top:.15rem; padding-bottom:.15rem;" data-current="@b.Status"
-                                                    onchange="if (confirm('Change booking #@b.Id status to ' + this.value + '?')) { this.form.submit(); } else { this.value = this.dataset.current; }">
-                                                @foreach (var s in Enum.GetValues<CourtBooking.Models.BookingStatus>())
-                                                {
-                                                    <option value="@s" selected="@(b.Status == s)">@s</option>
-                                                }
-                                            </select>
-                                        </form>
+                                        <div class="text-muted text-nowrap" style="font-size:.7rem;">@b.CreatedAt.AddHours(8).ToString("MMM d, h:mm tt")</div>
                                     </td>
                                 </tr>
                             }
