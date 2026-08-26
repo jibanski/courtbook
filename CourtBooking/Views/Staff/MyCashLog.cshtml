@@ -88,13 +88,19 @@
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead>
-                            <tr><th>Time</th><th>Court</th><th>Customer</th><th>Court Rental</th><th>Add-ons</th><th>Method</th><th>Status</th><th>Total Paid</th><th>Booked On</th></tr>
+                            <tr><th>Booking Date/Time</th><th>Court</th><th>Customer</th><th>Court Rental</th><th>Add-ons</th><th>Method</th><th>Status</th><th>Total Paid</th><th>Booked On</th></tr>
                         </thead>
                         <tbody>
                             @foreach (var b in day.OrderBy(b => b.StartTime))
                             {
                                 <tr class="@(b.Status == BookingStatus.Pending ? "table-warning" : "")">
-                                    <td>@(b.IsAddOnOnly ? "—" : TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour))</td>
+                                    <td>
+                                        @if (!b.IsAddOnOnly)
+                                        {
+                                            <div class="small text-muted">@b.BookingDate.ToString("MMM d, yyyy")</div>
+                                        }
+                                        @(b.IsAddOnOnly ? "—" : TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour))
+                                    </td>
                                     <td>
                                         @if (b.IsAddOnOnly)
                                         {
