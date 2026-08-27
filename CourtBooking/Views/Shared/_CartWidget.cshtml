@@ -7,11 +7,11 @@
    cart's own facility slug (e.g. staff's own walk-in cart form). Omit it (pass null) on the
    public customer pages, where cart.js derives "/Cart/Checkout?slug=..." from the cart itself. *@
 <a id="cbCartLink" href="@(Model ?? "#")" data-static-url="@(Model != null ? "true" : "false")"
-   class="cb-cart-widget d-none d-md-flex align-items-center gap-2 shadow"
-   style="position:fixed;bottom:20px;right:20px;z-index:1060;background:var(--cb-lime);color:#000;
-          padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:600;font-size:.9rem;">
+   class="cb-cart-widget d-flex align-items-center gap-2 shadow"
+   style="position:fixed;bottom:16px;right:16px;z-index:1060;background:var(--cb-lime);color:#000;
+          padding:10px 16px;border-radius:999px;text-decoration:none;font-weight:600;font-size:.9rem;">
     <i class="bi bi-cart3"></i>
-    <span>Cart</span>
+    <span class="d-none d-sm-inline">Cart</span>
     <span id="cbCartTotal">₱0</span>
     <span id="cbCartBadge"
           style="display:none;background:#000;color:var(--cb-lime);border-radius:999px;min-width:20px;
