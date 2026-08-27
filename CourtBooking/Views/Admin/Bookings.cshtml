@@ -15,11 +15,14 @@
     var calendarWeekEnd     = calendarWeekStart.AddDays(6);
     var calendarRows        = ViewBag.CalendarRows as List<CourtBooking.ViewModels.AdminBookingRow> ?? new();
 
-    string StatusCls(CourtBooking.Models.BookingStatus st) => st switch
+    // Pending-with-proof-already-submitted needs its own color in the calendar so it doesn't
+    // look identical to a plain Pending slot nobody has paid towards yet.
+    string StatusCls(CourtBooking.ViewModels.AdminBookingRow b) => b.Status switch
     {
         CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
         CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
         CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
+        _ when b.HasPaymentProof => "bg-info text-white",
         _ => "bg-warning text-dark"
     };
 }
@@ -179,7 +182,7 @@
                                 {
                                     @foreach (var b in dayRows)
                                     {
-                                        <button type="button" class="calendar-event btn @StatusCls(b.Status)"
+                                        <button type="button" class="calendar-event btn @StatusCls(b)"
                                                 data-bs-toggle="modal" data-bs-target="#bookingDetailModal"
                                                 data-id="@b.Id"
                                                 data-is-open-play="@b.IsOpenPlay.ToString().ToLowerInvariant()"
@@ -205,6 +208,10 @@
                                             <div class="fw-semibold" style="font-size:.7rem;">@b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")</div>
                                             <div class="text-truncate" style="font-size:.7rem;">@b.CourtName</div>
                                             <div class="text-truncate fw-semibold" style="font-size:.7rem;">@b.CustomerName</div>
+                                            @if (b.Status == CourtBooking.Models.BookingStatus.Pending && b.HasPaymentProof)
+                                            {
+                                                <div style="font-size:.65rem;"><i class="bi bi-hourglass-split me-1"></i>Awaiting confirmation</div>
+                                            }
                                         </button>
                                     }
                                 }

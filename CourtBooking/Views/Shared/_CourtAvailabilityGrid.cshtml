@@ -142,6 +142,7 @@
                 {
                     bool isBooked  = Model.BookedHours.Contains(h);
                     bool isPending = Model.PendingHours.Contains(h);
+                    bool isAwaitingConfirmation = Model.AwaitingConfirmationHours.Contains(h);
                     bool isBlocked = Model.BlockedHours.Contains(h);
                     bool isPast    = SlotIsPast(h);
                     bool isOpenPlay = Model.OpenPlayHours.Contains(h);
@@ -343,6 +344,13 @@
                             <div class="slot-booked p-2 text-center rounded-3" style="opacity:.7;">
                                 <div style="font-size:.8rem;color:#f87171;font-weight:600;">@timeLabel</div>
                                 <div style="font-size:.7rem;color:var(--cb-text-3);margin-top:2px;">Booked@(isOpenPlay ? " • Open Play" : "")</div>
+                            </div>
+                        }
+                        else if (isAwaitingConfirmation)
+                        {
+                            <div class="p-2 text-center rounded-3" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.4);opacity:.85;cursor:default;">
+                                <div style="font-size:.8rem;color:#3b82f6;font-weight:600;">@timeLabel</div>
+                                <div style="font-size:.7rem;color:#2563eb;margin-top:2px;"><i class="bi bi-hourglass-split me-1"></i>Awaiting confirmation</div>
                             </div>
                         }
                         else if (isPending)

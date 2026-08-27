@@ -13,11 +13,14 @@
     var calendarWeekEnd   = calendarWeekStart.AddDays(6);
     var calendarRows      = ViewBag.CalendarRows as List<AdminBookingRow> ?? new();
 
-    string StatusCls(CourtBooking.Models.BookingStatus st) => st switch
+    // Pending-with-proof-already-submitted needs its own color in the calendar so it doesn't
+    // look identical to a plain Pending slot nobody has paid towards yet.
+    string StatusCls(AdminBookingRow b) => b.Status switch
     {
         CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
         CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
         CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
+        _ when b.HasPaymentProof => "bg-info text-white",
         _ => "bg-warning text-dark"
     };
 }
@@ -155,87 +158,115 @@
 
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead>
+                <table class="table table-hover align-middle table-sm mb-0" style="font-size:.8125rem;">
+                    <thead class="table-light">
                         <tr>
+                            <th>#</th>
+                            <th>Customer</th>
+                            <th>Court</th>
                             <th>Date</th>
                             <th>Time</th>
-                            <th>Court</th>
-                            <th>Customer</th>
-                            <th>Phone</th>
-                            <th>Court Rental</th>
-                            <th>Add-ons</th>
-                            <th>Total Paid</th>
+                            <th>Total</th>
                             <th>Payment</th>
-                            <th>Booked By</th>
-                            <th>Booked On</th>
                             <th>Status</th>
+                            <th>Booked By</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (!rows.Any())
                         {
-                            <tr><td colspan="12" class="text-center py-5" style="color:var(--cb-text-3);">No bookings found.</td></tr>
+                            <tr><td colspan="9" class="text-center py-5" style="color:var(--cb-text-3);">No bookings found.</td></tr>
                         }
                         else
                         {
                             @foreach (var b in rows)
                             {
+                                // Mirrors Admin's "All Bookings" list layout (read-only here — Staff has no status/payment-method edit actions).
+                                bool isAwaitingConfirmation = b.Status == CourtBooking.Models.BookingStatus.Pending && b.HasPaymentProof;
+                                var badgeClass = isAwaitingConfirmation ? "bg-info text-white" : b.Status switch
+                                {
+                                    CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
+                                    CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
+                                    CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
+                                    _ => "bg-warning text-dark"
+                                };
                                 <tr>
-                                    <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
-                                    <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
+                                    <td class="text-muted small">@b.Id</td>
                                     <td>
-                                        @b.CourtName
-                                        @if (b.IsOpenPlay)
-                                        {
-                                            <span class="badge bg-primary-subtle text-primary-emphasis ms-1" style="font-size:.65rem;">
-                                                <i class="bi bi-people"></i> Open Play &middot; @b.SpotCount spot@(b.SpotCount != 1 ? "s" : "")
-                                            </span>
-                                        }
-                                    </td>
-                                    <td>
-                                        @b.CustomerName
+                                        <div class="fw-semibold">
+                                            @b.CustomerName
+                                            @if (b.IsGuest) { <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Guest</span> }
+                                        </div>
+                                        <small class="text-muted">@b.CustomerPhone</small>
                                         @if (b.PlayerNames is not null)
                                         {
                                             <div class="small text-muted">with @b.PlayerNames</div>
                                         }
                                     </td>
-                                    <td>@(b.CustomerPhone ?? "—")</td>
-                                    <td>₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0"))</td>
                                     <td>
+                                        @b.CourtName
+                                        @if (b.BundleName is not null)
+                                        {
+                                            <span class="badge bg-info text-dark ms-1" title="Part of a bundled booking">
+                                                <i class="bi bi-box-seam"></i> @b.BundleName
+                                            </span>
+                                        }
+                                        @if (b.IsOpenPlay)
+                                        {
+                                            <span class="badge bg-primary-subtle text-primary-emphasis ms-1" title="Open Play sign-up">
+                                                <i class="bi bi-people"></i> Open Play &middot; @b.SpotCount spot@(b.SpotCount != 1 ? "s" : "")
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
+                                    <td>@b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")</td>
+                                    <td>
+                                        <div class="fw-semibold">₱@b.TotalPrice.ToString("N0")</div>
                                         @if (b.AddOnsSummary is not null)
                                         {
-                                            <span title="@b.AddOnsSummary">₱@b.AddOnsTotal.ToString("N0")</span>
+                                            <div class="text-muted text-nowrap" style="font-size:.7rem;" title="@b.AddOnsSummary">
+                                                Court ₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0")) + Add-ons ₱@b.AddOnsTotal.ToString("N0")
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid)
+                                        {
+                                            <span class="badge bg-success"><i class="bi bi-check me-1"></i>Paid</span>
+                                        }
+                                        else if (b.HasPaymentProof)
+                                        {
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Submitted</span>
+                                        }
+                                        else if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded)
+                                        {
+                                            <span class="badge bg-secondary">Refunded</span>
                                         }
                                         else
                                         {
-                                            <span class="text-muted">—</span>
+                                            <span class="badge bg-warning text-dark">Unpaid</span>
                                         }
+                                        @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
+                                        {
+                                            <div><a href="@b.PaymentProofPath" target="_blank" style="font-size:.7rem;">View proof</a></div>
+                                        }
+                                        <div class="text-muted" style="font-size:.7rem;">@(b.PaymentMethod ?? "Cash")</div>
                                     </td>
-                                    <td>₱@b.TotalPrice.ToString("N0")</td>
-                                    <td>@(b.PaymentMethod ?? "—")</td>
+                                    <td>
+                                        <span class="badge @badgeClass">@(isAwaitingConfirmation ? "Awaiting confirmation" : b.Status.ToString())</span>
+                                    </td>
                                     <td>
                                         @if (b.BookedByStaffName is not null)
                                         {
-                                            <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-person-badge me-1"></i>@b.BookedByStaffName</span>
+                                            <span class="badge bg-info-subtle text-info-emphasis" title="Logged by front-desk staff">
+                                                <i class="bi bi-person-badge me-1"></i>@b.BookedByStaffName
+                                            </span>
                                         }
                                         else
                                         {
                                             <span class="text-muted small">Online</span>
                                         }
-                                    </td>
-                                    <td class="text-muted small text-nowrap">@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")</td>
-                                    <td>
-                                        @{
-                                            var badgeClass = b.Status switch
-                                            {
-                                                CourtBooking.Models.BookingStatus.Confirmed => "bg-success-subtle",
-                                                CourtBooking.Models.BookingStatus.Pending => "bg-warning-subtle",
-                                                CourtBooking.Models.BookingStatus.Cancelled => "bg-danger-subtle",
-                                                _ => "bg-secondary"
-                                            };
-                                        }
-                                        <span class="badge @badgeClass">@b.Status</span>
+                                        <div class="text-muted text-nowrap" style="font-size:.7rem;">@b.CreatedAt.AddHours(8).ToString("MMM d, h:mm tt")</div>
                                     </td>
                                 </tr>
                             }
@@ -271,7 +302,7 @@
                                 {
                                     @foreach (var b in dayRows)
                                     {
-                                        <button type="button" class="calendar-event btn @StatusCls(b.Status)"
+                                        <button type="button" class="calendar-event btn @StatusCls(b)"
                                                 data-bs-toggle="modal" data-bs-target="#bookingDetailModal"
                                                 data-id="@b.Id"
                                                 data-is-open-play="@b.IsOpenPlay.ToString().ToLowerInvariant()"
@@ -297,6 +328,10 @@
                                             <div class="fw-semibold" style="font-size:.7rem;">@b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")</div>
                                             <div class="text-truncate" style="font-size:.7rem;">@b.CourtName</div>
                                             <div class="text-truncate fw-semibold" style="font-size:.7rem;">@b.CustomerName</div>
+                                            @if (b.Status == CourtBooking.Models.BookingStatus.Pending && b.HasPaymentProof)
+                                            {
+                                                <div style="font-size:.65rem;"><i class="bi bi-hourglass-split me-1"></i>Awaiting confirmation</div>
+                                            }
                                         </button>
                                     }
                                 }
