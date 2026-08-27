@@ -53,6 +53,11 @@ public class CourtAvailabilityViewModel
     public List<int> BookedHours { get; set; } = new();
     public List<int> PendingHours { get; set; } = new();
 
+    /// <summary>Subset of <see cref="PendingHours"/> whose booking already has a payment proof
+    /// submitted — further along than a bare reservation with no proof yet, so availability grids
+    /// can label it "Awaiting confirmation" instead of a plain "Pending".</summary>
+    public List<int> AwaitingConfirmationHours { get; set; } = new();
+
     // Pending bundle purchases grouped by start hour so the grid can render each one as a
     // single blocked window instead of separate hourly pending tiles.
     public Dictionary<int, Booking> PendingBundleWindows { get; set; } = new();

@@ -227,6 +227,7 @@
                                                     bool isPast          = SlotIsPast(h);
                                                     bool isBooked        = cv.BookedHours.Contains(h);
                                                     bool isPending       = cv.PendingHours.Contains(h);
+                                                    bool isAwaitingConfirmation = cv.AwaitingConfirmationHours.Contains(h);
                                                     bool isBlocked       = cv.BlockedHours.Contains(h);
                                                     bool isOpenPlay      = cv.OpenPlayHours.Contains(h);
                                                     bool isPendingBundle = cv.PendingBundleWindows.TryGetValue(h, out var pendingBundle);
@@ -240,6 +241,10 @@
                                                     else if (isBooked)
                                                     {
                                                         <div class="cb-cell cb-cell-booked" title="Booked">Booked</div>
+                                                    }
+                                                    else if (isAwaitingConfirmation)
+                                                    {
+                                                        <div class="cb-cell cb-cell-awaiting" title="Awaiting confirmation">Awaiting</div>
                                                     }
                                                     else if (isPending)
                                                     {
@@ -428,9 +433,10 @@
     .cb-cell-inner { display: flex; flex-direction: column; align-items: center; }
     .cb-cell-price { font-size: .65rem; font-weight: 600; opacity: .85; margin-top: 1px; }
     .cb-cell-closed { background: transparent; }
-    .cb-cell-booked, .cb-cell-pending { border: 1px solid var(--cb-border); cursor: default; }
+    .cb-cell-booked, .cb-cell-pending, .cb-cell-awaiting { border: 1px solid var(--cb-border); cursor: default; }
     .cb-cell-booked { background: var(--cb-surface-2); color: var(--cb-text-3); }
     .cb-cell-pending { background: rgba(234,179,8,0.12); color: #eab308; border-color: rgba(234,179,8,0.4); }
+    .cb-cell-awaiting { background: rgba(59,130,246,0.12); color: #3b82f6; border-color: rgba(59,130,246,0.4); }
     .cb-cell-openplay { background: var(--cb-surface-2); color: var(--cb-text-2); border: 1px solid var(--cb-lime); }
     .cb-select-cell { cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
     .cb-cell-open { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }

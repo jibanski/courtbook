@@ -2908,6 +2908,7 @@ public class AdminController : Controller
 
         var bookedHours  = await _bookingService.GetBookedHoursAsync(court.Id, selectedDate);
         var pendingHours = await _bookingService.GetPendingHoursAsync(court.Id, selectedDate);
+        var awaitingConfirmationHours = await _bookingService.GetAwaitingConfirmationHoursAsync(court.Id, selectedDate);
         var pendingBundleWindows = await _bookingService.GetPendingBundleWindowsAsync(court.Id, selectedDate);
         var blockedHours = await _bookingService.GetBlockedHoursAsync(court.Id, selectedDate);
         var blockReasons = await _bookingService.GetBlockReasonsAsync(court.Id, selectedDate);
@@ -2935,6 +2936,7 @@ public class AdminController : Controller
 
         vm.BookedHours     = bookedHours;
         vm.PendingHours    = pendingHours;
+        vm.AwaitingConfirmationHours = awaitingConfirmationHours;
         vm.PendingBundleWindows = pendingBundleWindows;
         vm.BlockedHours    = blockedHours;
         vm.BlockReasons    = blockReasons;

@@ -55,6 +55,26 @@ public class BookingService
         return pendingHours;
     }
 
+    /// <summary>Subset of <see cref="GetPendingHoursAsync"/>'s result whose booking already has a
+    /// payment proof submitted — lets availability grids show "Awaiting confirmation" instead of a
+    /// plain "Pending" for a slot that's further along than a bare reservation with no proof yet.</summary>
+    public async Task<List<int>> GetAwaitingConfirmationHoursAsync(int courtId, DateOnly date)
+    {
+        var bookings = await _db.Bookings
+            .Where(b => b.CourtId == courtId && b.BookingDate == date && b.Status == BookingStatus.Pending && b.PaymentProofPath != null)
+            .AsNoTracking()
+            .ToListAsync();
+
+        var hours = new List<int>();
+        foreach (var b in bookings)
+        {
+            int endHour = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
+            for (int h = b.StartTime.Hour; h < endHour; h++)
+                hours.Add(h);
+        }
+        return hours;
+    }
+
     /// <summary>
     /// Pending bundle bookings for a court/date, keyed by their start hour so availability views
     /// can render each reservation as one blocked range instead of separate hourly tiles.
@@ -540,6 +560,7 @@ public class BookingService
 
         var bookedHours           = await GetBookedHoursAsync(court.Id, date);
         var pendingHours          = await GetPendingHoursAsync(court.Id, date);
+        var awaitingConfirmationHours = await GetAwaitingConfirmationHoursAsync(court.Id, date);
         var pendingBundleWindows  = await GetPendingBundleWindowsAsync(court.Id, date);
         var blockedHours          = await GetBlockedHoursAsync(court.Id, date);
         var blockReasons          = await GetBlockReasonsAsync(court.Id, date);
@@ -565,6 +586,7 @@ public class BookingService
 
         vm.BookedHours          = bookedHours;
         vm.PendingHours         = pendingHours;
+        vm.AwaitingConfirmationHours = awaitingConfirmationHours;
         vm.PendingBundleWindows = pendingBundleWindows;
         vm.BlockedHours         = blockedHours;
         vm.BlockReasons         = blockReasons;
