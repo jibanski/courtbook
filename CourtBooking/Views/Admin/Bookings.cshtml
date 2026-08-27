@@ -547,6 +547,20 @@
                                         {
                                             <div><a href="@b.PaymentProofPath" target="_blank" style="font-size:.7rem;">View proof</a></div>
                                         }
+                                        @{ var isCashMethod = string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase); }
+                                        <form asp-action="UpdateBookingPaymentMethod" method="post" class="mt-1">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@b.Id" />
+                                            <input type="hidden" name="isOpenPlay" value="@b.IsOpenPlay" />
+                                            <select name="paymentMethod" class="form-select form-select-sm @(isCashMethod ? "bg-success-subtle text-success-emphasis" : "bg-info-subtle text-info-emphasis")"
+                                                    style="font-size:.7rem; width:auto; padding-top:.15rem; padding-bottom:.15rem;" data-current="@(b.PaymentMethod ?? "Cash")"
+                                                    onchange="if (confirm('Change payment method to ' + this.value + '?')) { this.form.submit(); } else { this.value = this.dataset.current; }">
+                                                @foreach (var m in (List<string>)ViewBag.AvailablePaymentMethods)
+                                                {
+                                                    <option value="@m" selected="@(string.Equals(b.PaymentMethod ?? "Cash", m, StringComparison.OrdinalIgnoreCase))">@m</option>
+                                                }
+                                            </select>
+                                        </form>
                                     </td>
                                     <td>
                                         <form asp-action="@(b.IsOpenPlay ? "UpdateSignupStatus" : "UpdateBookingStatus")" asp-route-id="@b.Id" method="post">

@@ -612,6 +612,7 @@ public class AdminController : Controller
         ViewBag.PendingPaymentCount  = pendingBookingCount + pendingSignupCount;
         ViewBag.AwaitingSignups      = awaitingSignups;
         ViewBag.PendingSignupCount   = pendingSignupCount;
+        ViewBag.AvailablePaymentMethods = await GetAvailablePaymentMethodsAsync(CurrentUserId);
         return View(bookings);
     }
 
@@ -2664,6 +2665,50 @@ public class AdminController : Controller
         }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Sign-up status updated.";
+        return RedirectToAction(nameof(Bookings));
+    }
+
+    // Owner-only correction for a booking's payment method — covers any booking regardless of
+    // who made it (online customer, guest, or staff-logged walk-in), e.g. a customer paid via
+    // GCash at booking time but later asked to switch to cash. Every downstream total (Sales
+    // Log Cash/Digital split, the Analytics "Payment Mix" chart, CSV export) reads PaymentMethod
+    // live from the DB, so this single field update is all that's needed for it to propagate.
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateBookingPaymentMethod(int id, bool isOpenPlay, string paymentMethod)
+    {
+        var allowed = await GetAvailablePaymentMethodsAsync(CurrentUserId);
+        if (!allowed.Any(m => string.Equals(m, paymentMethod, StringComparison.OrdinalIgnoreCase)))
+        {
+            TempData["Error"] = "Invalid payment method.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var courtIds = await GetMyCourtIdsAsync();
+        string? oldMethod;
+        string label;
+        if (isOpenPlay)
+        {
+            var signup = await _db.OpenPlaySignups.FirstOrDefaultAsync(sg => sg.Id == id && courtIds.Contains(sg.CourtId));
+            if (signup is null) return NotFound();
+            oldMethod = signup.PaymentMethod;
+            signup.PaymentMethod = paymentMethod;
+            label = $"Open Play sign-up #{id}";
+        }
+        else
+        {
+            var booking = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
+            if (booking is null) return NotFound();
+            oldMethod = booking.PaymentMethod;
+            booking.PaymentMethod = paymentMethod;
+            label = $"Booking #{id}";
+        }
+
+        await _db.SaveChangesAsync();
+        _logger.LogWarning(
+            "[Bookings] Payment method changed for {Label}: {Old} -> {New} by {Email} (Id={UserId}) at {Time:o}",
+            label, oldMethod ?? "Cash", paymentMethod, User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
+
+        TempData["Success"] = $"{label} payment method updated to {paymentMethod}.";
         return RedirectToAction(nameof(Bookings));
     }
 
