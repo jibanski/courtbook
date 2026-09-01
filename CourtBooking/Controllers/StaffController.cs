@@ -809,7 +809,7 @@ public class StaffController : Controller
                     errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle is no longer available.");
                     continue;
                 }
-                resolved.Add((item, court, start, end, bundleMatch.FlatPrice, bundle));
+                resolved.Add((item, court, start, end, bundleMatch.Value.Price, bundle));
                 continue;
             }
 
@@ -1092,8 +1092,8 @@ public class StaffController : Controller
             .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive && b.Courts.Any(c => c.CourtId == courtId));
         if (bundle is null) return NotFound();
 
-        var block = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
-        if (block is null)
+        var bundleMatch = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
+        if (bundleMatch is null)
         {
             TempData["Error"] = "This bundle window is no longer available.";
             return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
@@ -1104,7 +1104,7 @@ public class StaffController : Controller
         ViewBag.Date       = date;
         ViewBag.StartHour  = startHour;
         ViewBag.EndHour    = endHour;
-        ViewBag.TotalPrice = block.FlatPrice;
+        ViewBag.TotalPrice = bundleMatch.Value.Price;
 
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(employerOwnerId);
@@ -1137,8 +1137,8 @@ public class StaffController : Controller
             .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive && b.Courts.Any(c => c.CourtId == courtId));
         if (bundle is null) return NotFound();
 
-        var block = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
-        if (block is null)
+        var bundleMatch = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
+        if (bundleMatch is null)
         {
             TempData["Error"] = "This bundle window is no longer available.";
             return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
@@ -1191,7 +1191,7 @@ public class StaffController : Controller
             BookingDate          = date,
             StartTime            = start,
             EndTime              = end,
-            TotalPrice           = block.FlatPrice,
+            TotalPrice           = bundleMatch.Value.Price,
             Notes                = notes,
             Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
             PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -1241,15 +1241,10 @@ public class StaffController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    private async Task<CourtBundleRateBlock?> ResolveWalkInBundleBlockAsync(Court court, int bundleId, DateOnly date, int startHour, int endHour)
+    private async Task<(CourtBundleRateBlock Block, decimal Price)?> ResolveWalkInBundleBlockAsync(Court court, int bundleId, DateOnly date, int startHour, int endHour)
     {
-        var resolved = await _bookingService.ResolveBundleForHourAsync(court, date, startHour);
-        return resolved is not null
-            && resolved.Value.Bundle.Id == bundleId
-            && resolved.Value.Block.StartHour == startHour
-            && resolved.Value.Block.EndHour == endHour
-            ? resolved.Value.Block
-            : null;
+        var resolved = await _bookingService.ResolveBundleWindowForBookingAsync(court, bundleId, date, startHour, endHour);
+        return resolved is null ? null : (resolved.Value.Block, resolved.Value.Price);
     }
 
     // ── Walk-in Open Play sign-up ────────────────────────────────────────────

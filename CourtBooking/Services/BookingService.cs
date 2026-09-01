@@ -479,6 +479,29 @@ public class BookingService
         return false;
     }
 
+    /// <summary>
+    /// Resolves a bundle booking request, accepting either a block's originally-configured start
+    /// hour or its auto-shrunk <see cref="Helpers.BundleWindow"/> effective start (once part of the
+    /// window has already elapsed today) — e.g. a 1pm-4pm window can still be booked as 2pm-4pm once
+    /// it's already past 1pm. <paramref name="requestedEndHour"/> must still match the block's
+    /// configured end hour exactly (only the start can shrink). Returns the price actually owed,
+    /// pro-rated when the window was shrunk.
+    /// </summary>
+    public async Task<(CourtBundle Bundle, CourtBundleRateBlock Block, decimal Price)?> ResolveBundleWindowForBookingAsync(
+        Court court, int bundleId, DateOnly date, int requestedStartHour, int requestedEndHour)
+    {
+        var resolved = await ResolveBundleForHourAsync(court, date, requestedStartHour);
+        if (resolved is null || resolved.Value.Bundle.Id != bundleId || resolved.Value.Block.EndHour != requestedEndHour)
+            return null;
+
+        var block = resolved.Value.Block;
+        var effective = Helpers.BundleWindow.Resolve(block, date);
+        if (effective is null || effective.Value.EffectiveStartHour != requestedStartHour)
+            return null;
+
+        return (resolved.Value.Bundle, block, effective.Value.EffectivePrice);
+    }
+
     /// <summary>"Bundled Booking Only" — sellable only if every member court is free for the whole window.</summary>
     public async Task<bool> IsBundleWindowFullyAvailableAsync(CourtBundle bundle, DateOnly date, TimeOnly start, TimeOnly end)
     {

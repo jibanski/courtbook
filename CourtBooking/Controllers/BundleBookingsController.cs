@@ -61,17 +61,15 @@ public class BundleBookingsController : Controller
             .FirstOrDefault(c => !courtId.HasValue || c.Id == courtId.Value);
         if (selectedCourt is null) return NotFound();
 
-        var resolved = await _bookingService.ResolveBundleForHourAsync(selectedCourt, date, startHour);
-        var block = resolved is not null
-            && resolved.Value.Bundle.Id == bundleId
-            && resolved.Value.Block.StartHour == startHour
-            && resolved.Value.Block.EndHour == endHour
-            ? resolved.Value.Block
-            : null;
-        if (block is null) return NotFound();
+        var match = await _bookingService.ResolveBundleWindowForBookingAsync(selectedCourt, bundleId, date, startHour, endHour);
+        if (match is null) return NotFound();
+        var (_, block, price) = match.Value;
 
         ViewBag.Bundle    = bundle;
         ViewBag.Block     = block;
+        ViewBag.Price     = price;
+        ViewBag.StartHour = startHour;
+        ViewBag.EndHour   = endHour;
         ViewBag.Date      = date;
         ViewBag.SelectedCourt = selectedCourt;
         // EndHour can be 24 (representing midnight/12am for an overnight block, e.g. 8pm-12am) —
@@ -106,18 +104,13 @@ public class BundleBookingsController : Controller
             .FirstOrDefault(c => !courtId.HasValue || c.Id == courtId.Value);
         if (selectedCourt is null) return NotFound();
 
-        var resolved = await _bookingService.ResolveBundleForHourAsync(selectedCourt, date, startHour);
-        var block = resolved is not null
-            && resolved.Value.Bundle.Id == bundleId
-            && resolved.Value.Block.StartHour == startHour
-            && resolved.Value.Block.EndHour == endHour
-            ? resolved.Value.Block
-            : null;
-        if (block is null)
+        var match = await _bookingService.ResolveBundleWindowForBookingAsync(selectedCourt, bundleId, date, startHour, endHour);
+        if (match is null)
         {
             TempData["Error"] = "This bundle window is no longer available.";
             return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
         }
+        var (_, _, price) = match.Value;
 
         var localNow = PhtClock.Now;
         var todayPht = DateOnly.FromDateTime(localNow);
@@ -206,7 +199,7 @@ public class BundleBookingsController : Controller
                 BookingDate   = date,
                 StartTime     = start,
                 EndTime       = end,
-                TotalPrice    = block.FlatPrice,
+                TotalPrice    = price,
                 Notes         = notes,
                 Status        = BookingStatus.Pending,
                 PaymentStatus = PaymentStatus.Unpaid,

@@ -174,35 +174,38 @@
                        full-width block spanning its whole hour range, instead of one tile per hour. *@
                     if (!isPast && !isBooked && !isPending && !isBlocked && isBundleOnly)
                     {
-                        var blockStart = bundleMatch.Block.StartHour;
-                        var blockEnd   = bundleMatch.Block.EndHour;
-                        // BundleBookingsController.Create requires an exact match against the block's
-                        // own bounds — if any hour inside it is booked/pending/blocked elsewhere, the
-                        // whole window can't be sold as a bundle, not just that one hour.
-                        bool wholeBlockFree = true;
-                        for (int bh = blockStart; bh < blockEnd; bh++)
+                        var blockEnd = bundleMatch.Block.EndHour;
+                        // h is guaranteed not-past here, so BundleWindow.Resolve can't return null for it.
+                        var effective       = BundleWindow.Resolve(bundleMatch.Block, Model.Date);
+                        var effectiveStart  = effective?.EffectiveStartHour ?? bundleMatch.Block.StartHour;
+                        var effectivePrice  = effective?.EffectivePrice ?? bundleMatch.Block.FlatPrice;
+                        // BundleBookingsController.Create requires an exact match against this effective
+                        // (possibly auto-shrunk) window — if any hour inside it is booked/pending/blocked
+                        // elsewhere, the whole remaining window can't be sold as a bundle, not just that one hour.
+                        bool wholeWindowFree = true;
+                        for (int bh = effectiveStart; bh < blockEnd; bh++)
                         {
                             if (Model.BookedHours.Contains(bh) || Model.PendingHours.Contains(bh) || Model.BlockedHours.Contains(bh))
                             {
-                                wholeBlockFree = false;
+                                wholeWindowFree = false;
                                 break;
                             }
                         }
 
-                        if (wholeBlockFree && h == blockStart)
+                        if (wholeWindowFree && h == effectiveStart)
                         {
-                            var bundleLabel = TimeDisplay.HourRange(blockStart, blockEnd);
+                            var bundleLabel = TimeDisplay.HourRange(effectiveStart, blockEnd);
                             <div class="col-12">
                                 <div class="cb-select-cell cbg-tile p-2 text-center rounded-3 position-relative"
                                      data-court-id="@Model.Court.Id" data-court-name="@Model.Court.Name"
                                      data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
-                                     data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@blockStart" data-end-hour="@blockEnd"
-                                     data-price="@bundleMatch.Block.FlatPrice"
+                                     data-date="@Model.Date.ToString("yyyy-MM-dd")" data-start-hour="@effectiveStart" data-end-hour="@blockEnd"
+                                     data-price="@effectivePrice"
                                      data-bundle-id="@bundleMatch.Bundle.Id" data-bundle-name="@bundleMatch.Bundle.Name"
                                      style="background:var(--cb-lime);">
                                     <div style="font-size:.85rem;color:#000;font-weight:700;">@bundleLabel</div>
                                     <div style="font-size:.7rem;color:#000;margin-top:2px;font-weight:600;">
-                                        <i class="bi bi-box-seam me-1"></i>Bundle Only &middot; ₱@bundleMatch.Block.FlatPrice.ToString("N0")
+                                        <i class="bi bi-box-seam me-1"></i>Bundle Only &middot; ₱@effectivePrice.ToString("N0")
                                     </div>
                                     <div class="cbg-label-selected mt-1" style="font-size:.68rem;color:#000;font-weight:700;">
                                         <i class="bi bi-check-circle me-1"></i>Selected
@@ -210,7 +213,7 @@
                                     <a class="cb-cell-directlink" asp-controller="BundleBookings" asp-action="Create"
                                        asp-route-bundleId="@bundleMatch.Bundle.Id" asp-route-courtId="@Model.Court.Id"
                                        asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                       asp-route-startHour="@blockStart" asp-route-endHour="@blockEnd"
+                                       asp-route-startHour="@effectiveStart" asp-route-endHour="@blockEnd"
                                        title="Book this bundle now, skipping the cart">
                                         <i class="bi bi-arrow-right-circle"></i>
                                     </a>
@@ -234,7 +237,7 @@
 
                         // Point at the actual taken hour(s) so customers/staff can see why, instead of a generic "unavailable".
                         var takenRanges = new List<string>();
-                        for (int bh = blockStart; bh < blockEnd; bh++)
+                        for (int bh = effectiveStart; bh < blockEnd; bh++)
                         {
                             if (!Model.BookedHours.Contains(bh) && !Model.PendingHours.Contains(bh) && !Model.BlockedHours.Contains(bh)) continue;
                             int takenEnd = bh + 1;
