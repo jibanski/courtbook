@@ -118,11 +118,14 @@ public class StaffController : Controller
         bool calendarView = string.Equals(view, "calendar", StringComparison.OrdinalIgnoreCase);
 
         // No default date bound previously meant an unfiltered list fetched the entire
-        // booking/signup history — default to the last 30 days; staff can widen it manually.
+        // booking/signup history — default to a 60-day window (29 days back through 30 days
+        // ahead); staff can widen it manually. Must include future dates, not just the past —
+        // a past-only window silently hid upcoming bookings from this list (see identical fix
+        // in AdminController.Bookings()).
         if (!calendarView && !dateFrom.HasValue && !dateTo.HasValue)
         {
-            dateTo   = PhtClock.Today;
-            dateFrom = dateTo.Value.AddDays(-29);
+            dateFrom = PhtClock.Today.AddDays(-29);
+            dateTo   = PhtClock.Today.AddDays(30);
         }
 
         if (!calendarView)

@@ -89,7 +89,7 @@
         <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <p class="text-muted small mb-3">
-                    <i class="bi bi-info-circle me-1"></i>Showing the last 30 days by default — clear the date fields to see full history.
+                    <i class="bi bi-info-circle me-1"></i>Showing 30 days back through 30 days ahead by default — clear the date fields to see full history.
                 </p>
                 <form method="get" class="row g-3 align-items-end">
                     <div class="col-sm-3">
@@ -482,6 +482,7 @@
                                 <th>Payment</th>
                                 <th>Status</th>
                                 <th>Booked By</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -594,6 +595,19 @@
                                         }
                                         <div class="text-muted text-nowrap" style="font-size:.7rem;">@b.CreatedAt.AddHours(8).ToString("MMM d, h:mm tt")</div>
                                     </td>
+                                    <td>
+                                        @{ var canReschedule = !b.IsOpenPlay && b.BundleName is null
+                                            && (b.Status == CourtBooking.Models.BookingStatus.Pending || b.Status == CourtBooking.Models.BookingStatus.Confirmed); }
+                                        @if (canReschedule)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rescheduleModal"
+                                                    data-id="@b.Id" data-court-id="@b.CourtId" data-court-name="@b.CourtName"
+                                                    data-date="@b.BookingDate.ToString("yyyy-MM-dd")" data-start-hour="@b.StartTime.Hour"
+                                                    data-end-hour="@(b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour)">
+                                                <i class="bi bi-calendar-event me-1"></i>Reschedule
+                                            </button>
+                                        }
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -663,6 +677,64 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Close</button>
                 </form>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reschedule modal — moves a booking to a different date/time/court -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form asp-action="RescheduleBooking" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="rsId" />
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Reschedule Booking #<span id="rsBookingNo"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Court</label>
+                        <select name="courtId" id="rsCourtId" class="form-select">
+                            @foreach (var c in (IEnumerable<dynamic>)ViewBag.Courts)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Date</label>
+                        <input type="date" name="newDate" id="rsDate" class="form-control" required />
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Start hour</label>
+                            <select name="startHour" id="rsStartHour" class="form-select">
+                                @for (var h = 0; h < 24; h++)
+                                {
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">End hour</label>
+                            <select name="endHour" id="rsEndHour" class="form-select">
+                                @for (var h = 1; h <= 24; h++)
+                                {
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>The customer will be emailed about this change. The slot must be free at the new date/time.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary btn-sm">Move Booking</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -782,6 +854,24 @@
             if (!confirm('Change booking #' + id + ' status to ' + status + '?')) {
                 e.preventDefault();
             }
+        });
+    })();
+
+    (function () {
+        var modalEl = document.getElementById('rescheduleModal');
+        if (!modalEl) return;
+
+        modalEl.addEventListener('show.bs.modal', function (e) {
+            var btn = e.relatedTarget;
+            if (!btn) return;
+            var d = btn.dataset;
+
+            document.getElementById('rsId').value = d.id;
+            document.getElementById('rsBookingNo').textContent = d.id;
+            document.getElementById('rsCourtId').value = d.courtId;
+            document.getElementById('rsDate').value = d.date;
+            document.getElementById('rsStartHour').value = d.startHour;
+            document.getElementById('rsEndHour').value = d.endHour;
         });
     })();
 </script>

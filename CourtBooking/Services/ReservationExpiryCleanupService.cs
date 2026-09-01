@@ -6,9 +6,12 @@ namespace CourtBooking.Services;
 
 /// <summary>
 /// Background service that periodically checks for expired booking and Open Play sign-up reservations.
-/// When a Pending booking/sign-up has passed its 15-minute ReservedUntil time, this service
-/// automatically cancels it to release the slot back for other customers.
-/// 
+/// When a Pending booking/sign-up has passed its 15-minute ReservedUntil time, this service either:
+/// - hard-deletes it, if no payment was ever attempted (no reference/proof/checkout session) — keeps
+///   the table free of clutter from customers who picked a slot but never went further, or
+/// - marks it Cancelled, if a payment attempt exists (reference/proof/checkout session set) but was
+///   never confirmed in time — kept for audit/support purposes.
+///
 /// Runs every 1 minute to ensure slots are released promptly.
 /// </summary>
 public class ReservationExpiryCleanupService : BackgroundService
@@ -102,8 +105,19 @@ public class ReservationExpiryCleanupService : BackgroundService
         {
             foreach (var booking in expiredBookings)
             {
-                booking.Status = BookingStatus.Cancelled;
-                _logger.LogInformation("[ReservationExpiry] Cancelled booking #{Id} (reservation expired)", booking.Id);
+                // No payment was ever attempted for this hold — hard-delete instead of leaving a
+                // permanent Cancelled row with no payment info, so the table only keeps records
+                // for bookings that at least got as far as a payment attempt.
+                if (IsUnattemptedPayment(booking.PaymentReference, booking.PaymentProofPath, booking.CheckoutSessionId))
+                {
+                    db.Bookings.Remove(booking);
+                    _logger.LogInformation("[ReservationExpiry] Deleted booking #{Id} (reservation expired, no payment attempted)", booking.Id);
+                }
+                else
+                {
+                    booking.Status = BookingStatus.Cancelled;
+                    _logger.LogInformation("[ReservationExpiry] Cancelled booking #{Id} (reservation expired)", booking.Id);
+                }
             }
             await db.SaveChangesAsync(ct);
         }
@@ -112,8 +126,16 @@ public class ReservationExpiryCleanupService : BackgroundService
         {
             foreach (var signup in expiredSignups)
             {
-                signup.Status = BookingStatus.Cancelled;
-                _logger.LogInformation("[ReservationExpiry] Cancelled signup #{Id} (reservation expired)", signup.Id);
+                if (IsUnattemptedPayment(signup.PaymentReference, signup.PaymentProofPath, null))
+                {
+                    db.OpenPlaySignups.Remove(signup);
+                    _logger.LogInformation("[ReservationExpiry] Deleted signup #{Id} (reservation expired, no payment attempted)", signup.Id);
+                }
+                else
+                {
+                    signup.Status = BookingStatus.Cancelled;
+                    _logger.LogInformation("[ReservationExpiry] Cancelled signup #{Id} (reservation expired)", signup.Id);
+                }
             }
             await db.SaveChangesAsync(ct);
         }
@@ -124,4 +146,7 @@ public class ReservationExpiryCleanupService : BackgroundService
                 expiredBookings.Count, expiredSignups.Count);
         }
     }
+
+    private static bool IsUnattemptedPayment(string? paymentReference, string? paymentProofPath, string? checkoutSessionId) =>
+        string.IsNullOrEmpty(paymentReference) && string.IsNullOrEmpty(paymentProofPath) && string.IsNullOrEmpty(checkoutSessionId);
 }

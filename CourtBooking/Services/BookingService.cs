@@ -145,7 +145,7 @@ public class BookingService
         return reasons;
     }
 
-    public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end)
+    public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end, int? excludeBookingId = null)
     {
         // Reject past slots and the 20-minute grace window before a slot starts (PHT = UTC+8)
         var localNow = PhtClock.Now;
@@ -179,7 +179,8 @@ public class BookingService
             .Where(b =>
                 b.CourtId == courtId &&
                 b.BookingDate == date &&
-                b.Status != BookingStatus.Cancelled)
+                b.Status != BookingStatus.Cancelled &&
+                (excludeBookingId == null || b.Id != excludeBookingId))
             .ToListAsync();
         
         foreach (var b in bookings)
