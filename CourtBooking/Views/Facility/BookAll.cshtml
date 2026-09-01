@@ -138,19 +138,23 @@
                     {
                         if (!seenBlocks.Add((entry.Block.StartHour, entry.Block.EndHour))) continue;
 
-                        bool wholeBlockFree = true;
-                        for (int bh = entry.Block.StartHour; bh < entry.Block.EndHour; bh++)
+                        var effective = BundleWindow.Resolve(entry.Block, selectedDate);
+                        if (effective is null) continue;
+                        var effectiveStart = effective.Value.EffectiveStartHour;
+
+                        bool wholeWindowFree = true;
+                        for (int bh = effectiveStart; bh < entry.Block.EndHour; bh++)
                         {
                             if (cv.BookedHours.Contains(bh) || cv.PendingHours.Contains(bh) || cv.BlockedHours.Contains(bh))
                             {
-                                wholeBlockFree = false;
+                                wholeWindowFree = false;
                                 break;
                             }
                         }
-                        if (!wholeBlockFree || SlotIsPast(entry.Block.StartHour)) continue;
+                        if (!wholeWindowFree) continue;
 
-                        bundleWindowStarts.Add((cv.Court.Id, entry.Block.StartHour));
-                        for (int bh = entry.Block.StartHour + 1; bh < entry.Block.EndHour; bh++)
+                        bundleWindowStarts.Add((cv.Court.Id, effectiveStart));
+                        for (int bh = effectiveStart + 1; bh < entry.Block.EndHour; bh++)
                         {
                             bundleWindowSkip.Add((cv.Court.Id, bh));
                         }
@@ -215,7 +219,7 @@
                                                 bool withinHours  = h >= cv.Court.OpeningHour && h < cv.Court.ClosingHour;
                                                 bool isBundleOnly = cv.BundleOnlyHours.TryGetValue(h, out var bundleMatch);
                                                 int  bundleRowspan = isBundleOnly && bundleWindowStarts.Contains((cv.Court.Id, h))
-                                                    ? bundleMatch.Block.EndHour - bundleMatch.Block.StartHour
+                                                    ? bundleMatch.Block.EndHour - h
                                                     : 1;
                                                 <td class="text-center align-middle p-1" rowspan="@bundleRowspan">
                                                 @if (!withinHours)
@@ -261,30 +265,31 @@
                                                     }
                                                     else if (isBundleOnly)
                                                     {
-                                                        var blockStart = bundleMatch.Block.StartHour;
-                                                        var blockEnd   = bundleMatch.Block.EndHour;
+                                                        var blockEnd = bundleMatch.Block.EndHour;
 
                                                         if (bundleWindowStarts.Contains((cv.Court.Id, h)))
                                                         {
+                                                            // h is the effective (possibly auto-shrunk) start hour for this window — see BundleWindow.
+                                                            var effectivePrice = BundleWindow.Resolve(bundleMatch.Block, selectedDate)?.EffectivePrice ?? bundleMatch.Block.FlatPrice;
                                                             <div class="cb-select-cell cb-cell cb-cell-bundle position-relative"
                                                                  data-court-id="@cv.Court.Id" data-court-name="@cv.Court.Name"
                                                                  data-owner-id="@fs?.OwnerId" data-facility-slug="@slug" data-facility-name="@fs?.FacilityName"
                                                                  data-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                                                 data-start-hour="@blockStart" data-end-hour="@blockEnd"
-                                                                 data-price="@bundleMatch.Block.FlatPrice"
+                                                                 data-start-hour="@h" data-end-hour="@blockEnd"
+                                                                 data-price="@effectivePrice"
                                                                  data-bundle-id="@bundleMatch.Bundle.Id" data-bundle-name="@bundleMatch.Bundle.Name"
-                                                                 title="Bundle · ₱@bundleMatch.Block.FlatPrice.ToString("N0") for @TimeDisplay.HourRange(blockStart, blockEnd)">
+                                                                 title="Bundle · ₱@effectivePrice.ToString("N0") for @TimeDisplay.HourRange(h, blockEnd)">
                                                                 <div class="cb-cell-inner">
                                                                     <div class="cb-cell-label">
                                                                         <span class="cb-label-open"><i class="bi bi-box-seam me-1"></i>Bundle</span>
                                                                         <span class="cb-label-selected">Selected</span>
                                                                     </div>
-                                                                    <div class="cb-cell-price">₱@bundleMatch.Block.FlatPrice.ToString("N0")</div>
+                                                                    <div class="cb-cell-price">₱@effectivePrice.ToString("N0")</div>
                                                                 </div>
                                                                 <a class="cb-cell-directlink" asp-controller="BundleBookings" asp-action="Create"
                                                                    asp-route-bundleId="@bundleMatch.Bundle.Id" asp-route-courtId="@cv.Court.Id"
                                                                    asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                                                   asp-route-startHour="@blockStart" asp-route-endHour="@blockEnd"
+                                                                   asp-route-startHour="@h" asp-route-endHour="@blockEnd"
                                                                    title="Book this bundle now, skipping the cart">
                                                                     <i class="bi bi-arrow-right-circle"></i>
                                                                 </a>
@@ -292,6 +297,7 @@
                                                         }
                                                         else
                                                         {
+                                                            var blockStart = bundleMatch.Block.StartHour;
                                                             var takenRanges = new List<string>();
                                                             for (int bh = blockStart; bh < blockEnd; bh++)
                                                             {
@@ -305,7 +311,8 @@
                                                                 takenRanges.Add(TimeDisplay.HourRange(bh, takenEnd));
                                                                 bh = takenEnd - 1;
                                                             }
-                                                            <div class="cb-cell cb-cell-booked" title="@(string.Join(", ", takenRanges)) already reserved, so this bundle window can't be sold as a package">Booked</div>
+                                                            @* This hour itself is free — it's only unsellable because another hour in the same bundle-only window is taken, so don't label it "Booked" like a real reservation. *@
+                                                            <div class="cb-cell cb-cell-booked" title="Bundle unavailable — @(string.Join(", ", takenRanges)) already reserved, so this window can't be sold as a package">Unavailable</div>
                                                         }
                                                     }
                                                     else if (isSignup && signupMatch.SpotsRemaining > 0)

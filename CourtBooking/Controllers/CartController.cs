@@ -171,19 +171,13 @@ public class CartController : Controller
 
             if (item.CourtBundleId.HasValue)
             {
-                var resolvedBundle = await _bookingService.ResolveBundleForHourAsync(court, item.Date, item.StartHour);
-                var block = resolvedBundle is not null
-                    && resolvedBundle.Value.Bundle.Id == item.CourtBundleId.Value
-                    && resolvedBundle.Value.Block.StartHour == item.StartHour
-                    && resolvedBundle.Value.Block.EndHour == item.EndHour
-                    ? resolvedBundle.Value.Block
-                    : null;
-                if (block is null)
+                var bundleMatch = await _bookingService.ResolveBundleWindowForBookingAsync(court, item.CourtBundleId.Value, item.Date, item.StartHour, item.EndHour);
+                if (bundleMatch is null)
                 {
                     errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle window is no longer available.");
                     continue;
                 }
-                resolved.Add((item, court, start, end, block.FlatPrice, resolvedBundle!.Value.Bundle));
+                resolved.Add((item, court, start, end, bundleMatch.Value.Price, bundleMatch.Value.Bundle));
                 continue;
             }
 
