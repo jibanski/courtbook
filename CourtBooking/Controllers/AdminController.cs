@@ -493,11 +493,16 @@ public class AdminController : Controller
         // The list view previously had no default date bound, so with no filter set it fetched
         // the entire booking/signup history (with several joined tables) on every page view —
         // the biggest remaining Supabase egress source as a facility's history grows. Default to
-        // the last 30 days when neither end is specified; owners can still widen/clear it manually.
+        // a 60-day window (29 days back through 30 days ahead) when neither end is specified —
+        // owners can still widen/clear it manually. MUST include future dates, not just the past:
+        // an earlier past-only version (today back 29 days) silently hid upcoming/future bookings
+        // from the default view entirely (they'd still show in "Recent Bookings", which has no
+        // date filter, causing a "booking I can see on the dashboard is missing from All Bookings"
+        // report).
         if (awaitingConfirmation != true && !calendarView && !dateFrom.HasValue && !dateTo.HasValue)
         {
-            dateTo   = PhtClock.Today;
-            dateFrom = dateTo.Value.AddDays(-29);
+            dateFrom = PhtClock.Today.AddDays(-29);
+            dateTo   = PhtClock.Today.AddDays(30);
         }
 
         var courtIds = await GetMyCourtIdsAsync();
@@ -613,6 +618,9 @@ public class AdminController : Controller
         ViewBag.AwaitingSignups      = awaitingSignups;
         ViewBag.PendingSignupCount   = pendingSignupCount;
         ViewBag.AvailablePaymentMethods = await GetAvailablePaymentMethodsAsync(CurrentUserId);
+        // For the Reschedule modal's "move to court" dropdown.
+        ViewBag.Courts = await MyCourts.Where(c => c.IsActive).OrderBy(c => c.Name)
+            .Select(c => new { c.Id, c.Name }).ToListAsync();
         return View(bookings);
     }
 
@@ -2648,6 +2656,93 @@ public class AdminController : Controller
         }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Booking status updated.";
+        return RedirectToAction(nameof(Bookings));
+    }
+
+    /// <summary>
+    /// Moves a booking to a different date/time (and optionally a different court), e.g. when a
+    /// customer needs a last-minute change or the facility needs the original slot back. Only
+    /// covers regular/bundle-court `Booking` rows (not Open Play sign-ups, which have their own
+    /// signup flow), and refuses to touch Cancelled/Completed bookings or bundle rows (moving one
+    /// court out of a synced multi-court bundle window would desync the group — unsupported here).
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RescheduleBooking(int id, int courtId, DateOnly newDate, int startHour, int endHour)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var booking = await _db.Bookings
+            .Include(b => b.Court).Include(b => b.User).Include(b => b.AddOns)
+            .FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
+        if (booking is null) return NotFound();
+
+        if (booking.Status is BookingStatus.Cancelled or BookingStatus.Completed)
+        {
+            TempData["Error"] = $"Booking #{id} is {booking.Status} and can't be rescheduled.";
+            return RedirectToAction(nameof(Bookings));
+        }
+        if (booking.CourtBundleId != null)
+        {
+            TempData["Error"] = $"Booking #{id} is part of a bundled multi-court booking and can't be rescheduled individually.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var targetCourt = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
+        if (targetCourt is null) return NotFound();
+
+        if (endHour <= startHour || startHour < 0 || endHour > 24)
+        {
+            TempData["Error"] = "Invalid time range.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var newStart = new TimeOnly(startHour % 24, 0);
+        var newEnd   = new TimeOnly(endHour % 24, 0);
+
+        var available = await _bookingService.IsSlotAvailableAsync(courtId, newDate, newStart, newEnd, excludeBookingId: id);
+        if (!available)
+        {
+            TempData["Error"] = $"Booking #{id} can't be moved to {targetCourt.Name} on {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — that slot isn't available.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var oldCourtName = booking.CourtName ?? booking.Court.Name;
+        var oldDate      = booking.BookingDate;
+        var oldStart     = booking.StartTime;
+        var oldEnd       = booking.EndTime;
+
+        booking.CourtId     = courtId;
+        booking.CourtName   = targetCourt.Name;
+        booking.BookingDate = newDate;
+        booking.StartTime   = newStart;
+        booking.EndTime     = newEnd;
+
+        // Paid bookings keep their originally-charged price; only an unpaid/refunded reservation's
+        // price is re-resolved against the new court/date/time (mirrors ResyncUnpaidPricesAsync's
+        // "never touch an already-paid amount" rule).
+        if (booking.PaymentStatus != PaymentStatus.Paid)
+        {
+            var rentalTotal = await _bookingService.GetTotalPriceAsync(targetCourt, newDate, newStart, newEnd);
+            var addOnsTotal = booking.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+            booking.TotalPrice = rentalTotal + addOnsTotal;
+        }
+
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "[Bookings] Booking #{Id} rescheduled: {OldCourt} {OldDate:yyyy-MM-dd} {OldStart}-{OldEnd} -> {NewCourt} {NewDate:yyyy-MM-dd} {NewStart}-{NewEnd} by {Email} (Id={UserId}) at {Time:o}",
+            id, oldCourtName, oldDate, oldStart, oldEnd, targetCourt.Name, newDate, newStart, newEnd, User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
+
+        if (!string.IsNullOrWhiteSpace(booking.User?.Email))
+        {
+            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            _ = _email.SendBookingRescheduledToCustomerAsync(
+                booking.User.Email!, booking.User.FirstName, id,
+                oldCourtName, oldDate, oldStart, oldEnd,
+                targetCourt.Name, newDate, newStart, newEnd,
+                baseUrl, booking.User.IsGuest);
+        }
+
+        TempData["Success"] = $"Booking #{id} rescheduled to {targetCourt.Name} on {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)}.";
         return RedirectToAction(nameof(Bookings));
     }
 
