@@ -320,6 +320,68 @@ public class EmailService
         }
     }
 
+    /// <summary>
+    /// Group-aware counterpart to <see cref="SendBookingRescheduledToCustomerAsync"/> for a
+    /// bundle package moved as one unit — lists every court's own old schedule individually
+    /// (rather than picking one row to stand in for the whole group) since a mixed-court bundle
+    /// purchase isn't guaranteed to share identical hours per court. Safe to fire-and-forget;
+    /// never throws.
+    /// </summary>
+    public async Task SendBundleGroupRescheduledToCustomerAsync(
+        string toEmail,
+        string? customerFirstName,
+        List<(string CourtName, DateOnly OldDate, TimeOnly OldStart, TimeOnly OldEnd)> moves,
+        DateOnly newDate,
+        string baseUrl,
+        bool isGuest = false)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(toEmail) || moves.Count == 0) return;
+
+            var greeting   = string.IsNullOrWhiteSpace(customerFirstName) ? "Hi there" : $"Hi {customerFirstName}";
+            var newDateLabel = newDate.ToString("dddd, MMMM d, yyyy");
+            var myBookings = $"{baseUrl.TrimEnd('/')}/Bookings/My";
+            var myBookingsButton = isGuest ? "" : $@"
+      <p style='margin:20px 0 0;text-align:center;'>
+        <a href='{myBookings}' style='display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;font-weight:600;padding:11px 24px;border-radius:6px;font-size:14px;'>View My Bookings</a>
+      </p>";
+
+            var rowsHtml = string.Join("", moves.Select(m =>
+                $"<tr><td style='padding:4px 0;color:#212529;'>{m.CourtName}</td>" +
+                $"<td style='padding:4px 0;color:#6c757d;text-decoration:line-through;'>{m.OldDate:MMM d, yyyy}</td>" +
+                $"<td style='padding:4px 0;'>{m.OldStart:hh\\:mm tt} – {m.OldEnd:hh\\:mm tt}</td></tr>"));
+            var rowsPlain = string.Join("\n", moves.Select(m =>
+                $"- {m.CourtName}: was {m.OldDate:MMM d, yyyy}, {m.OldStart:hh\\:mm tt} – {m.OldEnd:hh\\:mm tt}"));
+
+            var html = $@"<!doctype html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f5f5f7;padding:24px;color:#212529;'>
+  <div style='max-width:560px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e9ecef;'>
+    <div style='background:#0d6efd;color:#fff;padding:18px 24px;'>
+      <div style='font-size:13px;opacity:.9;letter-spacing:.5px;text-transform:uppercase;'>Booking Rescheduled</div>
+      <div style='font-size:20px;font-weight:700;margin-top:4px;'>📅 Your bundle booking moved</div>
+    </div>
+    <div style='padding:24px;font-size:15px;line-height:1.6;'>
+      <p style='margin:0 0 16px;'>{greeting}, your bundle booking across {moves.Count} court(s) has been rescheduled by the facility to <strong style='color:#0d6efd;'>{newDateLabel}</strong>. Each court keeps its original time.</p>
+      <table style='width:100%;border-collapse:collapse;font-size:14px;'>{rowsHtml}</table>{myBookingsButton}
+    </div>
+    <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
+      Automated notice
+    </div>
+  </div>
+</body></html>";
+
+            var plain = $"Bundle Booking Rescheduled\n\n{greeting},\n\nYour bundle booking across {moves.Count} court(s) has been moved to {newDateLabel} (same time per court).\n{rowsPlain}"
+                      + (isGuest ? "" : $"\n\nView your bookings: {myBookings}");
+
+            await SendAsync(toEmail, "📅 Bundle Booking Rescheduled", html, plain);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[EmailService] Failed to send bundle group reschedule email");
+        }
+    }
+
         /// <summary>
         /// Sends a "payment received — open play signup confirmed" email to the customer.
         /// Safe to fire-and-forget; never throws.

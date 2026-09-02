@@ -286,13 +286,6 @@
                                                                     </div>
                                                                     <div class="cb-cell-price">₱@effectivePrice.ToString("N0")</div>
                                                                 </div>
-                                                                <a class="cb-cell-directlink" asp-controller="BundleBookings" asp-action="Create"
-                                                                   asp-route-bundleId="@bundleMatch.Bundle.Id" asp-route-courtId="@cv.Court.Id"
-                                                                   asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                                                   asp-route-startHour="@h" asp-route-endHour="@blockEnd"
-                                                                   title="Book this bundle now, skipping the cart">
-                                                                    <i class="bi bi-arrow-right-circle"></i>
-                                                                </a>
                                                             </div>
                                                         }
                                                         else
@@ -344,12 +337,6 @@
                                                                 </div>
                                                                 <div class="cb-cell-price">₱@rate.ToString("N0")</div>
                                                             </div>
-                                                            <a class="cb-cell-directlink" asp-controller="Bookings" asp-action="Create"
-                                                               asp-route-courtId="@cv.Court.Id" asp-route-date="@selectedDate.ToString("yyyy-MM-dd")"
-                                                               asp-route-startHour="@h"
-                                                               title="Book this slot now, skipping the cart">
-                                                                <i class="bi bi-arrow-right-circle"></i>
-                                                            </a>
                                                         </div>
                                                     }
                                                 }
@@ -459,24 +446,6 @@
     .cb-cell .cb-label-selected { display: none; }
     .cb-cell-selected .cb-label-open { display: none; }
     .cb-cell-selected .cb-label-selected { display: inline; }
-    .cb-cell-directlink {
-        position: absolute;
-        top: 3px;
-        right: 3px;
-        width: 18px;
-        height: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background: rgba(0,0,0,.35);
-        color: #fff;
-        font-size: .6rem;
-        z-index: 2;
-        text-decoration: none;
-    }
-    .cb-cell-bundle .cb-cell-directlink { background: rgba(0,0,0,.45); }
-    .cb-cell-directlink:hover { background: rgba(0,0,0,.6); color: #fff; }
 </style>
 
 @await Html.PartialAsync("_CartWidget", (string?)null)

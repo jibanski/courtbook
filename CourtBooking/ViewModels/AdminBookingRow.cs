@@ -16,6 +16,11 @@ public class AdminBookingRow
     public int CourtId { get; set; }
     public string CourtName { get; set; } = "";
     public string? BundleName { get; set; }
+
+    /// <summary>Shared by every court row purchased together as one bundle package — lets the UI
+    /// offer a group-aware reschedule that moves every court in the package together instead of
+    /// desyncing them. Null for Open Play sign-ups and non-bundle bookings.</summary>
+    public Guid? BundleGroupId { get; set; }
     public int? SpotCount { get; set; }
 
     /// <summary>Open Play only: free-text names of the other players when SpotCount &gt; 1 — e.g.

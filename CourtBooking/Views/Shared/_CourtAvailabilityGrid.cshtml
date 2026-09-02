@@ -113,12 +113,6 @@
                                         <i class="bi bi-check-circle me-1"></i>Selected
                                     </span>
                                 </div>
-                                <a class="cb-cell-directlink" asp-controller="Bookings" asp-action="Create"
-                                   asp-route-courtId="@Model.Court.Id" asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                   asp-route-startHour="@slot.StartHour" asp-route-endHour="@slot.EndHour"
-                                   title="Book this slot now, skipping the cart">
-                                    <i class="bi bi-arrow-right-circle"></i>
-                                </a>
                             </div>
                         }
                     </div>
@@ -210,13 +204,6 @@
                                     <div class="cbg-label-selected mt-1" style="font-size:.68rem;color:#000;font-weight:700;">
                                         <i class="bi bi-check-circle me-1"></i>Selected
                                     </div>
-                                    <a class="cb-cell-directlink" asp-controller="BundleBookings" asp-action="Create"
-                                       asp-route-bundleId="@bundleMatch.Bundle.Id" asp-route-courtId="@Model.Court.Id"
-                                       asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                       asp-route-startHour="@effectiveStart" asp-route-endHour="@blockEnd"
-                                       title="Book this bundle now, skipping the cart">
-                                        <i class="bi bi-arrow-right-circle"></i>
-                                    </a>
                                 </div>
                             </div>
                             h = blockEnd - 1;
@@ -434,12 +421,6 @@
                                 <div style="font-size:.7rem;color:var(--cb-lime);margin-top:2px;font-weight:600;">
                                     ₱@rate.ToString("N0")
                                 </div>
-                                <a class="cb-cell-directlink" asp-controller="Bookings" asp-action="Create"
-                                   asp-route-courtId="@Model.Court.Id" asp-route-date="@Model.Date.ToString("yyyy-MM-dd")"
-                                   asp-route-startHour="@h"
-                                   title="Book this slot now, skipping the cart">
-                                    <i class="bi bi-arrow-right-circle"></i>
-                                </a>
                             </div>
                         }
                     </div>
@@ -470,21 +451,4 @@
         border-color: rgba(249,115,22,0.55) !important;
     }
     .cbg-tile-sm.cb-cell-selected .cbg-time { color: #fb923c !important; }
-    .cb-cell-directlink {
-        position: absolute;
-        top: 6px;
-        right: 6px;
-        width: 20px;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background: rgba(0,0,0,.45);
-        color: #fff;
-        font-size: .68rem;
-        z-index: 2;
-        text-decoration: none;
-    }
-    .cb-cell-directlink:hover { background: rgba(0,0,0,.65); color: #fff; }
 </style>
