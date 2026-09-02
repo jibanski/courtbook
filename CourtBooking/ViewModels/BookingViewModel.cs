@@ -25,6 +25,9 @@ public class BookingViewModel
 
     public string? Notes { get; set; }
 
+    /// <summary>Optional discount code typed at checkout, validated server-side against the court owner's <see cref="CourtBooking.Models.Voucher"/> list.</summary>
+    public string? VoucherCode { get; set; }
+
     // Contact info — required for guests; pre-filled from account for authenticated users.
     public string? GuestName { get; set; }
     public string? GuestEmail { get; set; }

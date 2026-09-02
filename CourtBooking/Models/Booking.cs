@@ -115,6 +115,19 @@ public class Booking
     /// already includes their cost — this collection is for itemized display only.</summary>
     public ICollection<BookingAddOn> AddOns { get; set; } = new List<BookingAddOn>();
 
+    /// <summary>The <see cref="Voucher"/> applied at checkout, if any. No navigation property —
+    /// mirrors the plain-FK idiom already used for <see cref="LoggedByStaffId"/>.</summary>
+    public int? VoucherId { get; set; }
+
+    /// <summary>Snapshot of the voucher code as typed/applied at checkout time, so it's visible
+    /// directly in the DB/CSV without joining to <see cref="Voucher"/>.</summary>
+    [MaxLength(30)]
+    public string? VoucherCode { get; set; }
+
+    /// <summary>Peso amount deducted from this row's price by <see cref="VoucherCode"/>. <see cref="TotalPrice"/>
+    /// already has this subtracted — this field is for itemized display only.</summary>
+    public decimal DiscountAmount { get; set; } = 0;
+
     /// <summary>Platform commission charged when this booking is confirmed (commission-model facilities only).</summary>
     public decimal? CommissionAmount { get; set; }
 

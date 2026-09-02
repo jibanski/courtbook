@@ -1,0 +1,257 @@
+@using CourtBooking.Models
+@{
+    ViewData["Title"] = "Vouchers";
+    var voucherList = ViewBag.VoucherList as List<Voucher> ?? new List<Voucher>();
+}
+
+<div class="cb-page-header">
+    <div class="container">
+        <h1 class="mb-1" style="font-size:1.75rem;">Vouchers</h1>
+        <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
+            Discount codes customers can enter at checkout &mdash; great for loyal customers or a monthly promo.
+        </p>
+    </div>
+</div>
+
+<div class="container py-4">
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success">@success</div>
+    }
+    @if (TempData["Error"] is string error)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header"><strong>Create Voucher</strong></div>
+                <div class="card-body">
+                    <form asp-action="CreateVoucher" method="post">
+                        @Html.AntiForgeryToken()
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Code</label>
+                            <input name="code" class="form-control text-uppercase" placeholder="e.g. LOYAL10" maxlength="30" required />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Description <span class="text-muted fw-normal">(optional, internal note)</span></label>
+                            <input name="description" class="form-control" placeholder="e.g. September regulars promo" maxlength="200" />
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col">
+                                <label class="form-label small fw-semibold">Discount Type</label>
+                                <select name="discountType" class="form-select" id="voucherDiscountType">
+                                    <option value="0">Percentage (%)</option>
+                                    <option value="1">Fixed amount (₱)</option>
+                                </select>
+                            </div>
+                            <div class="col">
+                                <label class="form-label small fw-semibold">Value</label>
+                                <input type="number" name="discountValue" class="form-control" min="0.01" step="0.01" required />
+                            </div>
+                        </div>
+                        <div class="mb-2" id="maxDiscountGroup">
+                            <label class="form-label small fw-semibold">Max Discount (₱) <span class="text-muted fw-normal">(optional cap for %)</span></label>
+                            <input type="number" name="maxDiscountAmount" class="form-control" min="0" step="0.01" />
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col">
+                                <label class="form-label small fw-semibold">Min Spend (₱) <span class="text-muted fw-normal">(optional)</span></label>
+                                <input type="number" name="minSpend" class="form-control" min="0" step="0.01" />
+                            </div>
+                            <div class="col">
+                                <label class="form-label small fw-semibold">Max Uses <span class="text-muted fw-normal">(blank = unlimited)</span></label>
+                                <input type="number" name="maxRedemptions" class="form-control" min="1" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Expires On <span class="text-danger fw-normal">(required)</span></label>
+                            <input type="date" name="expiresOn" class="form-control" required />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-lg me-1"></i>Create Voucher
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header"><strong>All Vouchers</strong></div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr><th>Code</th><th>Discount</th><th>Uses</th><th>Expires</th><th>Status</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @if (!voucherList.Any())
+                            {
+                                <tr><td colspan="6" class="text-center py-4" style="color:var(--cb-text-3);">No vouchers yet.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var v in voucherList)
+                                {
+                                    <tr>
+                                        <td>
+                                            <code>@v.Code</code>
+                                            @if (!string.IsNullOrWhiteSpace(v.Description))
+                                            {
+                                                <div class="small text-muted">@v.Description</div>
+                                            }
+                                        </td>
+                                        <td>
+                                            @(v.DiscountType == VoucherDiscountType.Percentage ? $"{v.DiscountValue:N0}%" : $"₱{v.DiscountValue:N0}")
+                                            @if (v.DiscountType == VoucherDiscountType.Percentage && v.MaxDiscountAmount.HasValue)
+                                            {
+                                                <div class="small text-muted">up to ₱@v.MaxDiscountAmount.Value.ToString("N0")</div>
+                                            }
+                                            @if (v.MinSpend.HasValue)
+                                            {
+                                                <div class="small text-muted">min ₱@v.MinSpend.Value.ToString("N0")</div>
+                                            }
+                                        </td>
+                                        <td>@v.TimesRedeemed@(v.MaxRedemptions.HasValue ? $" / {v.MaxRedemptions}" : "")</td>
+                                        <td style="font-size:.82rem;">@v.ExpiresAt.AddHours(8).ToString("MMM d, yyyy")</td>
+                                        <td>
+                                            @if (v.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Disabled</span>
+                                            }
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editVoucherModal"
+                                                    data-id="@v.Id" data-code="@v.Code" data-description="@v.Description"
+                                                    data-discount-type="@((int)v.DiscountType)" data-discount-value="@v.DiscountValue"
+                                                    data-max-discount="@v.MaxDiscountAmount" data-min-spend="@v.MinSpend"
+                                                    data-max-redemptions="@v.MaxRedemptions" data-expires-on="@v.ExpiresAt.ToString("yyyy-MM-dd")">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <form asp-action="ToggleVoucher" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@v.Id" />
+                                                <button type="submit" class="btn btn-sm @(v.IsActive ? "btn-outline-secondary" : "btn-outline-success")">
+                                                    @(v.IsActive ? "Disable" : "Enable")
+                                                </button>
+                                            </form>
+                                            <form asp-action="DeleteVoucher" method="post" class="d-inline" onsubmit="return confirm('Delete voucher @v.Code? This cannot be undone.');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@v.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Edit voucher modal -->
+<div class="modal fade" id="editVoucherModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form asp-action="EditVoucher" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="evId" />
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Edit Voucher</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Code</label>
+                        <input name="code" id="evCode" class="form-control text-uppercase" maxlength="30" required />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Description <span class="text-muted fw-normal">(optional, internal note)</span></label>
+                        <input name="description" id="evDescription" class="form-control" maxlength="200" />
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col">
+                            <label class="form-label small fw-semibold">Discount Type</label>
+                            <select name="discountType" class="form-select" id="evDiscountType">
+                                <option value="0">Percentage (%)</option>
+                                <option value="1">Fixed amount (₱)</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label class="form-label small fw-semibold">Value</label>
+                            <input type="number" name="discountValue" id="evDiscountValue" class="form-control" min="0.01" step="0.01" required />
+                        </div>
+                    </div>
+                    <div class="mb-2" id="evMaxDiscountGroup">
+                        <label class="form-label small fw-semibold">Max Discount (₱) <span class="text-muted fw-normal">(optional cap for %)</span></label>
+                        <input type="number" name="maxDiscountAmount" id="evMaxDiscount" class="form-control" min="0" step="0.01" />
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col">
+                            <label class="form-label small fw-semibold">Min Spend (₱) <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="number" name="minSpend" id="evMinSpend" class="form-control" min="0" step="0.01" />
+                        </div>
+                        <div class="col">
+                            <label class="form-label small fw-semibold">Max Uses <span class="text-muted fw-normal">(blank = unlimited)</span></label>
+                            <input type="number" name="maxRedemptions" id="evMaxRedemptions" class="form-control" min="1" />
+                        </div>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label small fw-semibold">Expires On <span class="text-danger fw-normal">(required)</span></label>
+                        <input type="date" name="expiresOn" id="evExpiresOn" class="form-control" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    (function () {
+        var typeSelect = document.getElementById('voucherDiscountType');
+        var maxDiscountGroup = document.getElementById('maxDiscountGroup');
+        function sync() { maxDiscountGroup.style.display = typeSelect.value === '0' ? '' : 'none'; }
+        typeSelect.addEventListener('change', sync);
+        sync();
+    })();
+
+    (function () {
+        var evTypeSelect = document.getElementById('evDiscountType');
+        var evMaxDiscountGroup = document.getElementById('evMaxDiscountGroup');
+        function sync() { evMaxDiscountGroup.style.display = evTypeSelect.value === '0' ? '' : 'none'; }
+        evTypeSelect.addEventListener('change', sync);
+
+        var modalEl = document.getElementById('editVoucherModal');
+        modalEl.addEventListener('show.bs.modal', function (e) {
+            var btn = e.relatedTarget;
+            if (!btn) return;
+            var d = btn.dataset;
+
+            document.getElementById('evId').value = d.id;
+            document.getElementById('evCode').value = d.code;
+            document.getElementById('evDescription').value = d.description || '';
+            evTypeSelect.value = d.discountType;
+            document.getElementById('evDiscountValue').value = d.discountValue;
+            document.getElementById('evMaxDiscount').value = d.maxDiscount || '';
+            document.getElementById('evMinSpend').value = d.minSpend || '';
+            document.getElementById('evMaxRedemptions').value = d.maxRedemptions || '';
+            document.getElementById('evExpiresOn').value = d.expiresOn;
+            sync();
+        });
+    })();
+</script>
+}

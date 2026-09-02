@@ -28,6 +28,7 @@ public class OpenPlaySignupsController : Controller
     private readonly GuestCheckoutService         _guestCheckout;
     private readonly ILogger<OpenPlaySignupsController> _logger;
     private readonly ImageCompressionService      _imageCompression;
+    private readonly VoucherService                _voucherService;
 
     public OpenPlaySignupsController(
         ApplicationDbContext db,
@@ -37,7 +38,8 @@ public class OpenPlaySignupsController : Controller
         EmailService email,
         GuestCheckoutService guestCheckout,
         ILogger<OpenPlaySignupsController> logger,
-        ImageCompressionService imageCompression)
+        ImageCompressionService imageCompression,
+        VoucherService voucherService)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -47,6 +49,7 @@ public class OpenPlaySignupsController : Controller
         _guestCheckout  = guestCheckout;
         _logger         = logger;
         _imageCompression = imageCompression;
+        _voucherService = voucherService;
     }
 
     [AllowAnonymous]
@@ -71,7 +74,7 @@ public class OpenPlaySignupsController : Controller
     [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]
     public async Task<IActionResult> Create(
         int courtId, DateOnly date, int startHour, int endHour, int spotCount, string? notes,
-        string? playerNames, string? guestName, string? guestEmail, string? guestPhone)
+        string? playerNames, string? guestName, string? guestEmail, string? guestPhone, string? voucherCode)
     {
         bool isGuest = User.Identity?.IsAuthenticated != true;
         if (isGuest && (string.IsNullOrWhiteSpace(guestName) || string.IsNullOrWhiteSpace(guestEmail) || string.IsNullOrWhiteSpace(guestPhone)))
@@ -137,6 +140,21 @@ public class OpenPlaySignupsController : Controller
         var facilityName = court.OwnerId != null
             ? await _db.FacilitySettings.Where(s => s.OwnerId == court.OwnerId).Select(s => s.FacilityName).FirstOrDefaultAsync()
             : null;
+        var subtotal = pricePerHead * spotCount;
+
+        decimal discountAmount = 0m;
+        Voucher? appliedVoucher = null;
+        if (!string.IsNullOrWhiteSpace(voucherCode) && court.OwnerId != null)
+        {
+            var voucherResult = await _voucherService.ValidateAsync(voucherCode, court.OwnerId, subtotal);
+            if (!voucherResult.Success)
+            {
+                TempData["Error"] = voucherResult.Error;
+                return RedirectToAction(nameof(Create), new { courtId, date, startHour, endHour });
+            }
+            appliedVoucher = voucherResult.Voucher;
+            discountAmount = voucherResult.DiscountAmount;
+        }
 
         var signup = new OpenPlaySignup
         {
@@ -150,7 +168,10 @@ public class OpenPlaySignupsController : Controller
             EndHour              = endHour,
             SpotCount            = spotCount,
             PricePerHeadSnapshot = pricePerHead,
-            TotalPrice           = pricePerHead * spotCount,
+            TotalPrice           = subtotal - discountAmount,
+            VoucherId            = appliedVoucher?.Id,
+            VoucherCode          = appliedVoucher?.Code,
+            DiscountAmount       = discountAmount,
             Notes                = notes,
             PlayerNames          = spotCount > 1 && !string.IsNullOrWhiteSpace(playerNames) ? playerNames.Trim() : null,
             Status               = BookingStatus.Pending,
@@ -159,6 +180,7 @@ public class OpenPlaySignupsController : Controller
             CustomerNameSnapshot = isGuest ? guestName : null,
             ReservedUntil        = DateTime.UtcNow.AddMinutes(15)
         };
+        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         _db.OpenPlaySignups.Add(signup);
         await _db.SaveChangesAsync();
 

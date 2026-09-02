@@ -27,10 +27,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<BookingAddOn> BookingAddOns { get; set; }
     public DbSet<AddOnRental> AddOnRentals { get; set; }
     public DbSet<AddOnRentalItem> AddOnRentalItems { get; set; }
+    public DbSet<Voucher> Vouchers { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<Voucher>()
+            .HasIndex(v => new { v.OwnerId, v.Code })
+            .IsUnique();
 
         builder.Entity<Booking>()
             .HasOne(b => b.Court)

@@ -71,6 +71,15 @@ public class OpenPlaySignup
     public DateTime? PaymentProofSubmittedAt { get; set; }
     public DateTime? PaidAt { get; set; }
 
+    /// <summary>The <see cref="Voucher"/> applied at checkout, if any — same pattern as <see cref="Booking.VoucherId"/>.</summary>
+    public int? VoucherId { get; set; }
+
+    [MaxLength(30)]
+    public string? VoucherCode { get; set; }
+
+    /// <summary>Peso amount deducted from <see cref="TotalPrice"/> by <see cref="VoucherCode"/> — display only, TotalPrice already nets it out.</summary>
+    public decimal DiscountAmount { get; set; } = 0;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
