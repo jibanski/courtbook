@@ -596,8 +596,11 @@
                                         <div class="text-muted text-nowrap" style="font-size:.7rem;">@b.CreatedAt.AddHours(8).ToString("MMM d, h:mm tt")</div>
                                     </td>
                                     <td>
-                                        @{ var canReschedule = !b.IsOpenPlay && b.BundleName is null
-                                            && (b.Status == CourtBooking.Models.BookingStatus.Pending || b.Status == CourtBooking.Models.BookingStatus.Confirmed); }
+                                        @{
+                                            bool activeStatus = b.Status == CourtBooking.Models.BookingStatus.Pending || b.Status == CourtBooking.Models.BookingStatus.Confirmed;
+                                            var canReschedule = !b.IsOpenPlay && b.BundleName is null && activeStatus;
+                                            var canRescheduleGroup = !b.IsOpenPlay && b.BundleName is not null && b.BundleGroupId is not null && activeStatus;
+                                        }
                                         @if (canReschedule)
                                         {
                                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rescheduleModal"
@@ -605,6 +608,14 @@
                                                     data-date="@b.BookingDate.ToString("yyyy-MM-dd")" data-start-hour="@b.StartTime.Hour"
                                                     data-end-hour="@(b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour)">
                                                 <i class="bi bi-calendar-event me-1"></i>Reschedule
+                                            </button>
+                                        }
+                                        else if (canRescheduleGroup)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rescheduleGroupModal"
+                                                    data-group-id="@b.BundleGroupId" data-bundle-name="@b.BundleName"
+                                                    data-date="@b.BookingDate.ToString("yyyy-MM-dd")">
+                                                <i class="bi bi-calendar-event me-1"></i>Reschedule Bundle
                                             </button>
                                         }
                                     </td>
@@ -732,6 +743,35 @@
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary btn-sm">Move Booking</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reschedule Bundle modal — moves every court in a bundle group to a new date at once -->
+<div class="modal fade" id="rescheduleGroupModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form asp-action="RescheduleBundleGroup" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="groupId" id="rsgGroupId" />
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Reschedule Bundle — <span id="rsgBundleName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">New date</label>
+                        <input type="date" name="newDate" id="rsgDate" class="form-control" required />
+                    </div>
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>Every court in this bundle package moves to the new date together, keeping each court's original time. The customer will be emailed about the change.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary btn-sm">Move Bundle</button>
                     <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
                 </div>
             </form>
@@ -872,6 +912,21 @@
             document.getElementById('rsDate').value = d.date;
             document.getElementById('rsStartHour').value = d.startHour;
             document.getElementById('rsEndHour').value = d.endHour;
+        });
+    })();
+
+    (function () {
+        var modalEl = document.getElementById('rescheduleGroupModal');
+        if (!modalEl) return;
+
+        modalEl.addEventListener('show.bs.modal', function (e) {
+            var btn = e.relatedTarget;
+            if (!btn) return;
+            var d = btn.dataset;
+
+            document.getElementById('rsgGroupId').value = d.groupId;
+            document.getElementById('rsgBundleName').textContent = d.bundleName;
+            document.getElementById('rsgDate').value = d.date;
         });
     })();
 </script>
