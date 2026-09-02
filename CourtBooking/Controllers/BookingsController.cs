@@ -22,6 +22,7 @@ public class BookingsController : Controller
     private readonly GuestCheckoutService         _guestCheckout;
     private readonly ILogger<BookingsController> _logger;
     private readonly ImageCompressionService      _imageCompression;
+    private readonly VoucherService                _voucherService;
 
     public BookingsController(
         ApplicationDbContext db,
@@ -32,7 +33,8 @@ public class BookingsController : Controller
         EmailService email,
         GuestCheckoutService guestCheckout,
         ILogger<BookingsController> logger,
-        ImageCompressionService imageCompression)
+        ImageCompressionService imageCompression,
+        VoucherService voucherService)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -43,6 +45,7 @@ public class BookingsController : Controller
         _guestCheckout  = guestCheckout;
         _logger         = logger;
         _imageCompression = imageCompression;
+        _voucherService = voucherService;
     }
 
     public async Task<IActionResult> My()
@@ -238,6 +241,21 @@ public class BookingsController : Controller
             ? await _bookingService.ResolveSelectedAddOnsAsync(court.OwnerId, Request.Form, vm.DurationHours)
             : (new List<BookingAddOn>(), 0m);
 
+        var subtotal = totalPrice + addOnsTotal;
+        decimal discountAmount = 0m;
+        Voucher? appliedVoucher = null;
+        if (!string.IsNullOrWhiteSpace(vm.VoucherCode) && court.OwnerId != null)
+        {
+            var voucherResult = await _voucherService.ValidateAsync(vm.VoucherCode, court.OwnerId, subtotal);
+            if (!voucherResult.Success)
+            {
+                ModelState.AddModelError("VoucherCode", voucherResult.Error!);
+                return View(vm);
+            }
+            appliedVoucher = voucherResult.Voucher;
+            discountAmount = voucherResult.DiscountAmount;
+        }
+
         var booking = new Booking
         {
             CourtId = vm.CourtId,
@@ -248,7 +266,10 @@ public class BookingsController : Controller
             BookingDate = vm.BookingDate,
             StartTime = vm.StartTime,
             EndTime = vm.EndTime,
-            TotalPrice = totalPrice + addOnsTotal,
+            TotalPrice = subtotal - discountAmount,
+            VoucherId = appliedVoucher?.Id,
+            VoucherCode = appliedVoucher?.Code,
+            DiscountAmount = discountAmount,
             Notes = vm.Notes,
             Status = BookingStatus.Pending,
             PaymentStatus = PaymentStatus.Unpaid,
@@ -258,6 +279,7 @@ public class BookingsController : Controller
             AddOns = addOns
         };
 
+        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         await _bookingService.CreateBookingAsync(booking);
 
         // Reload with navigation properties for email

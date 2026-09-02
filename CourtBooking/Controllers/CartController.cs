@@ -35,6 +35,7 @@ public class CartController : Controller
     private readonly EmailService                  _email;
     private readonly GuestCheckoutService          _guestCheckout;
     private readonly ILogger<CartController>       _logger;
+    private readonly VoucherService                 _voucherService;
 
     public CartController(
         ApplicationDbContext db,
@@ -43,7 +44,8 @@ public class CartController : Controller
         IConfiguration config,
         EmailService email,
         GuestCheckoutService guestCheckout,
-        ILogger<CartController> logger)
+        ILogger<CartController> logger,
+        VoucherService voucherService)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -52,6 +54,7 @@ public class CartController : Controller
         _email          = email;
         _guestCheckout  = guestCheckout;
         _logger         = logger;
+        _voucherService = voucherService;
     }
 
     // GET /Cart/Checkout?slug={facilitySlug}
@@ -84,7 +87,7 @@ public class CartController : Controller
 
     // POST /Cart/Checkout
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Checkout(string slug, string cartJson, string? guestName, string? guestEmail, string? guestPhone)
+    public async Task<IActionResult> Checkout(string slug, string cartJson, string? guestName, string? guestEmail, string? guestPhone, string? voucherCode)
     {
         var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.Slug == slug);
         if (settings is null) return NotFound();
@@ -218,15 +221,46 @@ public class CartController : Controller
         var guestToken = isGuest ? Guid.NewGuid() : (Guid?)null;
         var bookings   = new List<Booking>();
 
+        // Resolve add-ons and per-item subtotals up front — a voucher's min-spend/redemption
+        // eligibility is checked once against the whole cart, but the discount itself is then
+        // applied independently, in full, to each row's own price (not divided across courts).
+        var itemAddOns = new List<(List<BookingAddOn> AddOns, decimal AddOnsTotal)>();
         foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
         {
-            var (addOns, addOnsTotal) = court.OwnerId != null
+            var addOnsResult = court.OwnerId != null
                 ? await _bookingService.ResolveAddOnsAsync(
                     court.OwnerId,
                     (item.AddOns ?? new List<CartAddOnRequest>())
                         .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
                     item.EndHour - item.StartHour)
                 : (new List<BookingAddOn>(), 0m);
+            itemAddOns.Add(addOnsResult);
+        }
+        var rowSubtotals = resolved.Select((r, i) => r.SlotPrice + itemAddOns[i].AddOnsTotal).ToList();
+        var cartSubtotal = rowSubtotals.Sum();
+
+        Voucher? appliedVoucher = null;
+        if (!string.IsNullOrWhiteSpace(voucherCode) && settings.OwnerId != null)
+        {
+            var voucherResult = await _voucherService.ValidateAsync(voucherCode, settings.OwnerId, cartSubtotal);
+            if (!voucherResult.Success)
+            {
+                TempData["Error"] = voucherResult.Error;
+                return RedirectToAction(nameof(Checkout), new { slug });
+            }
+            appliedVoucher = voucherResult.Voucher;
+        }
+
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            var (item, court, start, end, slotPrice, bundle) = resolved[i];
+            var (addOns, addOnsTotal) = itemAddOns[i];
+
+            // Applied per row against that row's own price — a fixed-amount voucher discounts
+            // EVERY court by its full value, it isn't split thin across however many are booked.
+            decimal rowDiscount = appliedVoucher is not null
+                ? VoucherService.ComputeDiscount(appliedVoucher, rowSubtotals[i])
+                : 0m;
 
             bookings.Add(new Booking
             {
@@ -238,7 +272,10 @@ public class CartController : Controller
                 BookingDate      = item.Date,
                 StartTime        = start,
                 EndTime          = end,
-                TotalPrice       = slotPrice + addOnsTotal,
+                TotalPrice       = rowSubtotals[i] - rowDiscount,
+                VoucherId        = appliedVoucher?.Id,
+                VoucherCode      = appliedVoucher?.Code,
+                DiscountAmount   = rowDiscount,
                 Status           = BookingStatus.Pending,
                 PaymentStatus    = PaymentStatus.Unpaid,
                 BundleGroupId    = groupId,
@@ -250,8 +287,10 @@ public class CartController : Controller
             });
         }
 
+        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         _db.Bookings.AddRange(bookings);
         await _db.SaveChangesAsync();
+
 
         var customer = await _userManager.FindByIdAsync(userId);
         var owner    = settings.OwnerId != null ? await _userManager.FindByIdAsync(settings.OwnerId) : null;

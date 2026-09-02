@@ -3029,6 +3029,135 @@ public class AdminController : Controller
         return RedirectToAction(nameof(AddOns));
     }
 
+    // ── Voucher codes (discount codes customers can apply at checkout) ─────────────
+
+    public async Task<IActionResult> Vouchers()
+    {
+        ViewBag.VoucherList = await _db.Vouchers
+            .Where(v => v.OwnerId == CurrentUserId)
+            .OrderByDescending(v => v.CreatedAt)
+            .ToListAsync();
+
+        return View();
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateVoucher(
+        string code, string? description, VoucherDiscountType discountType, decimal discountValue,
+        decimal? maxDiscountAmount, decimal? minSpend, int? maxRedemptions, DateOnly? expiresOn)
+    {
+        code = (code ?? string.Empty).Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            TempData["Error"] = "A voucher code is required.";
+            return RedirectToAction(nameof(Vouchers));
+        }
+        if (discountValue <= 0 || (discountType == VoucherDiscountType.Percentage && discountValue > 100))
+        {
+            TempData["Error"] = discountType == VoucherDiscountType.Percentage
+                ? "Percentage discount must be between 0 and 100."
+                : "Discount value must be greater than 0.";
+            return RedirectToAction(nameof(Vouchers));
+        }
+        if (!expiresOn.HasValue || expiresOn.Value < PhtClock.Today)
+        {
+            TempData["Error"] = "An expiry date (today or later) is required for every voucher.";
+            return RedirectToAction(nameof(Vouchers));
+        }
+
+        bool exists = await _db.Vouchers.AnyAsync(v => v.OwnerId == CurrentUserId && v.Code == code);
+        if (exists)
+        {
+            TempData["Error"] = $"A voucher with code '{code}' already exists.";
+            return RedirectToAction(nameof(Vouchers));
+        }
+
+        _db.Vouchers.Add(new Voucher
+        {
+            OwnerId           = CurrentUserId,
+            Code              = code,
+            Description       = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+            DiscountType      = discountType,
+            DiscountValue     = discountValue,
+            MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null,
+            MinSpend          = minSpend,
+            MaxRedemptions    = maxRedemptions,
+            // Expiry covers the whole calendar day it names.
+            ExpiresAt         = expiresOn.Value.ToDateTime(TimeOnly.MaxValue)
+        });
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Voucher '{code}' created.";
+        return RedirectToAction(nameof(Vouchers));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditVoucher(
+        int id, string code, string? description, VoucherDiscountType discountType, decimal discountValue,
+        decimal? maxDiscountAmount, decimal? minSpend, int? maxRedemptions, DateOnly? expiresOn)
+    {
+        var voucher = await _db.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == CurrentUserId);
+        if (voucher is null) return NotFound();
+
+        code = (code ?? string.Empty).Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            TempData["Error"] = "A voucher code is required.";
+            return RedirectToAction(nameof(Vouchers));
+        }
+        if (discountValue <= 0 || (discountType == VoucherDiscountType.Percentage && discountValue > 100))
+        {
+            TempData["Error"] = discountType == VoucherDiscountType.Percentage
+                ? "Percentage discount must be between 0 and 100."
+                : "Discount value must be greater than 0.";
+            return RedirectToAction(nameof(Vouchers));
+        }
+        if (!expiresOn.HasValue || expiresOn.Value < PhtClock.Today)
+        {
+            TempData["Error"] = "An expiry date (today or later) is required for every voucher.";
+            return RedirectToAction(nameof(Vouchers));
+        }
+
+        bool exists = await _db.Vouchers.AnyAsync(v => v.Id != id && v.OwnerId == CurrentUserId && v.Code == code);
+        if (exists)
+        {
+            TempData["Error"] = $"A voucher with code '{code}' already exists.";
+            return RedirectToAction(nameof(Vouchers));
+        }
+
+        voucher.Code              = code;
+        voucher.Description       = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        voucher.DiscountType      = discountType;
+        voucher.DiscountValue     = discountValue;
+        voucher.MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null;
+        voucher.MinSpend          = minSpend;
+        voucher.MaxRedemptions    = maxRedemptions;
+        voucher.ExpiresAt         = expiresOn.Value.ToDateTime(TimeOnly.MaxValue);
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Voucher '{code}' updated.";
+        return RedirectToAction(nameof(Vouchers));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleVoucher(int id)
+    {
+        var voucher = await _db.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == CurrentUserId);
+        if (voucher is null) return NotFound();
+        voucher.IsActive = !voucher.IsActive;
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Vouchers));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteVoucher(int id)
+    {
+        var voucher = await _db.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == CurrentUserId);
+        if (voucher is null) return NotFound();
+        _db.Vouchers.Remove(voucher);
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Voucher '{voucher.Code}' deleted.";
+        return RedirectToAction(nameof(Vouchers));
+    }
+
     // ── Walk-in booking (owner logging a court booking for a customer themselves) ──
     // Same idea as StaffController.NewWalkIn/WalkInForm/CreateWalkIn — for when the owner uses
     // their own Admin account as the front desk (e.g. booking a customer who calls in or walks

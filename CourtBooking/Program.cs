@@ -106,6 +106,7 @@ if (!string.IsNullOrEmpty(fbAppId) && !string.IsNullOrEmpty(fbAppSecret))
 }
 
 builder.Services.AddScoped<BookingService>();
+builder.Services.AddScoped<VoucherService>();
 builder.Services.AddScoped<PayMongoService>();
 builder.Services.AddScoped<KeyGeneratorService>();
 builder.Services.AddScoped<EmailService>();

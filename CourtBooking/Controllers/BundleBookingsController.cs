@@ -27,6 +27,7 @@ public class BundleBookingsController : Controller
     private readonly GuestCheckoutService         _guestCheckout;
     private readonly ILogger<BundleBookingsController> _logger;
     private readonly ImageCompressionService      _imageCompression;
+    private readonly VoucherService                _voucherService;
 
     public BundleBookingsController(
         ApplicationDbContext db,
@@ -36,7 +37,8 @@ public class BundleBookingsController : Controller
         EmailService email,
         GuestCheckoutService guestCheckout,
         ILogger<BundleBookingsController> logger,
-        ImageCompressionService imageCompression)
+        ImageCompressionService imageCompression,
+        VoucherService voucherService)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -46,6 +48,7 @@ public class BundleBookingsController : Controller
         _guestCheckout  = guestCheckout;
         _logger         = logger;
         _imageCompression = imageCompression;
+        _voucherService = voucherService;
     }
 
     [AllowAnonymous]
@@ -85,7 +88,7 @@ public class BundleBookingsController : Controller
     [HttpPost, ValidateAntiForgeryToken, AllowAnonymous]
     public async Task<IActionResult> Create(
         int bundleId, DateOnly date, int startHour, int endHour, int? courtId, string? notes,
-        string? guestName, string? guestEmail, string? guestPhone)
+        string? guestName, string? guestEmail, string? guestPhone, string? voucherCode)
     {
         bool isGuest = User.Identity?.IsAuthenticated != true;
         if (isGuest && (string.IsNullOrWhiteSpace(guestName) || string.IsNullOrWhiteSpace(guestEmail) || string.IsNullOrWhiteSpace(guestPhone)))
@@ -187,6 +190,20 @@ public class BundleBookingsController : Controller
             .Select(s => s.FacilityName)
             .FirstOrDefaultAsync();
 
+        decimal discountAmount = 0m;
+        Voucher? appliedVoucher = null;
+        if (!string.IsNullOrWhiteSpace(voucherCode))
+        {
+            var voucherResult = await _voucherService.ValidateAsync(voucherCode, bundle.OwnerId, price);
+            if (!voucherResult.Success)
+            {
+                TempData["Error"] = voucherResult.Error;
+                return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
+            }
+            appliedVoucher = voucherResult.Voucher;
+            discountAmount = voucherResult.DiscountAmount;
+        }
+
         var bookings = new List<Booking>
         {
             new Booking
@@ -199,7 +216,10 @@ public class BundleBookingsController : Controller
                 BookingDate   = date,
                 StartTime     = start,
                 EndTime       = end,
-                TotalPrice    = price,
+                TotalPrice    = price - discountAmount,
+                VoucherId     = appliedVoucher?.Id,
+                VoucherCode   = appliedVoucher?.Code,
+                DiscountAmount = discountAmount,
                 Notes         = notes,
                 Status        = BookingStatus.Pending,
                 PaymentStatus = PaymentStatus.Unpaid,
@@ -210,6 +230,7 @@ public class BundleBookingsController : Controller
             }
         };
 
+        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         _db.Bookings.AddRange(bookings);
         await _db.SaveChangesAsync();
 

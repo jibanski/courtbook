@@ -113,6 +113,10 @@
                         <label class="form-label fw-semibold">Notes <span class="text-muted small">(optional)</span></label>
                         <textarea name="notes" class="form-control" rows="2" placeholder="Any special requests..."></textarea>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Voucher Code <span class="text-muted small">(optional)</span></label>
+                        <input name="voucherCode" class="form-control text-uppercase" placeholder="e.g. LOYAL10" maxlength="30" />
+                    </div>
                     <div class="alert alert-info py-2" id="totalPreview">
                         Total: <strong>₱@block.PricePerHead?.ToString("N0")</strong>
                     </div>

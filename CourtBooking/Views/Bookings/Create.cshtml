@@ -178,6 +178,12 @@
                             <textarea asp-for="Notes" class="form-control" rows="2" placeholder="Any special requests..."></textarea>
                         </div>
 
+                        <div class="mb-3">
+                            <label asp-for="VoucherCode" class="form-label fw-semibold">Voucher Code <span class="text-muted fw-normal">(optional)</span></label>
+                            <input asp-for="VoucherCode" class="form-control text-uppercase" placeholder="e.g. LOYAL10" maxlength="30" />
+                            <span asp-validation-for="VoucherCode" class="text-danger small"></span>
+                        </div>
+
                         <!-- Price Summary -->
                         <div class="alert alert-primary">
                             <div class="d-flex justify-content-between align-items-center">

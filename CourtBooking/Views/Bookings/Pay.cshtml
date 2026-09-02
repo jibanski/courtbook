@@ -76,6 +76,13 @@
                             }
                         }
                         <div class="col-12"><hr class="my-2"></div>
+                        @if (Model.DiscountAmount > 0)
+                        {
+                            <div class="col-6 text-muted small">Subtotal</div>
+                            <div class="col-6 small">₱@((Model.TotalPrice + Model.DiscountAmount).ToString("N0"))</div>
+                            <div class="col-6 text-muted small">Voucher @(!string.IsNullOrEmpty(Model.VoucherCode) ? $"({Model.VoucherCode})" : "")</div>
+                            <div class="col-6 small text-success">-₱@Model.DiscountAmount.ToString("N0")</div>
+                        }
                         <div class="col-6 fw-bold">Total Amount</div>
                         <div class="col-6 fw-bold text-success fs-5">₱@Model.TotalPrice.ToString("N0")</div>
                     </div>
