@@ -167,7 +167,10 @@ public class AdminController : Controller
             PaidAt = b.PaidAt,
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
-            AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null
+            AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
+            RefundedAt = b.RefundedAt,
+            RefundAmount = b.RefundAmount,
+            RefundReason = b.RefundReason
         }).ToList();
 
         rows.AddRange(signups.Select(sg => new AdminBookingRow
@@ -193,7 +196,10 @@ public class AdminController : Controller
             PaymentReference = sg.PaymentReference,
             PaymentProofPath = sg.PaymentProofPath,
             PaidAt = sg.PaidAt,
-            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
+            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null,
+            RefundedAt = sg.RefundedAt,
+            RefundAmount = sg.RefundAmount,
+            RefundReason = sg.RefundReason
         }));
 
         return rows;
@@ -224,7 +230,7 @@ public class AdminController : Controller
     private sealed record AnalyticsRow(
         DateOnly BookingDate, decimal TotalPrice, BookingStatus Status, PaymentStatus PaymentStatus,
         DateTime? PaidAt, bool HasProof, string? PaymentReference, string? PaymentMethod,
-        int? CourtId, string? LoggedByStaffId)
+        int? CourtId, string? LoggedByStaffId, decimal? RefundAmount = null)
     {
         /// <summary>The date every range filter/breakdown below buckets a row into — when it was
         /// paid (PHT calendar day), falling back to the court's BookingDate for unpaid rows (which
@@ -238,7 +244,7 @@ public class AdminController : Controller
     /// <summary>One add-on line (from a Booking or a standalone rental) for the Top Add-On Items
     /// breakdown — kept separate from <see cref="AnalyticsRow"/> since it aggregates per item, not
     /// per sale.</summary>
-    private sealed record AddOnItemRow(int AddOnItemId, string Name, int Quantity, decimal Revenue, DateOnly BookingDate, DateTime? PaidAt, BookingStatus Status)
+    private sealed record AddOnItemRow(int AddOnItemId, string Name, int Quantity, decimal Revenue, DateOnly BookingDate, DateTime? PaidAt, BookingStatus Status, PaymentStatus PaymentStatus)
     {
         public DateOnly EffectiveDate => PaidAt.HasValue ? DateOnly.FromDateTime(PaidAt.Value.AddHours(8)) : BookingDate;
     }
@@ -272,12 +278,18 @@ public class AdminController : Controller
         var todayBookings = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == today && b.Status != BookingStatus.Cancelled)
                           + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == today && s.Status != BookingStatus.Cancelled)
                           + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.CreatedAt >= todayDt && r.CreatedAt < tomorrowDt));
-        var todayRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && b.PaidAt != null && b.PaidAt >= todayDt).SumAsync(b => (decimal?)b.TotalPrice) ?? 0m)
-                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && s.PaidAt != null && s.PaidAt >= todayDt).SumAsync(s => (decimal?)s.TotalPrice) ?? 0m)
-                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && r.PaidAt != null && r.PaidAt >= todayDt).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
-        var totalRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => (decimal?)b.TotalPrice) ?? 0m)
-                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed)).SumAsync(s => (decimal?)s.TotalPrice) ?? 0m)
-                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed)).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
+        // Fully-refunded rows are excluded from every revenue aggregate below (todayRevenue,
+        // totalRevenue, add-ons, per-day/court/staff/item breakdowns further down) regardless of
+        // BookingStatus — the money was given back, so it must stop counting as revenue even
+        // though the booking itself might still read Completed (e.g. a post-play dispute refund).
+        // A PartiallyRefunded row stays in these sums, but nets out only the refunded portion
+        // (TotalPrice - RefundAmount) rather than either the full price or zero.
+        var todayRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && b.PaidAt != null && b.PaidAt >= todayDt && b.PaymentStatus != PaymentStatus.Refunded).SumAsync(b => (decimal?)(b.PaymentStatus == PaymentStatus.PartiallyRefunded ? b.TotalPrice - (b.RefundAmount ?? 0m) : b.TotalPrice)) ?? 0m)
+                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && s.PaidAt != null && s.PaidAt >= todayDt && s.PaymentStatus != PaymentStatus.Refunded).SumAsync(s => (decimal?)(s.PaymentStatus == PaymentStatus.PartiallyRefunded ? s.TotalPrice - (s.RefundAmount ?? 0m) : s.TotalPrice)) ?? 0m)
+                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && r.PaidAt != null && r.PaidAt >= todayDt && r.PaymentStatus != PaymentStatus.Refunded).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
+        var totalRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed) && b.PaymentStatus != PaymentStatus.Refunded).SumAsync(b => (decimal?)(b.PaymentStatus == PaymentStatus.PartiallyRefunded ? b.TotalPrice - (b.RefundAmount ?? 0m) : b.TotalPrice)) ?? 0m)
+                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed) && s.PaymentStatus != PaymentStatus.Refunded).SumAsync(s => (decimal?)(s.PaymentStatus == PaymentStatus.PartiallyRefunded ? s.TotalPrice - (s.RefundAmount ?? 0m) : s.TotalPrice)) ?? 0m)
+                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed) && r.PaymentStatus != PaymentStatus.Refunded).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
         var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null)
                              + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null)
                              + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.Status == BookingStatus.Pending && r.PaymentProofPath != null));
@@ -290,10 +302,11 @@ public class AdminController : Controller
         // sales separately. Both are all-time SQL aggregates, same reasoning as above.
         var bookingAddOnsRevenue = await _db.BookingAddOns
             .Where(a => courtIds.Contains(a.Booking.CourtId)
-                     && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed))
+                     && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed)
+                     && a.Booking.PaymentStatus != PaymentStatus.Refunded)
             .SumAsync(a => (decimal?)(a.Quantity * a.UnitPrice)) ?? 0m;
         var standaloneAddOnRentalsRevenue = courtId.HasValue ? 0m : (await _db.AddOnRentals
-            .Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed))
+            .Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed) && r.PaymentStatus != PaymentStatus.Refunded)
             .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m);
         var addOnsRevenue = bookingAddOnsRevenue + standaloneAddOnRentalsRevenue;
         var courtRentalRevenue = totalRevenue - addOnsRevenue;
@@ -309,7 +322,7 @@ public class AdminController : Controller
                          || (b.PaidAt == null && b.BookingDate >= rangeFrom && b.BookingDate <= rangeTo)))
             .Select(b => new AnalyticsRow(b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
                 b.PaidAt, b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod,
-                b.CourtId, b.LoggedByStaffId))
+                b.CourtId, b.LoggedByStaffId, b.RefundAmount))
             .ToListAsync();
         var signupRows = await _db.OpenPlaySignups
             .Where(s => courtIds.Contains(s.CourtId)
@@ -317,7 +330,7 @@ public class AdminController : Controller
                          || (s.PaidAt == null && s.BookingDate >= rangeFrom && s.BookingDate <= rangeTo)))
             .Select(s => new AnalyticsRow(s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
                 s.PaidAt, s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod,
-                s.CourtId, s.LoggedByStaffId))
+                s.CourtId, s.LoggedByStaffId, s.RefundAmount))
             .ToListAsync();
         // Standalone add-on rentals (e.g. paddle-only counter sales) have no court/slot, so they
         // can't be scoped to a specific court — only fold them in for the "all courts" view.
@@ -342,9 +355,10 @@ public class AdminController : Controller
 
         var revenueRows = combined
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
-                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
+                        && x.PaymentStatus != PaymentStatus.Refunded)
             .GroupBy(x => x.EffectiveDate)
-            .Select(g => new { Day = g.Key, Revenue = g.Sum(x => x.TotalPrice), Count = g.Count() })
+            .Select(g => new { Day = g.Key, Revenue = g.Sum(x => x.PaymentStatus == PaymentStatus.PartiallyRefunded ? x.TotalPrice - (x.RefundAmount ?? 0m) : x.TotalPrice), Count = g.Count() })
             .ToList();
 
         var revenueByDay = new List<object>();
@@ -362,15 +376,15 @@ public class AdminController : Controller
         // Payment mix — bucketed by EffectiveDate (paid date, falling back to BookingDate),
         // matching every other range breakdown below so they never disagree on the same range.
         var methodRows = combined
-            .Where(x => x.PaymentStatus == PaymentStatus.Paid && x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo)
+            .Where(x => (x.PaymentStatus == PaymentStatus.Paid || x.PaymentStatus == PaymentStatus.PartiallyRefunded) && x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo)
             .GroupBy(x => x.PaymentMethod ?? "Unknown")
-            .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(x => x.TotalPrice) })
+            .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(x => x.PaymentStatus == PaymentStatus.PartiallyRefunded ? x.TotalPrice - (x.RefundAmount ?? 0m) : x.TotalPrice) })
             .ToList();
 
         var bookingsInRange = combined
             .Count(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo && x.Status != BookingStatus.Cancelled);
         var paidInRange = combined
-            .Count(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo && x.PaymentStatus == PaymentStatus.Paid);
+            .Count(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo && (x.PaymentStatus == PaymentStatus.Paid || x.PaymentStatus == PaymentStatus.PartiallyRefunded));
         var conversion = bookingsInRange > 0 ? Math.Round(paidInRange * 100.0 / bookingsInRange, 1) : 0.0;
         // Paid revenue for the selected range — distinct from totalRevenue (all-time) and
         // todayRevenue (today only); this is what the "Selected Range" cards surface.
@@ -378,10 +392,20 @@ public class AdminController : Controller
 
         // Status mix within the selected range, so filtering also answers "how many of these
         // were cancelled / still pending" instead of just the pass/fail conversion percentage.
+        // A refunded (or partially refunded) row is bucketed as its own status here (by
+        // PaymentStatus, not BookingStatus) regardless of whether the booking itself is
+        // Cancelled or Completed — otherwise its (already-returned) revenue would silently blend
+        // into that status's total and overstate it. Its revenue is the amount actually given
+        // back, not the original price.
         var statusBreakdown = combined
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo)
-            .GroupBy(x => x.Status)
-            .Select(g => new { status = g.Key.ToString(), count = g.Count(), revenue = g.Sum(x => x.TotalPrice) })
+            .GroupBy(x => x.PaymentStatus == PaymentStatus.Refunded ? "Refunded"
+                        : x.PaymentStatus == PaymentStatus.PartiallyRefunded ? "Partially Refunded"
+                        : x.Status.ToString())
+            .Select(g => new { status = g.Key, count = g.Count(), revenue = g.Sum(x =>
+                x.PaymentStatus == PaymentStatus.Refunded ? (x.RefundAmount ?? x.TotalPrice)
+                : x.PaymentStatus == PaymentStatus.PartiallyRefunded ? (x.RefundAmount ?? 0m)
+                : x.TotalPrice) })
             .OrderByDescending(g => g.count)
             .ToList();
 
@@ -392,13 +416,14 @@ public class AdminController : Controller
             .Select(c => new { c.Id, c.Name }).ToDictionaryAsync(c => c.Id, c => c.Name);
         var courtBreakdown = combined
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
-                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
+                        && x.PaymentStatus != PaymentStatus.Refunded)
             .GroupBy(x => x.CourtId)
             .Select(g => new
             {
                 court   = g.Key.HasValue ? (courtNames.TryGetValue(g.Key.Value, out var n) ? n : $"Court #{g.Key}") : "Add-ons / Other",
                 count   = g.Count(),
-                revenue = g.Sum(x => x.TotalPrice)
+                revenue = g.Sum(x => x.PaymentStatus == PaymentStatus.PartiallyRefunded ? x.TotalPrice - (x.RefundAmount ?? 0m) : x.TotalPrice)
             })
             .OrderByDescending(g => g.revenue)
             .ToList();
@@ -411,13 +436,14 @@ public class AdminController : Controller
             .ToDictionaryAsync(u => u.Id, u => u.FullName);
         var staffBreakdown = combined
             .Where(x => x.LoggedByStaffId != null && x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
-                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
+                        && x.PaymentStatus != PaymentStatus.Refunded)
             .GroupBy(x => x.LoggedByStaffId)
             .Select(g => new
             {
                 staff   = staffNames.TryGetValue(g.Key!, out var n) ? n : "Unknown",
                 count   = g.Count(),
-                revenue = g.Sum(x => x.TotalPrice)
+                revenue = g.Sum(x => x.PaymentStatus == PaymentStatus.PartiallyRefunded ? x.TotalPrice - (x.RefundAmount ?? 0m) : x.TotalPrice)
             })
             .OrderByDescending(g => g.revenue)
             .ToList();
@@ -430,10 +456,10 @@ public class AdminController : Controller
                      && ((a.Booking.PaidAt != null && a.Booking.PaidAt >= rangeFromUtc && a.Booking.PaidAt < rangeToExclusiveUtc)
                          || (a.Booking.PaidAt == null && a.Booking.BookingDate >= rangeFrom && a.Booking.BookingDate <= rangeTo)))
             .Select(a => new { a.AddOnItemId, Name = a.AddOnItem.Name, a.Quantity, a.UnitPrice,
-                a.Booking.BookingDate, a.Booking.PaidAt, a.Booking.Status })
+                a.Booking.BookingDate, a.Booking.PaidAt, a.Booking.Status, a.Booking.PaymentStatus })
             .ToListAsync())
             .Select(a => new AddOnItemRow(a.AddOnItemId, a.Name, a.Quantity, a.Quantity * a.UnitPrice,
-                a.BookingDate, a.PaidAt, a.Status))
+                a.BookingDate, a.PaidAt, a.Status, a.PaymentStatus))
             .ToList();
         var standaloneAddOnItemRows = courtId.HasValue
             ? new List<AddOnItemRow>()
@@ -442,14 +468,15 @@ public class AdminController : Controller
                          && ((i.AddOnRental.PaidAt != null && i.AddOnRental.PaidAt >= rangeFromUtc && i.AddOnRental.PaidAt < rangeToExclusiveUtc)
                              || (i.AddOnRental.PaidAt == null && i.AddOnRental.CreatedAt >= rangeFromUtc && i.AddOnRental.CreatedAt < rangeToExclusiveUtc)))
                 .Select(i => new { i.AddOnItemId, Name = i.AddOnItem.Name, i.Quantity, i.UnitPrice,
-                    i.AddOnRental.CreatedAt, i.AddOnRental.PaidAt, i.AddOnRental.Status })
+                    i.AddOnRental.CreatedAt, i.AddOnRental.PaidAt, i.AddOnRental.Status, i.AddOnRental.PaymentStatus })
                 .ToListAsync())
                 .Select(i => new AddOnItemRow(i.AddOnItemId, i.Name, i.Quantity, i.Quantity * i.UnitPrice,
-                    DateOnly.FromDateTime(i.CreatedAt.AddHours(8)), i.PaidAt, i.Status))
+                    DateOnly.FromDateTime(i.CreatedAt.AddHours(8)), i.PaidAt, i.Status, i.PaymentStatus))
                 .ToList();
         var topAddOnItems = bookingAddOnItemRows.Concat(standaloneAddOnItemRows)
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
-                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
+                        && x.PaymentStatus != PaymentStatus.Refunded)
             .GroupBy(x => new { x.AddOnItemId, x.Name })
             .Select(g => new { name = g.Key.Name, quantity = g.Sum(x => x.Quantity), revenue = g.Sum(x => x.Revenue) })
             .OrderByDescending(g => g.revenue)
@@ -534,6 +561,8 @@ public class AdminController : Controller
 
             if (awaitingConfirmation == true)
                 query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
+            else if (string.Equals(status, "Refunded", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(b => b.PaymentStatus == PaymentStatus.Refunded);
             else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
                 query = query.Where(b => b.Status == s);
 
@@ -576,7 +605,9 @@ public class AdminController : Controller
                 .Where(sg => courtIds.Contains(sg.CourtId))
                 .Include(sg => sg.Court).Include(sg => sg.User).AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var signupStatus))
+            if (string.Equals(status, "Refunded", StringComparison.OrdinalIgnoreCase))
+                signupQuery = signupQuery.Where(sg => sg.PaymentStatus == PaymentStatus.Refunded);
+            else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var signupStatus))
                 signupQuery = signupQuery.Where(sg => sg.Status == signupStatus);
             if (paidDateMode)
             {
@@ -2703,6 +2734,86 @@ public class AdminController : Controller
     }
 
     /// <summary>
+    /// Records that a paid booking's money was returned to the customer outside the app (manual
+    /// GCash/Maya/cash refund) — this is a bookkeeping action, not a payment-gateway call. Only
+    /// allowed on a currently-Paid booking (can't refund something never charged, or double-refund
+    /// one already marked Refunded). Frees the slot by cancelling the booking unless it already
+    /// happened (Completed), since a future/current reservation whose payment was refunded
+    /// shouldn't keep occupying the court. Reverses any accrued platform commission on
+    /// commission-model facilities so the owner isn't billed commission on money they gave back.
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RefundBooking(int id, decimal amount, string? reason)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var booking  = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
+        if (booking is null) return NotFound();
+
+        if (booking.PaymentStatus != PaymentStatus.Paid && booking.PaymentStatus != PaymentStatus.PartiallyRefunded)
+        {
+            TempData["Error"] = $"Booking #{id} isn't Paid, so it can't be refunded.";
+            return RedirectToAction(nameof(Bookings));
+        }
+        if (amount <= 0)
+        {
+            TempData["Error"] = "Refund amount must be greater than zero.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        // Cumulative: a booking already topped up by an earlier partial refund can be refunded
+        // again (e.g. a bundle booking refunded hour-by-hour) — RefundAmount tracks the running
+        // total given back, not just this transaction's amount.
+        var alreadyRefunded = booking.RefundAmount ?? 0m;
+        var remaining       = booking.TotalPrice - alreadyRefunded;
+        if (amount > remaining + 0.01m)
+        {
+            TempData["Error"] = $"Refund amount exceeds the ₱{remaining:N2} still refundable on booking #{id}.";
+            return RedirectToAction(nameof(Bookings));
+        }
+        // Tiny epsilon absorbs rounding on the "refund everything left" case.
+        var isFullRefund = amount >= remaining - 0.01m;
+
+        booking.PaymentStatus = isFullRefund ? PaymentStatus.Refunded : PaymentStatus.PartiallyRefunded;
+        booking.RefundedAt    = DateTime.UtcNow;
+        booking.RefundAmount  = isFullRefund ? booking.TotalPrice : alreadyRefunded + amount;
+        booking.RefundReason  = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+
+        // A reservation that hasn't happened yet loses its hold on the slot once fully refunded;
+        // a partial refund is bookkeeping only — the reservation/slot is untouched. One that's
+        // already Completed stays Completed either way (the play session still happened).
+        if (isFullRefund && booking.Status is BookingStatus.Pending or BookingStatus.Confirmed)
+        {
+            booking.Status = BookingStatus.Cancelled;
+        }
+
+        // Reverse commission proportional to this refund so a refund doesn't leave the owner
+        // owing platform commission on money that was given back to the customer. Since
+        // CommissionAmount and `remaining` always shrink in lockstep across successive partial
+        // refunds, CommissionAmount/remaining stays equal to the original commission rate.
+        if (booking.CommissionAmount is > 0 && remaining > 0)
+        {
+            var commissionShare = isFullRefund ? booking.CommissionAmount.Value : booking.CommissionAmount.Value * (amount / remaining);
+            var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
+            if (settings is not null)
+            {
+                settings.CommissionBalanceOwed = Math.Max(0, settings.CommissionBalanceOwed - commissionShare);
+            }
+            booking.CommissionAmount = Math.Max(0, booking.CommissionAmount.Value - commissionShare);
+        }
+
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "[Bookings] Booking #{Id} refunded: {Amount:0.00} (reason: {Reason}) by {Email} (Id={UserId}) at {Time:o}",
+            id, amount, booking.RefundReason ?? "(none)", User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
+
+        TempData["Success"] = isFullRefund
+            ? $"Booking #{id} marked as refunded (₱{booking.RefundAmount:N0})."
+            : $"Booking #{id} partially refunded (₱{amount:N0}); ₱{booking.TotalPrice - booking.RefundAmount:N2} still stands.";
+        return RedirectToAction(nameof(Bookings));
+    }
+
+    /// <summary>
     /// Moves a booking to a different date/time (and optionally a different court), e.g. when a
     /// customer needs a last-minute change or the facility needs the original slot back. Only
     /// covers regular/bundle-court `Booking` rows (not Open Play sign-ups, which have their own
@@ -2888,6 +2999,67 @@ public class AdminController : Controller
         }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Sign-up status updated.";
+        return RedirectToAction(nameof(Bookings));
+    }
+
+    /// <summary>Same manual-refund bookkeeping as <see cref="RefundBooking"/>, for an Open Play sign-up.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RefundSignup(int id, decimal amount, string? reason)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var signup   = await _db.OpenPlaySignups.FirstOrDefaultAsync(sg => sg.Id == id && courtIds.Contains(sg.CourtId));
+        if (signup is null) return NotFound();
+
+        if (signup.PaymentStatus != PaymentStatus.Paid && signup.PaymentStatus != PaymentStatus.PartiallyRefunded)
+        {
+            TempData["Error"] = $"Sign-up #{id} isn't Paid, so it can't be refunded.";
+            return RedirectToAction(nameof(Bookings));
+        }
+        if (amount <= 0)
+        {
+            TempData["Error"] = "Refund amount must be greater than zero.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var alreadyRefunded = signup.RefundAmount ?? 0m;
+        var remaining       = signup.TotalPrice - alreadyRefunded;
+        if (amount > remaining + 0.01m)
+        {
+            TempData["Error"] = $"Refund amount exceeds the ₱{remaining:N2} still refundable on sign-up #{id}.";
+            return RedirectToAction(nameof(Bookings));
+        }
+        var isFullRefund = amount >= remaining - 0.01m;
+
+        signup.PaymentStatus = isFullRefund ? PaymentStatus.Refunded : PaymentStatus.PartiallyRefunded;
+        signup.RefundedAt    = DateTime.UtcNow;
+        signup.RefundAmount  = isFullRefund ? signup.TotalPrice : alreadyRefunded + amount;
+        signup.RefundReason  = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+
+        if (isFullRefund && signup.Status is BookingStatus.Pending or BookingStatus.Confirmed)
+        {
+            signup.Status = BookingStatus.Cancelled;
+        }
+
+        if (signup.CommissionAmount is > 0 && remaining > 0)
+        {
+            var commissionShare = isFullRefund ? signup.CommissionAmount.Value : signup.CommissionAmount.Value * (amount / remaining);
+            var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
+            if (settings is not null)
+            {
+                settings.CommissionBalanceOwed = Math.Max(0, settings.CommissionBalanceOwed - commissionShare);
+            }
+            signup.CommissionAmount = Math.Max(0, signup.CommissionAmount.Value - commissionShare);
+        }
+
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "[Bookings] Sign-up #{Id} refunded: {Amount:0.00} (reason: {Reason}) by {Email} (Id={UserId}) at {Time:o}",
+            id, amount, signup.RefundReason ?? "(none)", User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
+
+        TempData["Success"] = isFullRefund
+            ? $"Sign-up #{id} marked as refunded (₱{signup.RefundAmount:N0})."
+            : $"Sign-up #{id} partially refunded (₱{amount:N0}); ₱{signup.TotalPrice - signup.RefundAmount:N2} still stands.";
         return RedirectToAction(nameof(Bookings));
     }
 
@@ -4159,7 +4331,9 @@ public class AdminController : Controller
             .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
             .AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
+        if (string.Equals(status, "Refunded", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(b => b.PaymentStatus == PaymentStatus.Refunded);
+        else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
             query = query.Where(b => b.Status == s);
         if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
         if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
