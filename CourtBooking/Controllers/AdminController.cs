@@ -17,6 +17,10 @@ namespace CourtBooking.Controllers;
 [Authorize(Roles = "Admin")]
 public class AdminController : Controller
 {
+    /// <summary>Sentinel value for the "Booked By" filter on All Bookings, meaning "customer
+    /// self-booked online" (LoggedByStaffId == null) — distinct from an actual staff GUID.</summary>
+    private const string OnlineBookedByValue = "online";
+
     private readonly ApplicationDbContext _db;
     private readonly BookingService _bookingService;
     private readonly GuestCheckoutService _guestCheckout;
@@ -486,7 +490,7 @@ public class AdminController : Controller
         });
     }
 
-    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart, string? view)
+    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart, string? view, string? bookedBy)
     {
         // List and Calendar are two full page navigations (separate GET requests, not client-side
         // tabs), so only the block the visitor actually asked for needs to run each request —
@@ -527,6 +531,8 @@ public class AdminController : Controller
 
             if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
             if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
+            if (bookedBy == OnlineBookedByValue)         query = query.Where(b => b.LoggedByStaffId == null);
+            else if (!string.IsNullOrWhiteSpace(bookedBy)) query = query.Where(b => b.LoggedByStaffId == bookedBy);
 
             bookings = await query.OrderByDescending(b => b.PaymentProofSubmittedAt ?? b.CreatedAt).ToListAsync();
         }
@@ -557,6 +563,8 @@ public class AdminController : Controller
                 signupQuery = signupQuery.Where(sg => sg.Status == signupStatus);
             if (dateFrom.HasValue) signupQuery = signupQuery.Where(sg => sg.BookingDate >= dateFrom.Value);
             if (dateTo.HasValue)   signupQuery = signupQuery.Where(sg => sg.BookingDate <= dateTo.Value);
+            if (bookedBy == OnlineBookedByValue)         signupQuery = signupQuery.Where(sg => sg.LoggedByStaffId == null);
+            else if (!string.IsNullOrWhiteSpace(bookedBy)) signupQuery = signupQuery.Where(sg => sg.LoggedByStaffId == bookedBy);
 
             var signups = await signupQuery.ToListAsync();
 
@@ -609,6 +617,8 @@ public class AdminController : Controller
         ViewBag.SelectedDateTo       = dateTo;
         ViewBag.Search               = search;
         ViewBag.AwaitingConfirmation = awaitingConfirmation;
+        ViewBag.SelectedBookedBy     = bookedBy;
+        ViewBag.StaffList            = await _db.Users.Where(u => u.EmployerOwnerId == CurrentUserId).OrderBy(u => u.FullName).ToListAsync();
         var pendingBookingCount = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId)
                                                                   && b.Status == BookingStatus.Pending
                                                                   && b.PaymentStatus == PaymentStatus.Unpaid
