@@ -71,6 +71,19 @@ public class OpenPlaySignup
     public DateTime? PaymentProofSubmittedAt { get; set; }
     public DateTime? PaidAt { get; set; }
 
+    /// <summary>When the facility admin marked this sign-up's payment as refunded (UTC). Null
+    /// unless <see cref="PaymentStatus"/> is <see cref="PaymentStatus.Refunded"/> — same pattern
+    /// as <see cref="Booking.RefundedAt"/>.</summary>
+    public DateTime? RefundedAt { get; set; }
+
+    /// <summary>Peso amount actually returned to the customer — may be less than <see cref="TotalPrice"/>
+    /// for a partial refund. Null unless refunded.</summary>
+    public decimal? RefundAmount { get; set; }
+
+    /// <summary>Free-text note the admin entered when issuing the refund. Null unless refunded.</summary>
+    [MaxLength(300)]
+    public string? RefundReason { get; set; }
+
     /// <summary>The <see cref="Voucher"/> applied at checkout, if any — same pattern as <see cref="Booking.VoucherId"/>.</summary>
     public int? VoucherId { get; set; }
 

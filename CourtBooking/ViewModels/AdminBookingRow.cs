@@ -60,4 +60,14 @@ public class AdminBookingRow
 
     /// <summary>Path to the uploaded payment proof screenshot, if any.</summary>
     public string? PaymentProofPath { get; set; }
+
+    /// <summary>When this row's payment was marked refunded (UTC), null unless <see cref="PaymentStatus"/>
+    /// is <see cref="CourtBooking.Models.PaymentStatus.Refunded"/>.</summary>
+    public DateTime? RefundedAt { get; set; }
+
+    /// <summary>Peso amount actually returned to the customer — may be less than <see cref="TotalPrice"/> for a partial refund.</summary>
+    public decimal? RefundAmount { get; set; }
+
+    /// <summary>Admin-entered note explaining the refund, if any.</summary>
+    public string? RefundReason { get; set; }
 }

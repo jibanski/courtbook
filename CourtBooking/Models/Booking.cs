@@ -14,8 +14,12 @@ public enum PaymentStatus
 {
     Unpaid,
     Paid,
-    Refunded
+    Refunded,
+    // Appended, not inserted — enum is stored as an int, so existing rows would be reinterpreted
+    // if this were placed earlier in the list.
+    PartiallyRefunded
 }
+
 
 public class Booking
 {
@@ -87,6 +91,20 @@ public class Booking
     public string? PaymentProofPath { get; set; }
     public DateTime? PaymentProofSubmittedAt { get; set; }
     public DateTime? PaidAt { get; set; }
+
+    /// <summary>When the facility admin marked this booking's payment as refunded (UTC). Null
+    /// unless <see cref="PaymentStatus"/> is <see cref="PaymentStatus.Refunded"/> — this is the
+    /// date Analytics's "Refunded" status bucket attributes the refund to.</summary>
+    public DateTime? RefundedAt { get; set; }
+
+    /// <summary>Peso amount actually returned to the customer — may be less than <see cref="TotalPrice"/>
+    /// for a partial refund. Null unless refunded.</summary>
+    public decimal? RefundAmount { get; set; }
+
+    /// <summary>Free-text note the admin entered when issuing the refund (e.g. "Rained out, customer
+    /// couldn't reschedule"). Null unless refunded.</summary>
+    [MaxLength(300)]
+    public string? RefundReason { get; set; }
 
     /// <summary>PayMongo checkout session ID when the customer chose to pay by card.</summary>
     public string? CheckoutSessionId { get; set; }

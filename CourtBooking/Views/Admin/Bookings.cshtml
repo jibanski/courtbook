@@ -22,6 +22,7 @@
     // look identical to a plain Pending slot nobody has paid towards yet.
     string StatusCls(CourtBooking.ViewModels.AdminBookingRow b) => b.Status switch
     {
+        CourtBooking.Models.BookingStatus.Cancelled when b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded => "bg-secondary text-white",
         CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
         CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
         CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
@@ -116,6 +117,8 @@
                             {
                                 <option value="@s" selected="@(selectedStatus == s)">@s</option>
                             }
+                            <!-- Refunded is a PaymentStatus, not a BookingStatus, so it's a separate pseudo-status value the controller special-cases -->
+                            <option value="Refunded" selected="@(selectedStatus == "Refunded")">Refunded</option>
                         </select>
                     </div>
                     <div class="col-sm-2">
@@ -159,6 +162,7 @@
                             {
                                 <option value="@s" selected="@(selectedStatus == s)">@s</option>
                             }
+                            <option value="Refunded" selected="@(selectedStatus == "Refunded")">Refunded</option>
                         </select>
                     </div>
                     <div class="col-sm-3">
@@ -235,6 +239,10 @@
                                             @if (b.Status == CourtBooking.Models.BookingStatus.Pending && b.HasPaymentProof)
                                             {
                                                 <div style="font-size:.65rem;"><i class="bi bi-hourglass-split me-1"></i>Awaiting confirmation</div>
+                                            }
+                                            else if (b.Status == CourtBooking.Models.BookingStatus.Cancelled && b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded)
+                                            {
+                                                <div style="font-size:.65rem;"><i class="bi bi-arrow-counterclockwise me-1"></i>Refunded</div>
                                             }
                                         </button>
                                     }
@@ -514,6 +522,7 @@
                             {
                                 // Colors the status <select> itself so it doubles as the status badge — no separate columns needed.
                                 var selectCls = b.Status switch {
+                                    CourtBooking.Models.BookingStatus.Cancelled when b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded => "bg-secondary text-white",
                                     CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
                                     CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
                                     CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
@@ -567,6 +576,10 @@
                                         {
                                             <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Submitted</span>
                                         }
+                                        else if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.PartiallyRefunded)
+                                        {
+                                            <span class="badge text-dark" style="background-color:#fd7e14;">Partially Refunded</span>
+                                        }
                                         else if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded)
                                         {
                                             <span class="badge bg-secondary">Refunded</span>
@@ -583,6 +596,13 @@
                                         {
                                             <div class="text-muted text-nowrap" style="font-size:.65rem;" title="The date Analytics counts this sale toward">
                                                 Paid: @b.PaidAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
+                                            </div>
+                                        }
+                                        @if (b.RefundedAt is not null)
+                                        {
+                                            var refundLabel = b.PaymentStatus == CourtBooking.Models.PaymentStatus.PartiallyRefunded ? "Partially refunded" : "Refunded";
+                                            <div class="text-muted text-nowrap" style="font-size:.65rem;" title="@(b.RefundReason ?? "No reason given")">
+                                                @refundLabel ₱@((b.RefundAmount ?? 0).ToString("N0")) of ₱@b.TotalPrice.ToString("N0"): @b.RefundedAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
                                             </div>
                                         }
                                         @{ var isCashMethod = string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase); }
@@ -607,7 +627,9 @@
                                                     onchange="if (confirm('Change booking #@b.Id status to ' + this.value + '?')) { this.form.submit(); } else { this.value = this.dataset.current; }">
                                                 @foreach (var s in Enum.GetValues<CourtBooking.Models.BookingStatus>())
                                                 {
-                                                    <option value="@s" selected="@(b.Status == s)">@s</option>
+                                                    // Cancelled-via-full-refund reads as "Refunded" so it's easy to spot without adding a new BookingStatus value.
+                                                    var label = s == CourtBooking.Models.BookingStatus.Cancelled && b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded ? "Refunded" : s.ToString();
+                                                    <option value="@s" selected="@(b.Status == s)">@label</option>
                                                 }
                                             </select>
                                         </form>
@@ -630,6 +652,8 @@
                                             bool activeStatus = b.Status == CourtBooking.Models.BookingStatus.Pending || b.Status == CourtBooking.Models.BookingStatus.Confirmed;
                                             var canReschedule = !b.IsOpenPlay && b.BundleName is null && activeStatus;
                                             var canRescheduleGroup = !b.IsOpenPlay && b.BundleName is not null && b.BundleGroupId is not null && activeStatus;
+                                            var canRefund = b.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid || b.PaymentStatus == CourtBooking.Models.PaymentStatus.PartiallyRefunded;
+                                            var refundRemaining = b.TotalPrice - (b.RefundAmount ?? 0);
                                         }
                                         @if (canReschedule)
                                         {
@@ -646,6 +670,14 @@
                                                     data-group-id="@b.BundleGroupId" data-bundle-name="@b.BundleName"
                                                     data-date="@b.BookingDate.ToString("yyyy-MM-dd")">
                                                 <i class="bi bi-calendar-event me-1"></i>Reschedule Bundle
+                                            </button>
+                                        }
+                                        @if (canRefund)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-danger mt-1" data-bs-toggle="modal" data-bs-target="#refundModal"
+                                                    data-id="@b.Id" data-is-open-play="@b.IsOpenPlay.ToString().ToLowerInvariant()"
+                                                    data-remaining="@refundRemaining.ToString("F2")">
+                                                <i class="bi bi-arrow-counterclockwise me-1"></i>@(b.PaymentStatus == CourtBooking.Models.PaymentStatus.PartiallyRefunded ? "Refund more" : "Refund")
                                             </button>
                                         }
                                     </td>
@@ -812,6 +844,42 @@
     </div>
 </div>
 
+<!-- Refund modal — records that a Paid booking/sign-up's money was returned to the customer
+     outside the app (manual GCash/Maya/cash). Marks PaymentStatus = Refunded, which every
+     Analytics revenue breakdown then excludes automatically. -->
+<div class="modal fade" id="refundModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="refundForm" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="rfId" />
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Refund Booking #<span id="rfBookingNo"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Amount refunded (₱)</label>
+                        <input type="number" name="amount" id="rfAmount" class="form-control" min="0.01" step="0.01" required />
+                        <div class="form-text">Prefilled with the remaining refundable balance — lower it for a partial refund (e.g. one hour of a multi-hour bundle). The booking stays as-is until the full amount has been refunded.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Reason (optional)</label>
+                        <textarea name="reason" id="rfReason" class="form-control" rows="2" maxlength="300" placeholder="e.g. Rained out, court unavailable"></textarea>
+                    </div>
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>This only records that the money was returned outside the app (manual GCash/Maya/cash) — it doesn't trigger an actual refund transaction. A partial refund keeps the reservation and only reduces Analytics revenue by the refunded amount; a full refund cancels the reservation and excludes it entirely.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-danger btn-sm">Mark as Refunded</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <style>
     .calendar-grid {
         display: flex;
@@ -872,10 +940,11 @@
             document.getElementById('bdId').textContent = d.id;
 
             var statusBadge = document.getElementById('bdStatusBadge');
-            statusBadge.textContent = d.status;
-            statusBadge.className = 'badge ' + ({
+            var isRefundedCancel = d.status === 'Cancelled' && d.paymentStatus === 'Refunded';
+            statusBadge.textContent = isRefundedCancel ? 'Refunded' : d.status;
+            statusBadge.className = 'badge ' + (isRefundedCancel ? 'bg-secondary' : ({
                 Confirmed: 'bg-success', Cancelled: 'bg-danger', Completed: 'bg-secondary'
-            }[d.status] || 'bg-warning text-dark');
+            }[d.status] || 'bg-warning text-dark'));
 
             toggle('bdBundleBadge', !!d.bundle);
             if (d.bundle) { document.getElementById('bdBundleName').textContent = d.bundle; }
@@ -898,7 +967,7 @@
             document.getElementById('bdAddOnsTotal').textContent = d.addonsTotal || '0';
             document.getElementById('bdTotal').textContent = d.total;
 
-            document.getElementById('bdPaymentStatus').textContent = d.paymentStatus;
+            document.getElementById('bdPaymentStatus').textContent = d.paymentStatus === 'PartiallyRefunded' ? 'Partially Refunded' : d.paymentStatus;
             toggle('bdMethodRow', !!d.method);
             document.getElementById('bdMethod').textContent = d.method || '';
             toggle('bdRefRow', !!d.reference);
@@ -962,6 +1031,34 @@
             document.getElementById('rsgGroupId').value = d.groupId;
             document.getElementById('rsgBundleName').textContent = d.bundleName;
             document.getElementById('rsgDate').value = d.date;
+        });
+    })();
+
+    (function () {
+        var modalEl = document.getElementById('refundModal');
+        if (!modalEl) return;
+
+        var updateBookingUrl = '@Url.Action("RefundBooking")';
+        var updateSignupUrl  = '@Url.Action("RefundSignup")';
+
+        modalEl.addEventListener('show.bs.modal', function (e) {
+            var btn = e.relatedTarget;
+            if (!btn) return;
+            var d = btn.dataset;
+
+            document.getElementById('rfId').value = d.id;
+            document.getElementById('rfBookingNo').textContent = d.id;
+            document.getElementById('rfAmount').value = d.remaining;
+            document.getElementById('rfReason').value = '';
+            document.getElementById('refundForm').action = d.isOpenPlay === 'true' ? updateSignupUrl : updateBookingUrl;
+        });
+
+        document.getElementById('refundForm').addEventListener('submit', function (e) {
+            var id = document.getElementById('rfId').value;
+            var amount = document.getElementById('rfAmount').value;
+            if (!confirm('Mark booking #' + id + ' as refunded for ₱' + amount + '? This cannot be undone from here.')) {
+                e.preventDefault();
+            }
         });
     })();
 </script>
