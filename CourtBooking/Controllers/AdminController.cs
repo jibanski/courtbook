@@ -490,12 +490,20 @@ public class AdminController : Controller
         });
     }
 
-    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart, string? view, string? bookedBy)
+    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart, string? view, string? bookedBy, string? dateMode)
     {
         // List and Calendar are two full page navigations (separate GET requests, not client-side
         // tabs), so only the block the visitor actually asked for needs to run each request —
         // this used to always fetch both regardless of which one was being viewed.
         bool calendarView = string.Equals(view, "calendar", StringComparison.OrdinalIgnoreCase);
+
+        // "Payment Date" mode filters by the same EffectiveDate (PaidAt, falling back to
+        // BookingDate) bucketing AnalyticsData uses, instead of BookingDate alone — so owners can
+        // reconcile All Bookings against Analytics for a given date range without the two lists
+        // silently disagreeing on which bookings count toward that day.
+        bool paidDateMode = string.Equals(dateMode, "paid", StringComparison.OrdinalIgnoreCase);
+        DateTime? rangeFromUtc        = paidDateMode && dateFrom.HasValue ? dateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8) : null;
+        DateTime? rangeToExclusiveUtc = paidDateMode && dateTo.HasValue   ? dateTo.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8) : null;
 
         // The list view previously had no default date bound, so with no filter set it fetched
         // the entire booking/signup history (with several joined tables) on every page view —
@@ -529,8 +537,17 @@ public class AdminController : Controller
             else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
                 query = query.Where(b => b.Status == s);
 
-            if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
-            if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
+            if (paidDateMode)
+            {
+                query = query.Where(b =>
+                    (b.PaidAt != null && (!rangeFromUtc.HasValue || b.PaidAt >= rangeFromUtc) && (!rangeToExclusiveUtc.HasValue || b.PaidAt < rangeToExclusiveUtc))
+                    || (b.PaidAt == null && (!dateFrom.HasValue || b.BookingDate >= dateFrom.Value) && (!dateTo.HasValue || b.BookingDate <= dateTo.Value)));
+            }
+            else
+            {
+                if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
+                if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
+            }
             if (bookedBy == OnlineBookedByValue)         query = query.Where(b => b.LoggedByStaffId == null);
             else if (!string.IsNullOrWhiteSpace(bookedBy)) query = query.Where(b => b.LoggedByStaffId == bookedBy);
 
@@ -561,8 +578,17 @@ public class AdminController : Controller
 
             if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var signupStatus))
                 signupQuery = signupQuery.Where(sg => sg.Status == signupStatus);
-            if (dateFrom.HasValue) signupQuery = signupQuery.Where(sg => sg.BookingDate >= dateFrom.Value);
-            if (dateTo.HasValue)   signupQuery = signupQuery.Where(sg => sg.BookingDate <= dateTo.Value);
+            if (paidDateMode)
+            {
+                signupQuery = signupQuery.Where(sg =>
+                    (sg.PaidAt != null && (!rangeFromUtc.HasValue || sg.PaidAt >= rangeFromUtc) && (!rangeToExclusiveUtc.HasValue || sg.PaidAt < rangeToExclusiveUtc))
+                    || (sg.PaidAt == null && (!dateFrom.HasValue || sg.BookingDate >= dateFrom.Value) && (!dateTo.HasValue || sg.BookingDate <= dateTo.Value)));
+            }
+            else
+            {
+                if (dateFrom.HasValue) signupQuery = signupQuery.Where(sg => sg.BookingDate >= dateFrom.Value);
+                if (dateTo.HasValue)   signupQuery = signupQuery.Where(sg => sg.BookingDate <= dateTo.Value);
+            }
             if (bookedBy == OnlineBookedByValue)         signupQuery = signupQuery.Where(sg => sg.LoggedByStaffId == null);
             else if (!string.IsNullOrWhiteSpace(bookedBy)) signupQuery = signupQuery.Where(sg => sg.LoggedByStaffId == bookedBy);
 
@@ -618,6 +644,7 @@ public class AdminController : Controller
         ViewBag.Search               = search;
         ViewBag.AwaitingConfirmation = awaitingConfirmation;
         ViewBag.SelectedBookedBy     = bookedBy;
+        ViewBag.SelectedDateMode     = paidDateMode ? "paid" : "booking";
         // FullName is a computed C# property (FirstName + LastName), not a mapped column — must
         // order client-side after materializing, .OrderBy(u => u.FullName) fails to translate to SQL.
         ViewBag.StaffList            = (await _db.Users.Where(u => u.EmployerOwnerId == CurrentUserId).ToListAsync())
