@@ -618,7 +618,10 @@ public class AdminController : Controller
         ViewBag.Search               = search;
         ViewBag.AwaitingConfirmation = awaitingConfirmation;
         ViewBag.SelectedBookedBy     = bookedBy;
-        ViewBag.StaffList            = await _db.Users.Where(u => u.EmployerOwnerId == CurrentUserId).OrderBy(u => u.FullName).ToListAsync();
+        // FullName is a computed C# property (FirstName + LastName), not a mapped column — must
+        // order client-side after materializing, .OrderBy(u => u.FullName) fails to translate to SQL.
+        ViewBag.StaffList            = (await _db.Users.Where(u => u.EmployerOwnerId == CurrentUserId).ToListAsync())
+            .OrderBy(u => u.FullName).ToList();
         var pendingBookingCount = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId)
                                                                   && b.Status == BookingStatus.Pending
                                                                   && b.PaymentStatus == PaymentStatus.Unpaid
