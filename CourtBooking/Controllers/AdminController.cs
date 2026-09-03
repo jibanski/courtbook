@@ -3296,8 +3296,9 @@ public class AdminController : Controller
             MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null,
             MinSpend          = minSpend,
             MaxRedemptions    = maxRedemptions,
-            // Expiry covers the whole calendar day it names.
-            ExpiresAt         = expiresOn.Value.ToDateTime(TimeOnly.MaxValue)
+            // Expiry covers the whole calendar day it names (PHT), stored as a UTC instant —
+            // Npgsql rejects DateTimeKind.Unspecified for "timestamp with time zone" columns.
+            ExpiresAt         = expiresOn.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc).AddHours(-8)
         });
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Voucher '{code}' created.";
@@ -3345,7 +3346,8 @@ public class AdminController : Controller
         voucher.MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null;
         voucher.MinSpend          = minSpend;
         voucher.MaxRedemptions    = maxRedemptions;
-        voucher.ExpiresAt         = expiresOn.Value.ToDateTime(TimeOnly.MaxValue);
+        // Same UTC-instant conversion as CreateVoucher — Npgsql rejects Kind=Unspecified.
+        voucher.ExpiresAt         = expiresOn.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc).AddHours(-8);
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Voucher '{code}' updated.";
         return RedirectToAction(nameof(Vouchers));
