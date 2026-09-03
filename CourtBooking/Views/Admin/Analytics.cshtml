@@ -43,11 +43,11 @@
                     </select>
                 </div>
                 <div class="col-sm-4 col-md-3">
-                    <label class="form-label small fw-semibold">From</label>
+                    <label class="form-label small fw-semibold">From (Payment Date)</label>
                     <input type="date" id="f-from" class="form-control form-control-sm" value="@defaultFrom" />
                 </div>
                 <div class="col-sm-4 col-md-3">
-                    <label class="form-label small fw-semibold">To</label>
+                    <label class="form-label small fw-semibold">To (Payment Date)</label>
                     <input type="date" id="f-to" class="form-control form-control-sm" value="@defaultTo" />
                 </div>
                 <div class="col-sm-12 col-md-3">
@@ -64,6 +64,16 @@
                         <button type="button" class="btn btn-outline-secondary preset-btn" data-preset="lastmonth">Last Month</button>
                         <button type="button" class="btn btn-outline-secondary preset-btn" data-preset="30d">Last 30 Days</button>
                     </div>
+                </div>
+                <div class="col-12">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>This range filters by when a booking was
+                        <strong>paid</strong> (falling back to its court date only if still unpaid) &mdash; not by
+                        the court's booking date. A booking paid a day ahead of its scheduled court date is
+                        counted under the day it was paid, so totals here can differ from the same date on
+                        <a asp-controller="Admin" asp-action="Bookings">All Bookings</a>, which always filters by
+                        the court's booking date.
+                    </small>
                 </div>
             </form>
         </div>
@@ -170,6 +180,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
                     <i class="bi bi-list-check me-2"></i>Payment Mix <span id="lbl-mix-range">(30d)</span>
+                    <i class="bi bi-info-circle text-muted small ms-1" title="Grouped by payment date, not court booking date."></i>
                 </div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0">
@@ -185,6 +196,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
                     <i class="bi bi-clipboard-data me-2"></i>Status Breakdown <span id="lbl-status-range">(30d)</span>
+                    <i class="bi bi-info-circle text-muted small ms-1" title="Grouped by payment date, not court booking date."></i>
                 </div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0">
@@ -203,6 +215,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
                     <i class="bi bi-grid-3x3-gap me-2"></i>By Court <span id="lbl-court-range">(30d)</span>
+                    <i class="bi bi-info-circle text-muted small ms-1" title="Grouped by payment date, not court booking date."></i>
                 </div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0">
@@ -218,6 +231,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white fw-bold">
                     <i class="bi bi-person-badge me-2"></i>By Staff <span id="lbl-staff-range">(30d)</span>
+                    <i class="bi bi-info-circle text-muted small ms-1" title="Grouped by payment date, not court booking date."></i>
                 </div>
                 <div class="card-body p-0">
                     <table class="table table-sm mb-0">
