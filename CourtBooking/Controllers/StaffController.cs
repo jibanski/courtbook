@@ -235,6 +235,7 @@ public class StaffController : Controller
             PaymentStatus = b.PaymentStatus,
             HasPaymentProof = b.HasPaymentProof,
             PaymentMethod = b.PaymentMethod,
+            PaidAt = b.PaidAt,
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
             AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
@@ -260,6 +261,7 @@ public class StaffController : Controller
             PaymentStatus = sg.PaymentStatus,
             HasPaymentProof = sg.HasPaymentProof,
             PaymentMethod = sg.PaymentMethod,
+            PaidAt = sg.PaidAt,
             BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
         }));
 
