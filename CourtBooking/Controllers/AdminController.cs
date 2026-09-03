@@ -160,6 +160,7 @@ public class AdminController : Controller
             PaymentMethod = b.PaymentMethod,
             PaymentReference = b.PaymentReference,
             PaymentProofPath = b.PaymentProofPath,
+            PaidAt = b.PaidAt,
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
             AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null
@@ -187,6 +188,7 @@ public class AdminController : Controller
             PaymentMethod = sg.PaymentMethod,
             PaymentReference = sg.PaymentReference,
             PaymentProofPath = sg.PaymentProofPath,
+            PaidAt = sg.PaidAt,
             BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
         }));
 

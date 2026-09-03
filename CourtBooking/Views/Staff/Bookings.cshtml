@@ -251,6 +251,12 @@
                                             <div><a href="@b.PaymentProofPath" target="_blank" style="font-size:.7rem;">View proof</a></div>
                                         }
                                         <div class="text-muted" style="font-size:.7rem;">@(b.PaymentMethod ?? "Cash")</div>
+                                        @if (b.PaidAt is not null)
+                                        {
+                                            <div class="text-muted text-nowrap" style="font-size:.65rem;" title="The date Analytics counts this sale toward">
+                                                Paid: @b.PaidAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
+                                            </div>
+                                        }
                                     </td>
                                     <td>
                                         <span class="badge @badgeClass">@(isAwaitingConfirmation ? "Awaiting confirmation" : b.Status.ToString())</span>
@@ -324,7 +330,8 @@
                                                 data-reference="@b.PaymentReference"
                                                 data-proof="@b.PaymentProofPath"
                                                 data-booked-by="@(b.BookedByStaffName ?? "Online")"
-                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")">
+                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")"
+                                                data-paid="@(b.PaidAt.HasValue ? b.PaidAt.Value.AddHours(8).ToString("MMM d, yyyy h:mm tt") : "")">
                                             <div class="fw-semibold" style="font-size:.7rem;">@b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")</div>
                                             <div class="text-truncate" style="font-size:.7rem;">@b.CourtName</div>
                                             <div class="text-truncate fw-semibold" style="font-size:.7rem;">@b.CustomerName</div>
@@ -385,6 +392,9 @@
                 <div class="small text-muted">
                     <i class="bi bi-person-badge me-1"></i>Booked by: <span id="bdBookedBy"></span>
                     &bull; <i class="bi bi-clock-history me-1"></i>Booked on: <span id="bdCreated"></span>
+                </div>
+                <div id="bdPaidRow" class="small text-muted d-none">
+                    <i class="bi bi-cash-coin me-1"></i>Paid on: <span id="bdPaid"></span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -495,6 +505,8 @@
 
             document.getElementById('bdBookedBy').textContent = d.bookedBy;
             document.getElementById('bdCreated').textContent = d.created;
+            toggle('bdPaidRow', !!d.paid);
+            document.getElementById('bdPaid').textContent = d.paid || '';
         });
     })();
 </script>

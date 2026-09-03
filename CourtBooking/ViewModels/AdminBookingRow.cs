@@ -40,6 +40,13 @@ public class AdminBookingRow
     public string? PaymentMethod { get; set; }
     public string? PaymentReference { get; set; }
 
+    /// <summary>When this row was actually marked Paid (UTC), null while still unpaid — this is the
+    /// date Admin/Staff Analytics buckets revenue/status/staff/court breakdowns by (falling back to
+    /// <see cref="BookingDate"/> only when null), which can differ from both <see cref="BookingDate"/>
+    /// and <see cref="CreatedAt"/> (e.g. a booking paid in advance for a future slot, or one created
+    /// Pending and confirmed by staff on a later day).</summary>
+    public DateTime? PaidAt { get; set; }
+
     /// <summary>Name of the Staff account that logged this as a walk-in booking, if any — null for
     /// bookings a customer made themselves online/as a guest.</summary>
     public string? BookedByStaffName { get; set; }
