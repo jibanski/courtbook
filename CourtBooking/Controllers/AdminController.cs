@@ -2906,16 +2906,24 @@ public class AdminController : Controller
     /// <summary>
     /// Group-aware counterpart to <see cref="RescheduleBooking"/>: moves every court that was
     /// purchased together as one <see cref="CourtBundle"/> package (same <see cref="Booking.BundleGroupId"/>)
-    /// to a new date in one atomic operation, so the package can't be desynced by moving just one
-    /// court out of the group. Each row keeps its own court and start/end hour — only the date
-    /// changes, since bundle-purchased courts aren't guaranteed to share identical hours (a
-    /// mixed-court bundle checkout can pick a different window per court). Rejects the move if the
-    /// new date doesn't actually have a matching <see cref="CourtBundleRateBlock"/> (wrong day of
-    /// week/holiday, or a conflicting booking) for any of the eligible courts.
+    /// to a new date AND time in one atomic operation, so the package can't be desynced by moving
+    /// just one court out of the group. Every eligible court is moved to the same
+    /// <paramref name="startHour"/>-<paramref name="endHour"/> window (bundle windows are sold as
+    /// one shared slot across member courts). Rejects the move if the new date/time doesn't
+    /// actually have a matching <see cref="CourtBundleRateBlock"/> (wrong day of week/holiday, or
+    /// a conflicting booking) for any of the eligible courts.
     /// </summary>
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> RescheduleBundleGroup(Guid groupId, DateOnly newDate)
+    public async Task<IActionResult> RescheduleBundleGroup(Guid groupId, DateOnly newDate, int startHour, int endHour)
     {
+        if (endHour <= startHour || startHour < 0 || endHour > 24)
+        {
+            TempData["Error"] = "Invalid time range.";
+            return RedirectToAction(nameof(Bookings));
+        }
+        var newStart = new TimeOnly(startHour % 24, 0);
+        var newEnd   = new TimeOnly(endHour % 24, 0);
+
         var courtIds = await GetMyCourtIdsAsync();
         var rows = await _db.Bookings
             .Include(b => b.Court).Include(b => b.User).Include(b => b.AddOns)
@@ -2930,25 +2938,23 @@ public class AdminController : Controller
             return RedirectToAction(nameof(Bookings));
         }
 
-        // Check every eligible court's own slot is free AND still has a matching bundle rate
-        // block on the new date (day-of-week/holiday schedule) before moving any of them —
-        // all-or-nothing so a conflict/no-schedule on one court can't leave the group half-moved.
+        // Check every eligible court is free AND still has a matching bundle rate block for the
+        // new date/time (day-of-week/holiday schedule) before moving any of them — all-or-nothing
+        // so a conflict/no-schedule on one court can't leave the group half-moved.
         var newPrices = new Dictionary<int, decimal>();
         foreach (var b in eligible)
         {
-            var endHour = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
-
-            var available = await _bookingService.IsSlotAvailableAsync(b.CourtId, newDate, b.StartTime, b.EndTime, excludeBookingId: b.Id);
+            var available = await _bookingService.IsSlotAvailableAsync(b.CourtId, newDate, newStart, newEnd, excludeBookingId: b.Id);
             if (!available)
             {
-                TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} — {b.CourtName ?? b.Court.Name} isn't free at {TimeDisplay.HourRange(b.StartTime.Hour, endHour)} that day.";
+                TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — {b.CourtName ?? b.Court.Name} isn't free then.";
                 return RedirectToAction(nameof(Bookings));
             }
 
-            var match = await _bookingService.ResolveBundleWindowForBookingAsync(b.Court, b.CourtBundleId!.Value, newDate, b.StartTime.Hour, endHour);
+            var match = await _bookingService.ResolveBundleWindowForBookingAsync(b.Court, b.CourtBundleId!.Value, newDate, startHour, endHour);
             if (match is null)
             {
-                TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} — {b.CourtName ?? b.Court.Name}'s bundle window doesn't run on that day.";
+                TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — {b.CourtName ?? b.Court.Name}'s bundle window doesn't run then.";
                 return RedirectToAction(nameof(Bookings));
             }
             newPrices[b.Id] = match.Value.Price;
@@ -2959,9 +2965,11 @@ public class AdminController : Controller
         foreach (var b in eligible)
         {
             b.BookingDate = newDate;
+            b.StartTime   = newStart;
+            b.EndTime     = newEnd;
 
             // Paid rows keep their originally-charged price; only unpaid/refunded rows are
-            // re-resolved against the new date — using the bundle's flat price (from the
+            // re-resolved against the new date/time — using the bundle's flat price (from the
             // schedule check above), never GetTotalPriceAsync's regular hourly rate.
             if (b.PaymentStatus != PaymentStatus.Paid)
             {
@@ -2973,18 +2981,18 @@ public class AdminController : Controller
         await _db.SaveChangesAsync();
 
         _logger.LogWarning(
-            "[Bookings] Bundle group {GroupId} ({Count} courts) rescheduled to {NewDate:yyyy-MM-dd} by {Email} (Id={UserId}) at {Time:o}",
-            groupId, eligible.Count, newDate, User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
+            "[Bookings] Bundle group {GroupId} ({Count} courts) rescheduled to {NewDate:yyyy-MM-dd} {NewStart}-{NewEnd} by {Email} (Id={UserId}) at {Time:o}",
+            groupId, eligible.Count, newDate, newStart, newEnd, User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
 
         var first = eligible[0];
         if (!string.IsNullOrWhiteSpace(first.User?.Email))
         {
             var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
             _ = _email.SendBundleGroupRescheduledToCustomerAsync(
-                first.User.Email!, first.User.FirstName, moves, newDate, baseUrl, first.User.IsGuest);
+                first.User.Email!, first.User.FirstName, moves, newDate, newStart, newEnd, baseUrl, first.User.IsGuest);
         }
 
-        TempData["Success"] = $"Bundle booking moved to {newDate:MMM d, yyyy} across {eligible.Count} court(s).";
+        TempData["Success"] = $"Bundle booking moved to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} across {eligible.Count} court(s).";
         return RedirectToAction(nameof(Bookings));
     }
 
