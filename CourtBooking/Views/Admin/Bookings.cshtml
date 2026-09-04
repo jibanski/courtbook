@@ -668,7 +668,8 @@
                                         {
                                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rescheduleGroupModal"
                                                     data-group-id="@b.BundleGroupId" data-bundle-name="@b.BundleName"
-                                                    data-date="@b.BookingDate.ToString("yyyy-MM-dd")">
+                                                    data-date="@b.BookingDate.ToString("yyyy-MM-dd")" data-start-hour="@b.StartTime.Hour"
+                                                    data-end-hour="@(b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour)">
                                                 <i class="bi bi-calendar-event me-1"></i>Reschedule Bundle
                                             </button>
                                         }
@@ -831,8 +832,28 @@
                         <label class="form-label fw-semibold">New date</label>
                         <input type="date" name="newDate" id="rsgDate" class="form-control" required />
                     </div>
-                    <p class="text-muted small mb-0">
-                        <i class="bi bi-info-circle me-1"></i>Every court in this bundle package moves to the new date together, keeping each court's original time. The customer will be emailed about the change.
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Start hour</label>
+                            <select name="startHour" id="rsgStartHour" class="form-select">
+                                @for (var h = 0; h < 24; h++)
+                                {
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">End hour</label>
+                            <select name="endHour" id="rsgEndHour" class="form-select">
+                                @for (var h = 1; h <= 24; h++)
+                                {
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>Every court in this bundle package moves to the new date/time together as one window. The customer will be emailed about the change.
                     </p>
                 </div>
                 <div class="modal-footer">
@@ -1031,6 +1052,8 @@
             document.getElementById('rsgGroupId').value = d.groupId;
             document.getElementById('rsgBundleName').textContent = d.bundleName;
             document.getElementById('rsgDate').value = d.date;
+            document.getElementById('rsgStartHour').value = d.startHour;
+            document.getElementById('rsgEndHour').value = d.endHour;
         });
     })();
 

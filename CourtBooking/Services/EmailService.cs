@@ -322,16 +322,18 @@ public class EmailService
 
     /// <summary>
     /// Group-aware counterpart to <see cref="SendBookingRescheduledToCustomerAsync"/> for a
-    /// bundle package moved as one unit — lists every court's own old schedule individually
-    /// (rather than picking one row to stand in for the whole group) since a mixed-court bundle
-    /// purchase isn't guaranteed to share identical hours per court. Safe to fire-and-forget;
-    /// never throws.
+    /// bundle package moved as one unit — lists every court's own old date/time individually
+    /// (rather than picking one row to stand in for the whole group), then shows the single new
+    /// date/time every court was moved to (bundle windows share one slot across member courts).
+    /// Safe to fire-and-forget; never throws.
     /// </summary>
     public async Task SendBundleGroupRescheduledToCustomerAsync(
         string toEmail,
         string? customerFirstName,
         List<(string CourtName, DateOnly OldDate, TimeOnly OldStart, TimeOnly OldEnd)> moves,
         DateOnly newDate,
+        TimeOnly newStart,
+        TimeOnly newEnd,
         string baseUrl,
         bool isGuest = false)
     {
@@ -341,6 +343,7 @@ public class EmailService
 
             var greeting   = string.IsNullOrWhiteSpace(customerFirstName) ? "Hi there" : $"Hi {customerFirstName}";
             var newDateLabel = newDate.ToString("dddd, MMMM d, yyyy");
+            var newTimeLabel = $"{newStart:hh\\:mm tt} – {newEnd:hh\\:mm tt}";
             var myBookings = $"{baseUrl.TrimEnd('/')}/Bookings/My";
             var myBookingsButton = isGuest ? "" : $@"
       <p style='margin:20px 0 0;text-align:center;'>
@@ -349,8 +352,7 @@ public class EmailService
 
             var rowsHtml = string.Join("", moves.Select(m =>
                 $"<tr><td style='padding:4px 0;color:#212529;'>{m.CourtName}</td>" +
-                $"<td style='padding:4px 0;color:#6c757d;text-decoration:line-through;'>{m.OldDate:MMM d, yyyy}</td>" +
-                $"<td style='padding:4px 0;'>{m.OldStart:hh\\:mm tt} – {m.OldEnd:hh\\:mm tt}</td></tr>"));
+                $"<td style='padding:4px 0;color:#6c757d;text-decoration:line-through;'>{m.OldDate:MMM d, yyyy}, {m.OldStart:hh\\:mm tt} – {m.OldEnd:hh\\:mm tt}</td></tr>"));
             var rowsPlain = string.Join("\n", moves.Select(m =>
                 $"- {m.CourtName}: was {m.OldDate:MMM d, yyyy}, {m.OldStart:hh\\:mm tt} – {m.OldEnd:hh\\:mm tt}"));
 
@@ -362,8 +364,8 @@ public class EmailService
       <div style='font-size:20px;font-weight:700;margin-top:4px;'>📅 Your bundle booking moved</div>
     </div>
     <div style='padding:24px;font-size:15px;line-height:1.6;'>
-      <p style='margin:0 0 16px;'>{greeting}, your bundle booking across {moves.Count} court(s) has been rescheduled by the facility to <strong style='color:#0d6efd;'>{newDateLabel}</strong>. Each court keeps its original time.</p>
-      <table style='width:100%;border-collapse:collapse;font-size:14px;'>{rowsHtml}</table>{myBookingsButton}
+      <p style='margin:0 0 16px;'>{greeting}, your bundle booking across {moves.Count} court(s) has been rescheduled by the facility to <strong style='color:#0d6efd;'>{newDateLabel}, {newTimeLabel}</strong>.</p>
+      <table style='width:100%;border-collapse:collapse;font-size:13px;'>{rowsHtml}</table>{myBookingsButton}
     </div>
     <div style='background:#f8f9fa;color:#6c757d;font-size:12px;padding:14px 24px;border-top:1px solid #e9ecef;'>
       Automated notice
@@ -371,7 +373,7 @@ public class EmailService
   </div>
 </body></html>";
 
-            var plain = $"Bundle Booking Rescheduled\n\n{greeting},\n\nYour bundle booking across {moves.Count} court(s) has been moved to {newDateLabel} (same time per court).\n{rowsPlain}"
+            var plain = $"Bundle Booking Rescheduled\n\n{greeting},\n\nYour bundle booking across {moves.Count} court(s) has been moved to {newDateLabel}, {newTimeLabel}.\n{rowsPlain}"
                       + (isGuest ? "" : $"\n\nView your bookings: {myBookings}");
 
             await SendAsync(toEmail, "📅 Bundle Booking Rescheduled", html, plain);
