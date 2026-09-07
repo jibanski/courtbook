@@ -373,8 +373,7 @@ public class StaffController : Controller
             .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
             .Select(kv => kv.Key).ToList();
         vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
-        vm.AvailableHours = Enumerable
-            .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
+        vm.AvailableHours = TimeDisplay.HourSequence(court.OpeningHour, court.ClosingHour)
             .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
                      && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
             .ToList();

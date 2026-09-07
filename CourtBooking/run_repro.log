@@ -1,0 +1,634 @@
+Using launch settings from C:\Users\Admin\Desktop\jtlprojects\courtbook\CourtBooking\Properties\launchSettings.json...
+info: Microsoft.EntityFrameworkCore.Migrations[20411]
+      Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (11ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = '__EFMigrationsLock' AND "type" = 'table';
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (3ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      INSERT OR IGNORE INTO "__EFMigrationsLock"("Id", "Timestamp") VALUES(1, '2026-09-06 23:00:49.0309176+00:00');
+      SELECT changes();
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+          "MigrationId" TEXT NOT NULL CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY,
+          "ProductVersion" TEXT NOT NULL
+      );
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = '__EFMigrationsHistory' AND "type" = 'table';
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "MigrationId", "ProductVersion"
+      FROM "__EFMigrationsHistory"
+      ORDER BY "MigrationId";
+info: Microsoft.EntityFrameworkCore.Migrations[20405]
+      No migrations were applied. The database is already up to date.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      DELETE FROM "__EFMigrationsLock";
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = '__EFMigrationsHistory' AND "type" = 'table';
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "MigrationId", "ProductVersion"
+      FROM "__EFMigrationsHistory"
+      ORDER BY "MigrationId";
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (3ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "Bookings" ADD COLUMN "CheckoutSessionId" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "PayMongoSecretKey" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "PayMongoMethods" TEXT NULL DEFAULT 'qrph'
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "GCashQrCodePath" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "MayaQrCodePath" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "GoTymeNumber" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "GoTymeName" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "GoTymeQrCodePath" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "PlatformConfig" ADD COLUMN "LogoData" BLOB NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "PlatformConfig" ADD COLUMN "LogoContentType" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "Bookings" ADD COLUMN "FacilityName" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "Courts" ADD COLUMN "FacilityName" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "IsDeactivated" INTEGER NOT NULL DEFAULT 0
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "DeactivatedAt" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "FacilitySettings" ADD COLUMN "HouseRules" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "CourtScheduleBlocks" ADD COLUMN "IsActive" INTEGER NOT NULL DEFAULT 1
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "CourtScheduleBlocks" ADD COLUMN "Description" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "Bookings" ADD COLUMN "CourtBundleId" INTEGER NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "Bookings" ADD COLUMN "BundleGroupId" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "CourtScheduleBlocks" ADD COLUMN "AllowPublicSignup" INTEGER NOT NULL DEFAULT 0
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "CourtScheduleBlocks" ADD COLUMN "MaxPlayers" INTEGER NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "CourtScheduleBlocks" ADD COLUMN "PricePerHead" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "AspNetUsers" ADD COLUMN "IsGuest" INTEGER NOT NULL DEFAULT 0
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "Bookings" ADD COLUMN "GuestAccessToken" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "OpenPlaySignups" ADD COLUMN "GuestAccessToken" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "OpenPlaySignups" ADD COLUMN "PlayerNames" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "AspNetUsers" ADD COLUMN "EmployerOwnerId" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "Bookings" ADD COLUMN "LoggedByStaffId" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "OpenPlaySignups" ADD COLUMN "LoggedByStaffId" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "Bookings" ADD COLUMN "CustomerNameSnapshot" TEXT NULL
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      ALTER TABLE "OpenPlaySignups" ADD COLUMN "CustomerNameSnapshot" TEXT NULL
+info: CourtBooking.Services.SubscriptionReminderHostedService[0]
+      [SubReminders] starting; first check in 00:01:00
+info: CourtBooking.Services.ReservationExpiryCleanupService[0]
+      [ReservationExpiry] starting; first check in 00:00:30
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5050
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\Admin\Desktop\jtlprojects\courtbook\CourtBooking
+warn: Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionMiddleware[3]
+      Failed to determine the https port for redirect.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "r"."Id", "r"."ApprovedAt", "r"."Body", "r"."DisplayOrder", "r"."FacilityName", "r"."IsApproved", "r"."IsFeatured", "r"."OwnerId", "r"."OwnerName", "r"."Rating", "r"."SubmittedAt", "r"."Title"
+      FROM "Reviews" AS "r"
+      WHERE "r"."IsApproved" AND "r"."IsFeatured"
+      ORDER BY "r"."DisplayOrder", "r"."SubmittedAt" DESC
+      LIMIT @__p_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      WHERE "f"."Slug" IS NOT NULL AND NOT ("f"."IsSuspended") AND NOT ("f"."IsDeactivated") AND "f"."FacilityName" <> 'CourtBook'
+      ORDER BY "f"."FacilityName"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "p"."LogoData", "p"."LogoContentType"
+      FROM "PlatformConfig" AS "p"
+      WHERE "p"."Id" = 1
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."Status" = 0 AND "b"."ReservedUntil" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "o"."Id", "o"."BookingDate", "o"."CommissionAmount", "o"."CourtId", "o"."CourtName", "o"."CreatedAt", "o"."CustomerName", "o"."CustomerNameSnapshot", "o"."DiscountAmount", "o"."EndHour", "o"."FacilityName", "o"."GuestAccessToken", "o"."LoggedByStaffId", "o"."LoggedByStaffName", "o"."Notes", "o"."PaidAt", "o"."PaymentMethod", "o"."PaymentProofPath", "o"."PaymentProofSubmittedAt", "o"."PaymentReference", "o"."PaymentStatus", "o"."PlayerNames", "o"."PricePerHeadSnapshot", "o"."RefundAmount", "o"."RefundReason", "o"."RefundedAt", "o"."ReservedUntil", "o"."SpotCount", "o"."StartHour", "o"."Status", "o"."TotalPrice", "o"."UserId", "o"."VoucherCode", "o"."VoucherId"
+      FROM "OpenPlaySignups" AS "o"
+      WHERE "o"."Status" = 0 AND "o"."ReservedUntil" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      WHERE "f"."IsSubscribed" AND "f"."OwnerId" IS NOT NULL AND ("f"."SubscriptionExpiresAt" IS NOT NULL OR "f"."SubscriptionActivatedAt" IS NOT NULL)
+info: CourtBooking.Services.SubscriptionReminderHostedService[0]
+      [SubReminders] sweep complete ΓÇö checked 0, sent 0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      ORDER BY "f"."FacilityName"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__ownerIds_0='?' (Size = 79)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."AccessFailedCount", "a"."ConcurrencyStamp", "a"."CreatedAt", "a"."Email", "a"."EmailConfirmed", "a"."EmployerOwnerId", "a"."FirstName", "a"."IsGuest", "a"."LastName", "a"."LockoutEnabled", "a"."LockoutEnd", "a"."NormalizedEmail", "a"."NormalizedUserName", "a"."PasswordHash", "a"."PhoneNumber", "a"."PhoneNumberAlt", "a"."PhoneNumberConfirmed", "a"."PreferredFacilitySlug", "a"."PrivacyPolicyAcceptedAt", "a"."SecurityStamp", "a"."TwoFactorEnabled", "a"."UserName"
+      FROM "AspNetUsers" AS "a"
+      WHERE "a"."Id" IN (
+          SELECT "o"."value"
+          FROM json_each(@__ownerIds_0) AS "o"
+      )
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__slug_0='?' (Size = 10)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      WHERE "f"."Slug" = @__slug_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__settings_OwnerId_0='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."ClosingHour", "c"."Description", "c"."FacilityName", "c"."ImageUrl", "c"."IsActive", "c"."IsIndoor", "c"."Name", "c"."OpeningHour", "c"."OwnerId", "c"."PricePerHour", "c"."SportType"
+      FROM "Courts" AS "c"
+      WHERE "c"."OwnerId" = @__settings_OwnerId_0 AND "c"."IsActive"
+      ORDER BY "c"."SportType", "c"."Name"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__settings_OwnerId_0='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT DISTINCT "c"."SportType"
+      FROM "Courts" AS "c"
+      WHERE "c"."OwnerId" = @__settings_OwnerId_0 AND "c"."IsActive"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__courtIds_0='?' (Size = 5)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."DaysOfWeek", "c"."EndHour", "c"."IncludeHolidays", "c"."PricePerHour", "c"."StartHour"
+      FROM "CourtRateTiers" AS "c"
+      WHERE "c"."CourtId" IN (
+          SELECT "c0"."value"
+          FROM json_each(@__courtIds_0) AS "c0"
+      )
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtIds_0='?' (Size = 5)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."DaysOfWeek", "c"."EndHour", "c"."IncludeHolidays", "c"."PricePerHour", "c"."StartHour"
+      FROM "CourtRateTiers" AS "c"
+      WHERE "c"."CourtId" IN (
+          SELECT "c0"."value"
+          FROM json_each(@__courtIds_0) AS "c0"
+      )
+      ORDER BY "c"."CourtId", "c"."StartHour"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      ORDER BY "f"."Id"
+      LIMIT @__p_0
+warn: Microsoft.EntityFrameworkCore.Query[10103]
+      The query uses the 'First'/'FirstOrDefault' operator without 'OrderBy' and filter operators. This may lead to unpredictable results.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "p"."LogoData", "p"."LogoContentType"
+      FROM "PlatformConfig" AS "p"
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__slug_0='?' (Size = 10)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      WHERE "f"."Slug" = @__slug_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__settings_OwnerId_1='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."ClosingHour", "c"."Description", "c"."FacilityName", "c"."ImageUrl", "c"."IsActive", "c"."IsIndoor", "c"."Name", "c"."OpeningHour", "c"."OwnerId", "c"."PricePerHour", "c"."SportType"
+      FROM "Courts" AS "c"
+      WHERE "c"."Id" = @__courtId_0 AND "c"."OwnerId" = @__settings_OwnerId_1 AND "c"."IsActive"
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."DaysOfWeek", "c"."EndHour", "c"."IncludeHolidays", "c"."PricePerHour", "c"."StartHour"
+      FROM "CourtRateTiers" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0
+      ORDER BY "c"."StartHour", "c"."EndHour", "c"."DaysOfWeek"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__court_Id_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."EndHour", "c"."IsActive", "c"."SlotDate", "c"."StartHour"
+      FROM "CourtTimeSlots" AS "c"
+      WHERE "c"."CourtId" = @__court_Id_0 AND "c"."IsActive" AND "c"."SlotDate" = @__date_1
+      ORDER BY "c"."StartHour"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" IN (1, 3)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" = 0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" = 0 AND "b"."PaymentProofPath" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId", "c"."Id", "c"."IsActive", "c"."Name", "c"."OwnerId"
+      FROM "Bookings" AS "b"
+      LEFT JOIN "CourtBundles" AS "c" ON "b"."CourtBundleId" = "c"."Id"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" = 0 AND "b"."CourtBundleId" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."EndHour", "c"."IsActive", "c"."SlotDate", "c"."StartHour"
+      FROM "CourtTimeSlots" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0 AND "c"."SlotDate" = @__date_1 AND NOT ("c"."IsActive")
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."CreatedAt", "c"."EndDate", "c"."EndHour", "c"."Reason", "c"."StartDate", "c"."StartHour"
+      FROM "CourtBlocks" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0 AND "c"."StartDate" <= @__date_1 AND "c"."EndDate" >= @__date_1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."CreatedAt", "c"."EndDate", "c"."EndHour", "c"."Reason", "c"."StartDate", "c"."StartHour"
+      FROM "CourtBlocks" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0 AND "c"."StartDate" <= @__date_1 AND "c"."EndDate" >= @__date_1 AND "c"."Reason" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__ownerId_0='?' (Size = 36), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "FacilityHolidays" AS "f"
+          WHERE "f"."OwnerId" = @__ownerId_0 AND "f"."Date" = @__date_1)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__courtId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."AllowPublicSignup", "c"."CourtId", "c"."DaysOfWeek", "c"."Description", "c"."EndHour", "c"."IncludeHolidays", "c"."IsActive", "c"."MaxPlayers", "c"."PricePerHead", "c"."StartHour", "c"."Type"
+      FROM "CourtScheduleBlocks" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0
+      ORDER BY "c"."StartHour", "c"."EndHour", "c"."DaysOfWeek"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__courtId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."IsActive", "c"."Name", "c"."OwnerId", "s"."Id", "s"."CourtBundleId", "s"."CourtId", "s"."Id0", "s"."ClosingHour", "s"."Description", "s"."FacilityName", "s"."ImageUrl", "s"."IsActive", "s"."IsIndoor", "s"."Name", "s"."OpeningHour", "s"."OwnerId", "s"."PricePerHour", "s"."SportType"
+      FROM "CourtBundles" AS "c"
+      LEFT JOIN (
+          SELECT "c1"."Id", "c1"."CourtBundleId", "c1"."CourtId", "c2"."Id" AS "Id0", "c2"."ClosingHour", "c2"."Description", "c2"."FacilityName", "c2"."ImageUrl", "c2"."IsActive", "c2"."IsIndoor", "c2"."Name", "c2"."OpeningHour", "c2"."OwnerId", "c2"."PricePerHour", "c2"."SportType"
+          FROM "CourtBundleCourts" AS "c1"
+          INNER JOIN "Courts" AS "c2" ON "c1"."CourtId" = "c2"."Id"
+      ) AS "s" ON "c"."Id" = "s"."CourtBundleId"
+      WHERE "c"."IsActive" AND EXISTS (
+          SELECT 1
+          FROM "CourtBundleCourts" AS "c0"
+          WHERE "c"."Id" = "c0"."CourtBundleId" AND "c0"."CourtId" = @__courtId_0)
+      ORDER BY "c"."Id", "s"."Id"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__bundleId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtBundleId", "c"."DaysOfWeek", "c"."EndHour", "c"."FlatPrice", "c"."IncludeHolidays", "c"."IsActive", "c"."StartHour"
+      FROM "CourtBundleRateBlocks" AS "c"
+      WHERE "c"."CourtBundleId" = @__bundleId_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__bundleId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtBundleId", "c"."DaysOfWeek", "c"."EndHour", "c"."FlatPrice", "c"."IncludeHolidays", "c"."IsActive", "c"."StartHour"
+      FROM "CourtBundleRateBlocks" AS "c"
+      WHERE "c"."CourtBundleId" = @__bundleId_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      ORDER BY "f"."Id"
+      LIMIT @__p_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "p"."LogoData", "p"."LogoContentType"
+      FROM "PlatformConfig" AS "p"
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."Status" = 0 AND "b"."ReservedUntil" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "o"."Id", "o"."BookingDate", "o"."CommissionAmount", "o"."CourtId", "o"."CourtName", "o"."CreatedAt", "o"."CustomerName", "o"."CustomerNameSnapshot", "o"."DiscountAmount", "o"."EndHour", "o"."FacilityName", "o"."GuestAccessToken", "o"."LoggedByStaffId", "o"."LoggedByStaffName", "o"."Notes", "o"."PaidAt", "o"."PaymentMethod", "o"."PaymentProofPath", "o"."PaymentProofSubmittedAt", "o"."PaymentReference", "o"."PaymentStatus", "o"."PlayerNames", "o"."PricePerHeadSnapshot", "o"."RefundAmount", "o"."RefundReason", "o"."RefundedAt", "o"."ReservedUntil", "o"."SpotCount", "o"."StartHour", "o"."Status", "o"."TotalPrice", "o"."UserId", "o"."VoucherCode", "o"."VoucherId"
+      FROM "OpenPlaySignups" AS "o"
+      WHERE "o"."Status" = 0 AND "o"."ReservedUntil" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__slug_0='?' (Size = 10)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      WHERE "f"."Slug" = @__slug_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__ownerId_0='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."IsActive", "a"."Name", "a"."OwnerId", "a"."Price", "a"."PricingType"
+      FROM "AddOnItems" AS "a"
+      WHERE "a"."OwnerId" = @__ownerId_0 AND "a"."IsActive"
+      ORDER BY "a"."Name"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      ORDER BY "f"."Id"
+      LIMIT @__p_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "p"."LogoData", "p"."LogoContentType"
+      FROM "PlatformConfig" AS "p"
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__slug_0='?' (Size = 10)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      WHERE "f"."Slug" = @__slug_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtIds_0='?' (Size = 3)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."ClosingHour", "c"."Description", "c"."FacilityName", "c"."ImageUrl", "c"."IsActive", "c"."IsIndoor", "c"."Name", "c"."OpeningHour", "c"."OwnerId", "c"."PricePerHour", "c"."SportType"
+      FROM "Courts" AS "c"
+      WHERE "c"."Id" IN (
+          SELECT "c0"."value"
+          FROM json_each(@__courtIds_0) AS "c0"
+      ) AND "c"."IsActive"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date), @__endHourInt_2='?' (DbType = Int32), @__start_Hour_3='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "CourtTimeSlots" AS "c"
+          WHERE "c"."CourtId" = @__courtId_0 AND "c"."SlotDate" = @__date_1 AND NOT ("c"."IsActive") AND "c"."StartHour" < @__endHourInt_2 AND "c"."EndHour" > @__start_Hour_3)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."CreatedAt", "c"."EndDate", "c"."EndHour", "c"."Reason", "c"."StartDate", "c"."StartHour"
+      FROM "CourtBlocks" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0 AND "c"."StartDate" <= @__date_1 AND "c"."EndDate" >= @__date_1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" <> 2
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__ownerId_0='?' (Size = 36), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "FacilityHolidays" AS "f"
+          WHERE "f"."OwnerId" = @__ownerId_0 AND "f"."Date" = @__date_1)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."DaysOfWeek", "c"."EndHour", "c"."IncludeHolidays", "c"."PricePerHour", "c"."StartHour"
+      FROM "CourtRateTiers" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0
+      ORDER BY "c"."StartHour", "c"."EndHour", "c"."DaysOfWeek"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__normalizedEmail_0='?' (Size = 20)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."AccessFailedCount", "a"."ConcurrencyStamp", "a"."CreatedAt", "a"."Email", "a"."EmailConfirmed", "a"."EmployerOwnerId", "a"."FirstName", "a"."IsGuest", "a"."LastName", "a"."LockoutEnabled", "a"."LockoutEnd", "a"."NormalizedEmail", "a"."NormalizedUserName", "a"."PasswordHash", "a"."PhoneNumber", "a"."PhoneNumberAlt", "a"."PhoneNumberConfirmed", "a"."PreferredFacilitySlug", "a"."PrivacyPolicyAcceptedAt", "a"."SecurityStamp", "a"."TwoFactorEnabled", "a"."UserName"
+      FROM "AspNetUsers" AS "a"
+      WHERE "a"."NormalizedEmail" = @__normalizedEmail_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__normalizedUserName_0='?' (Size = 20)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."AccessFailedCount", "a"."ConcurrencyStamp", "a"."CreatedAt", "a"."Email", "a"."EmailConfirmed", "a"."EmployerOwnerId", "a"."FirstName", "a"."IsGuest", "a"."LastName", "a"."LockoutEnabled", "a"."LockoutEnd", "a"."NormalizedEmail", "a"."NormalizedUserName", "a"."PasswordHash", "a"."PhoneNumber", "a"."PhoneNumberAlt", "a"."PhoneNumberConfirmed", "a"."PreferredFacilitySlug", "a"."PrivacyPolicyAcceptedAt", "a"."SecurityStamp", "a"."TwoFactorEnabled", "a"."UserName"
+      FROM "AspNetUsers" AS "a"
+      WHERE "a"."NormalizedUserName" = @__normalizedUserName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[@p0='?' (Size = 36), @p1='?' (DbType = Int32), @p2='?' (Size = 36), @p3='?' (DbType = DateTime), @p4='?' (Size = 20), @p5='?' (DbType = Boolean), @p6='?', @p7='?' (Size = 4), @p8='?' (DbType = Boolean), @p9='?' (Size = 4), @p10='?' (DbType = Boolean), @p11='?' (DbType = DateTimeOffset), @p12='?' (Size = 20), @p13='?' (Size = 20), @p14='?', @p15='?' (Size = 11), @p16='?', @p17='?' (DbType = Boolean), @p18='?', @p19='?' (DbType = DateTime), @p20='?' (Size = 32), @p21='?' (DbType = Boolean), @p22='?' (Size = 20)], CommandType='Text', CommandTimeout='30']
+      INSERT INTO "AspNetUsers" ("Id", "AccessFailedCount", "ConcurrencyStamp", "CreatedAt", "Email", "EmailConfirmed", "EmployerOwnerId", "FirstName", "IsGuest", "LastName", "LockoutEnabled", "LockoutEnd", "NormalizedEmail", "NormalizedUserName", "PasswordHash", "PhoneNumber", "PhoneNumberAlt", "PhoneNumberConfirmed", "PreferredFacilitySlug", "PrivacyPolicyAcceptedAt", "SecurityStamp", "TwoFactorEnabled", "UserName")
+      VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11, @p12, @p13, @p14, @p15, @p16, @p17, @p18, @p19, @p20, @p21, @p22);
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__normalizedRoleName_0='?' (Size = 8)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."ConcurrencyStamp", "a"."Name", "a"."NormalizedName"
+      FROM "AspNetRoles" AS "a"
+      WHERE "a"."NormalizedName" = @__normalizedRoleName_0
+      LIMIT 2
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@__p_0='?' (Size = 36), @__p_1='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."UserId", "a"."RoleId"
+      FROM "AspNetUserRoles" AS "a"
+      WHERE "a"."UserId" = @__p_0 AND "a"."RoleId" = @__p_1
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__normalizedRoleName_0='?' (Size = 8)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."ConcurrencyStamp", "a"."Name", "a"."NormalizedName"
+      FROM "AspNetRoles" AS "a"
+      WHERE "a"."NormalizedName" = @__normalizedRoleName_0
+      LIMIT 2
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__normalizedUserName_0='?' (Size = 20)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."AccessFailedCount", "a"."ConcurrencyStamp", "a"."CreatedAt", "a"."Email", "a"."EmailConfirmed", "a"."EmployerOwnerId", "a"."FirstName", "a"."IsGuest", "a"."LastName", "a"."LockoutEnabled", "a"."LockoutEnd", "a"."NormalizedEmail", "a"."NormalizedUserName", "a"."PasswordHash", "a"."PhoneNumber", "a"."PhoneNumberAlt", "a"."PhoneNumberConfirmed", "a"."PreferredFacilitySlug", "a"."PrivacyPolicyAcceptedAt", "a"."SecurityStamp", "a"."TwoFactorEnabled", "a"."UserName"
+      FROM "AspNetUsers" AS "a"
+      WHERE "a"."NormalizedUserName" = @__normalizedUserName_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (1ms) [Parameters=[@p0='?' (Size = 36), @p1='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      INSERT INTO "AspNetUserRoles" ("RoleId", "UserId")
+      VALUES (@p0, @p1);
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@p22='?' (Size = 36), @p0='?' (DbType = Int32), @p1='?' (Size = 36), @p23='?' (Size = 36), @p2='?' (DbType = DateTime), @p3='?' (Size = 20), @p4='?' (DbType = Boolean), @p5='?', @p6='?' (Size = 4), @p7='?' (DbType = Boolean), @p8='?' (Size = 4), @p9='?' (DbType = Boolean), @p10='?' (DbType = DateTimeOffset), @p11='?' (Size = 20), @p12='?' (Size = 20), @p13='?', @p14='?' (Size = 11), @p15='?', @p16='?' (DbType = Boolean), @p17='?', @p18='?' (DbType = DateTime), @p19='?' (Size = 32), @p20='?' (DbType = Boolean), @p21='?' (Size = 20)], CommandType='Text', CommandTimeout='30']
+      UPDATE "AspNetUsers" SET "AccessFailedCount" = @p0, "ConcurrencyStamp" = @p1, "CreatedAt" = @p2, "Email" = @p3, "EmailConfirmed" = @p4, "EmployerOwnerId" = @p5, "FirstName" = @p6, "IsGuest" = @p7, "LastName" = @p8, "LockoutEnabled" = @p9, "LockoutEnd" = @p10, "NormalizedEmail" = @p11, "NormalizedUserName" = @p12, "PasswordHash" = @p13, "PhoneNumber" = @p14, "PhoneNumberAlt" = @p15, "PhoneNumberConfirmed" = @p16, "PreferredFacilitySlug" = @p17, "PrivacyPolicyAcceptedAt" = @p18, "SecurityStamp" = @p19, "TwoFactorEnabled" = @p20, "UserName" = @p21
+      WHERE "Id" = @p22 AND "ConcurrencyStamp" = @p23
+      RETURNING 1;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__ownerId_0='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."IsActive", "a"."Name", "a"."OwnerId", "a"."Price", "a"."PricingType"
+      FROM "AddOnItems" AS "a"
+      WHERE "a"."OwnerId" = @__ownerId_0 AND "a"."IsActive"
+      ORDER BY "a"."Name"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (2ms) [Parameters=[@p0='?' (DbType = Date), @p1='?' (DbType = Guid), @p2='?', @p3='?' (DbType = Decimal), @p4='?' (DbType = Boolean), @p5='?' (DbType = Int32), @p6='?' (DbType = Int32), @p7='?' (Size = 7), @p8='?' (DbType = DateTime), @p9='?' (Size = 9), @p10='?' (Size = 9), @p11='?' (DbType = Decimal), @p12='?' (DbType = Time), @p13='?' (Size = 10), @p14='?' (DbType = Guid), @p15='?', @p16='?', @p17='?', @p18='?' (DbType = DateTime), @p19='?', @p20='?', @p21='?' (DbType = DateTime), @p22='?', @p23='?' (DbType = Int32), @p24='?' (DbType = Decimal), @p25='?', @p26='?' (DbType = DateTime), @p27='?' (DbType = DateTime), @p28='?' (DbType = Time), @p29='?' (DbType = Int32), @p30='?' (DbType = Decimal), @p31='?' (Size = 36), @p32='?', @p33='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      INSERT INTO "Bookings" ("BookingDate", "BundleGroupId", "CheckoutSessionId", "CommissionAmount", "CommissionPaid", "CourtBundleId", "CourtId", "CourtName", "CreatedAt", "CustomerName", "CustomerNameSnapshot", "DiscountAmount", "EndTime", "FacilityName", "GuestAccessToken", "LoggedByStaffId", "LoggedByStaffName", "Notes", "PaidAt", "PaymentMethod", "PaymentProofPath", "PaymentProofSubmittedAt", "PaymentReference", "PaymentStatus", "RefundAmount", "RefundReason", "RefundedAt", "ReservedUntil", "StartTime", "Status", "TotalPrice", "UserId", "VoucherCode", "VoucherId")
+      VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11, @p12, @p13, @p14, @p15, @p16, @p17, @p18, @p19, @p20, @p21, @p22, @p23, @p24, @p25, @p26, @p27, @p28, @p29, @p30, @p31, @p32, @p33)
+      RETURNING "Id";
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__p_0='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT "a"."Id", "a"."AccessFailedCount", "a"."ConcurrencyStamp", "a"."CreatedAt", "a"."Email", "a"."EmailConfirmed", "a"."EmployerOwnerId", "a"."FirstName", "a"."IsGuest", "a"."LastName", "a"."LockoutEnabled", "a"."LockoutEnd", "a"."NormalizedEmail", "a"."NormalizedUserName", "a"."PasswordHash", "a"."PhoneNumber", "a"."PhoneNumberAlt", "a"."PhoneNumberConfirmed", "a"."PreferredFacilitySlug", "a"."PrivacyPolicyAcceptedAt", "a"."SecurityStamp", "a"."TwoFactorEnabled", "a"."UserName"
+      FROM "AspNetUsers" AS "a"
+      WHERE "a"."Id" = @__p_0
+      LIMIT 1
+warn: CourtBooking.Services.EmailService[0]
+      [EmailService] BrevoHttp not configured ΓÇö would have sent to jibanski@gmail.com
+Subject: ≡ƒùé∩╕Å New Multi-Court Booking ΓÇö 1 slot(s)
+warn: CourtBooking.Services.EmailService[0]
+      [EmailService] BrevoHttp not configured ΓÇö would have sent to testuser@example.com
+Subject: ≡ƒùé∩╕Å Your Booking ΓÇö Complete Payment
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__token_0='?' (DbType = Guid)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId", "c"."Id", "c"."ClosingHour", "c"."Description", "c"."FacilityName", "c"."ImageUrl", "c"."IsActive", "c"."IsIndoor", "c"."Name", "c"."OpeningHour", "c"."OwnerId", "c"."PricePerHour", "c"."SportType"
+      FROM "Bookings" AS "b"
+      INNER JOIN "Courts" AS "c" ON "b"."CourtId" = "c"."Id"
+      WHERE "b"."GuestAccessToken" = @__token_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__first_Court_OwnerId_0='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      WHERE "f"."OwnerId" = @__first_Court_OwnerId_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      ORDER BY "f"."Id"
+      LIMIT @__p_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "p"."LogoData", "p"."LogoContentType"
+      FROM "PlatformConfig" AS "p"
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__slug_0='?' (Size = 10)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      WHERE "f"."Slug" = @__slug_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__settings_OwnerId_1='?' (Size = 36)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."ClosingHour", "c"."Description", "c"."FacilityName", "c"."ImageUrl", "c"."IsActive", "c"."IsIndoor", "c"."Name", "c"."OpeningHour", "c"."OwnerId", "c"."PricePerHour", "c"."SportType"
+      FROM "Courts" AS "c"
+      WHERE "c"."Id" = @__courtId_0 AND "c"."OwnerId" = @__settings_OwnerId_1 AND "c"."IsActive"
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."DaysOfWeek", "c"."EndHour", "c"."IncludeHolidays", "c"."PricePerHour", "c"."StartHour"
+      FROM "CourtRateTiers" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0
+      ORDER BY "c"."StartHour", "c"."EndHour", "c"."DaysOfWeek"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__court_Id_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."EndHour", "c"."IsActive", "c"."SlotDate", "c"."StartHour"
+      FROM "CourtTimeSlots" AS "c"
+      WHERE "c"."CourtId" = @__court_Id_0 AND "c"."IsActive" AND "c"."SlotDate" = @__date_1
+      ORDER BY "c"."StartHour"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" IN (1, 3)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" = 0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" = 0 AND "b"."PaymentProofPath" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId", "c"."Id", "c"."IsActive", "c"."Name", "c"."OwnerId"
+      FROM "Bookings" AS "b"
+      LEFT JOIN "CourtBundles" AS "c" ON "b"."CourtBundleId" = "c"."Id"
+      WHERE "b"."CourtId" = @__courtId_0 AND "b"."BookingDate" = @__date_1 AND "b"."Status" = 0 AND "b"."CourtBundleId" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."EndHour", "c"."IsActive", "c"."SlotDate", "c"."StartHour"
+      FROM "CourtTimeSlots" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0 AND "c"."SlotDate" = @__date_1 AND NOT ("c"."IsActive")
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."CreatedAt", "c"."EndDate", "c"."EndHour", "c"."Reason", "c"."StartDate", "c"."StartHour"
+      FROM "CourtBlocks" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0 AND "c"."StartDate" <= @__date_1 AND "c"."EndDate" >= @__date_1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtId", "c"."CreatedAt", "c"."EndDate", "c"."EndHour", "c"."Reason", "c"."StartDate", "c"."StartHour"
+      FROM "CourtBlocks" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0 AND "c"."StartDate" <= @__date_1 AND "c"."EndDate" >= @__date_1 AND "c"."Reason" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__ownerId_0='?' (Size = 36), @__date_1='?' (DbType = Date)], CommandType='Text', CommandTimeout='30']
+      SELECT EXISTS (
+          SELECT 1
+          FROM "FacilityHolidays" AS "f"
+          WHERE "f"."OwnerId" = @__ownerId_0 AND "f"."Date" = @__date_1)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."AllowPublicSignup", "c"."CourtId", "c"."DaysOfWeek", "c"."Description", "c"."EndHour", "c"."IncludeHolidays", "c"."IsActive", "c"."MaxPlayers", "c"."PricePerHead", "c"."StartHour", "c"."Type"
+      FROM "CourtScheduleBlocks" AS "c"
+      WHERE "c"."CourtId" = @__courtId_0
+      ORDER BY "c"."StartHour", "c"."EndHour", "c"."DaysOfWeek"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__courtId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."IsActive", "c"."Name", "c"."OwnerId", "s"."Id", "s"."CourtBundleId", "s"."CourtId", "s"."Id0", "s"."ClosingHour", "s"."Description", "s"."FacilityName", "s"."ImageUrl", "s"."IsActive", "s"."IsIndoor", "s"."Name", "s"."OpeningHour", "s"."OwnerId", "s"."PricePerHour", "s"."SportType"
+      FROM "CourtBundles" AS "c"
+      LEFT JOIN (
+          SELECT "c1"."Id", "c1"."CourtBundleId", "c1"."CourtId", "c2"."Id" AS "Id0", "c2"."ClosingHour", "c2"."Description", "c2"."FacilityName", "c2"."ImageUrl", "c2"."IsActive", "c2"."IsIndoor", "c2"."Name", "c2"."OpeningHour", "c2"."OwnerId", "c2"."PricePerHour", "c2"."SportType"
+          FROM "CourtBundleCourts" AS "c1"
+          INNER JOIN "Courts" AS "c2" ON "c1"."CourtId" = "c2"."Id"
+      ) AS "s" ON "c"."Id" = "s"."CourtBundleId"
+      WHERE "c"."IsActive" AND EXISTS (
+          SELECT 1
+          FROM "CourtBundleCourts" AS "c0"
+          WHERE "c"."Id" = "c0"."CourtBundleId" AND "c0"."CourtId" = @__courtId_0)
+      ORDER BY "c"."Id", "s"."Id"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__bundleId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtBundleId", "c"."DaysOfWeek", "c"."EndHour", "c"."FlatPrice", "c"."IncludeHolidays", "c"."IsActive", "c"."StartHour"
+      FROM "CourtBundleRateBlocks" AS "c"
+      WHERE "c"."CourtBundleId" = @__bundleId_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__bundleId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "c"."Id", "c"."CourtBundleId", "c"."DaysOfWeek", "c"."EndHour", "c"."FlatPrice", "c"."IncludeHolidays", "c"."IsActive", "c"."StartHour"
+      FROM "CourtBundleRateBlocks" AS "c"
+      WHERE "c"."CourtBundleId" = @__bundleId_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[@__p_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+      SELECT "f"."Id", "f"."Address", "f"."BillingModel", "f"."BrandLogoUrl", "f"."BrandName", "f"."BrandTagline", "f"."CommissionBalanceOwed", "f"."CommissionPaymentProofPath", "f"."CommissionPaymentRef", "f"."CommissionPaymentSubmittedAt", "f"."CommissionRate", "f"."CommissionTotalPaid", "f"."DeactivatedAt", "f"."FacebookUrl", "f"."FacilityName", "f"."GCashName", "f"."GCashNumber", "f"."GCashQrCodePath", "f"."GoTymeName", "f"."GoTymeNumber", "f"."GoTymeQrCodePath", "f"."HouseRules", "f"."InstagramUrl", "f"."IsDeactivated", "f"."IsSubscribed", "f"."IsSuspended", "f"."LastExpiryReminderThreshold", "f"."MayaName", "f"."MayaNumber", "f"."MayaQrCodePath", "f"."OwnerId", "f"."PayMongoMethods", "f"."PayMongoSecretKey", "f"."PaymentInstructions", "f"."Slug", "f"."SubscriptionActivatedAt", "f"."SubscriptionExpiresAt", "f"."SubscriptionPaymentRef", "f"."SubscriptionPlan", "f"."SubscriptionProofPath", "f"."SubscriptionSubmittedAt", "f"."SuspendedAt", "f"."SuspendedReason", "f"."TrialStartedAt"
+      FROM "FacilitySettings" AS "f"
+      ORDER BY "f"."Id"
+      LIMIT @__p_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "p"."LogoData", "p"."LogoContentType"
+      FROM "PlatformConfig" AS "p"
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "b"."Id", "b"."BookingDate", "b"."BundleGroupId", "b"."CheckoutSessionId", "b"."CommissionAmount", "b"."CommissionPaid", "b"."CourtBundleId", "b"."CourtId", "b"."CourtName", "b"."CreatedAt", "b"."CustomerName", "b"."CustomerNameSnapshot", "b"."DiscountAmount", "b"."EndTime", "b"."FacilityName", "b"."GuestAccessToken", "b"."LoggedByStaffId", "b"."LoggedByStaffName", "b"."Notes", "b"."PaidAt", "b"."PaymentMethod", "b"."PaymentProofPath", "b"."PaymentProofSubmittedAt", "b"."PaymentReference", "b"."PaymentStatus", "b"."RefundAmount", "b"."RefundReason", "b"."RefundedAt", "b"."ReservedUntil", "b"."StartTime", "b"."Status", "b"."TotalPrice", "b"."UserId", "b"."VoucherCode", "b"."VoucherId"
+      FROM "Bookings" AS "b"
+      WHERE "b"."Status" = 0 AND "b"."ReservedUntil" IS NOT NULL
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT "o"."Id", "o"."BookingDate", "o"."CommissionAmount", "o"."CourtId", "o"."CourtName", "o"."CreatedAt", "o"."CustomerName", "o"."CustomerNameSnapshot", "o"."DiscountAmount", "o"."EndHour", "o"."FacilityName", "o"."GuestAccessToken", "o"."LoggedByStaffId", "o"."LoggedByStaffName", "o"."Notes", "o"."PaidAt", "o"."PaymentMethod", "o"."PaymentProofPath", "o"."PaymentProofSubmittedAt", "o"."PaymentReference", "o"."PaymentStatus", "o"."PlayerNames", "o"."PricePerHeadSnapshot", "o"."RefundAmount", "o"."RefundReason", "o"."RefundedAt", "o"."ReservedUntil", "o"."SpotCount", "o"."StartHour", "o"."Status", "o"."TotalPrice", "o"."UserId", "o"."VoucherCode", "o"."VoucherId"
+      FROM "OpenPlaySignups" AS "o"
+      WHERE "o"."Status" = 0 AND "o"."ReservedUntil" IS NOT NULL
