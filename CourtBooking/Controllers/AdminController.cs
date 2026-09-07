@@ -858,6 +858,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateCourt(Court court, IFormFile? photo)
     {
+        if (court.ClosingHour <= court.OpeningHour)
+            ModelState.AddModelError(nameof(Court.ClosingHour), "Closing time must be after opening time.");
         if (!ModelState.IsValid) { await PopulateSportsAsync(); return View(court); }
         court.OwnerId = CurrentUserId;
         court.FacilityName = (await GetMySettingsAsync())?.FacilityName;
@@ -891,7 +893,7 @@ public class AdminController : Controller
         var bookedHours  = await _bookingService.GetBookedHoursAsync(id, selectedDate);
         var blockedHours = slots
             .Where(s => !s.IsActive)
-            .SelectMany(s => Enumerable.Range(s.StartHour, s.EndHour - s.StartHour))
+            .SelectMany(s => TimeDisplay.HourSequence(s.StartHour, s.EndHour))
             .ToHashSet();
 
         // Date/time range blocks that cover the selected date (for banner display)
@@ -994,6 +996,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> EditCourt(Court court, IFormFile? photo)
     {
+        if (court.ClosingHour <= court.OpeningHour)
+            ModelState.AddModelError(nameof(Court.ClosingHour), "Closing time must be after opening time.");
         if (!ModelState.IsValid) { await PopulateSportsAsync(); return View(court); }
 
         var existing = await MyCourts.FirstOrDefaultAsync(c => c.Id == court.Id);
@@ -3484,8 +3488,7 @@ public class AdminController : Controller
             .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
             .Select(kv => kv.Key).ToList();
         vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
-        vm.AvailableHours = Enumerable
-            .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
+        vm.AvailableHours = TimeDisplay.HourSequence(court.OpeningHour, court.ClosingHour)
             .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
                      && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
             .ToList();
