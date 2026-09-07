@@ -41,11 +41,12 @@
     <div class="col-3">
         <label asp-for="ClosingHour" class="form-label fw-semibold">Closes</label>
         <select asp-for="ClosingHour" class="form-select">
-            @for (int h = 1; h <= 24; h++)
+            @for (int h = 1; h <= 32; h++)
             {
-                <option value="@h">@TimeDisplay.Hour(h)</option>
+                <option value="@h">@TimeDisplay.Hour(h)@(h > 24 ? " (next day)" : "")</option>
             }
         </select>
+        <div class="form-text">Pick a time past midnight for a court that stays open overnight.</div>
     </div>
 </div>
 <div class="mb-3">

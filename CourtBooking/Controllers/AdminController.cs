@@ -2332,7 +2332,7 @@ public class AdminController : Controller
         foreach (var b in bookings)
         {
             var bStartHour = b.StartTime.Hour;
-            var bEndHour   = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
+            var bEndHour   = TimeDisplay.WrapAwareEndHour(b.StartTime, b.EndTime);
             if (ToInstant(b.BookingDate, bStartHour) < blockEnd && ToInstant(b.BookingDate, bEndHour) > blockStart)
                 return $"{b.BookingDate:MMM d} {TimeDisplay.HourRange(bStartHour, bEndHour)} is already booked";
         }
@@ -2850,7 +2850,7 @@ public class AdminController : Controller
         var targetCourt = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
         if (targetCourt is null) return NotFound();
 
-        if (endHour <= startHour || startHour < 0 || endHour > 24)
+        if (endHour <= startHour || startHour < 0 || endHour > 48)
         {
             TempData["Error"] = "Invalid time range.";
             return RedirectToAction(nameof(Bookings));
@@ -2858,8 +2858,11 @@ public class AdminController : Controller
 
         var newStart = new TimeOnly(startHour % 24, 0);
         var newEnd   = new TimeOnly(endHour % 24, 0);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+        // slot is entirely after midnight — the real BookingDate is the next calendar day.
+        var newBookingDate = TimeDisplay.ResolveBookingDate(newDate, startHour);
 
-        var available = await _bookingService.IsSlotAvailableAsync(courtId, newDate, newStart, newEnd, excludeBookingId: id);
+        var available = await _bookingService.IsSlotAvailableAsync(courtId, newBookingDate, newStart, newEnd, excludeBookingId: id);
         if (!available)
         {
             TempData["Error"] = $"Booking #{id} can't be moved to {targetCourt.Name} on {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — that slot isn't available.";
@@ -2873,7 +2876,7 @@ public class AdminController : Controller
 
         booking.CourtId     = courtId;
         booking.CourtName   = targetCourt.Name;
-        booking.BookingDate = newDate;
+        booking.BookingDate = newBookingDate;
         booking.StartTime   = newStart;
         booking.EndTime     = newEnd;
 
@@ -2920,13 +2923,16 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> RescheduleBundleGroup(Guid groupId, DateOnly newDate, int startHour, int endHour)
     {
-        if (endHour <= startHour || startHour < 0 || endHour > 24)
+        if (endHour <= startHour || startHour < 0 || endHour > 48)
         {
             TempData["Error"] = "Invalid time range.";
             return RedirectToAction(nameof(Bookings));
         }
         var newStart = new TimeOnly(startHour % 24, 0);
         var newEnd   = new TimeOnly(endHour % 24, 0);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+        // slot is entirely after midnight — the real BookingDate is the next calendar day.
+        var newBookingDate = TimeDisplay.ResolveBookingDate(newDate, startHour);
 
         var courtIds = await GetMyCourtIdsAsync();
         var rows = await _db.Bookings
@@ -2948,7 +2954,7 @@ public class AdminController : Controller
         var newPrices = new Dictionary<int, decimal>();
         foreach (var b in eligible)
         {
-            var available = await _bookingService.IsSlotAvailableAsync(b.CourtId, newDate, newStart, newEnd, excludeBookingId: b.Id);
+            var available = await _bookingService.IsSlotAvailableAsync(b.CourtId, newBookingDate, newStart, newEnd, excludeBookingId: b.Id);
             if (!available)
             {
                 TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — {b.CourtName ?? b.Court.Name} isn't free then.";
@@ -2968,7 +2974,7 @@ public class AdminController : Controller
 
         foreach (var b in eligible)
         {
-            b.BookingDate = newDate;
+            b.BookingDate = newBookingDate;
             b.StartTime   = newStart;
             b.EndTime     = newEnd;
 
@@ -3587,8 +3593,11 @@ public class AdminController : Controller
 
         var startTime = new TimeOnly(startHour % 24, 0);
         var endTime   = new TimeOnly((startHour + durationHours) % 24, 0);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+        // slot is entirely after midnight — the real BookingDate is the next calendar day.
+        var bookingDate = TimeDisplay.ResolveBookingDate(date, startHour);
 
-        var available = await _bookingService.IsSlotAvailableAsync(courtId, date, startTime, endTime);
+        var available = await _bookingService.IsSlotAvailableAsync(courtId, bookingDate, startTime, endTime);
         if (!available)
         {
             TempData["Error"] = "This time slot is no longer available. Please choose another time.";
@@ -3639,7 +3648,7 @@ public class AdminController : Controller
             FacilityName  = court.FacilityName,
             CourtName     = court.Name,
             CustomerName  = customerName,
-            BookingDate   = date,
+            BookingDate   = bookingDate,
             StartTime     = startTime,
             EndTime       = endTime,
             TotalPrice    = totalPrice + addOnsTotal,
@@ -3743,19 +3752,22 @@ public class AdminController : Controller
             return RedirectToAction(nameof(WalkInCartForm));
         }
 
-        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
+        var resolved = new List<(CartController.CartItemRequest Item, Court Court, DateOnly BookingDate, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
         foreach (var item in items)
         {
             var court = courtsById[item.CourtId];
             var start = new TimeOnly(item.StartHour % 24, 0);
             var end   = new TimeOnly(item.EndHour % 24, 0);
+            // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+            // slot is entirely after midnight — the real BookingDate is the next calendar day.
+            var bookingDate = TimeDisplay.ResolveBookingDate(item.Date, item.StartHour);
 
             if (item.EndHour <= item.StartHour || item.StartHour < court.OpeningHour || item.EndHour > court.ClosingHour)
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} falls outside operating hours.");
                 continue;
             }
-            if (!await _bookingService.IsSlotAvailableAsync(court.Id, item.Date, start, end))
+            if (!await _bookingService.IsSlotAvailableAsync(court.Id, bookingDate, start, end))
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is no longer available.");
                 continue;
@@ -3780,7 +3792,7 @@ public class AdminController : Controller
                     errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle is no longer available.");
                     continue;
                 }
-                resolved.Add((item, court, start, end, bundleMatch.FlatPrice, bundle));
+                resolved.Add((item, court, bookingDate, start, end, bundleMatch.FlatPrice, bundle));
                 continue;
             }
 
@@ -3791,7 +3803,7 @@ public class AdminController : Controller
             }
 
             var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
-            resolved.Add((item, court, start, end, price, null));
+            resolved.Add((item, court, bookingDate, start, end, price, null));
         }
 
         if (errors.Count > 0)
@@ -3827,7 +3839,7 @@ public class AdminController : Controller
         var bookings = new List<Booking>();
         var staffName = await CurrentUserFullNameAsync();
 
-        foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
+        foreach (var (item, court, bookingDate, start, end, slotPrice, bundle) in resolved)
         {
             var (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
                 CurrentUserId,
@@ -3842,7 +3854,7 @@ public class AdminController : Controller
                 FacilityName         = court.FacilityName,
                 CourtName            = court.Name,
                 CustomerName         = customerName,
-                BookingDate          = item.Date,
+                BookingDate          = bookingDate,
                 StartTime            = start,
                 EndTime              = end,
                 TotalPrice           = slotPrice + addOnsTotal,
@@ -3957,8 +3969,11 @@ public class AdminController : Controller
 
         var start = new TimeOnly(startHour % 24, 0);
         var end   = new TimeOnly(endHour % 24, 0);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+        // slot is entirely after midnight — the real BookingDate is the next calendar day.
+        var bookingDate = TimeDisplay.ResolveBookingDate(date, startHour);
 
-        if (!await _bookingService.IsSlotAvailableAsync(courtId, date, start, end))
+        if (!await _bookingService.IsSlotAvailableAsync(courtId, bookingDate, start, end))
         {
             TempData["Error"] = "This time slot is no longer available. Please choose another time.";
             return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
@@ -3995,7 +4010,7 @@ public class AdminController : Controller
             FacilityName         = court.FacilityName,
             CourtName            = court.Name,
             CustomerName         = customerName,
-            BookingDate          = date,
+            BookingDate          = bookingDate,
             StartTime            = start,
             EndTime              = end,
             TotalPrice           = block.FlatPrice,
