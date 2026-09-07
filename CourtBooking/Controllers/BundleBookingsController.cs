@@ -79,9 +79,12 @@ public class BundleBookingsController : Controller
         // TimeOnly only accepts 0-23, so wrap with % 24 the same way TimeDisplay.Hour does.
         var start = new TimeOnly(startHour % 24, 0);
         var end   = new TimeOnly(endHour % 24, 0);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+        // slot is entirely after midnight — the real BookingDate is the next calendar day.
+        var bookingDate = TimeDisplay.ResolveBookingDate(date, startHour);
         ViewBag.Available =
             startHour >= selectedCourt.OpeningHour && endHour <= selectedCourt.ClosingHour &&
-            await _bookingService.IsSlotAvailableAsync(selectedCourt.Id, date, start, end);
+            await _bookingService.IsSlotAvailableAsync(selectedCourt.Id, bookingDate, start, end);
         return View();
     }
 
@@ -127,6 +130,9 @@ public class BundleBookingsController : Controller
         // accepts 0-23, so wrap with % 24 the same way TimeDisplay.Hour and the GET action above do.
         var start = new TimeOnly(startHour % 24, 0);
         var end   = new TimeOnly(endHour % 24, 0);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+        // slot is entirely after midnight — the real BookingDate is the next calendar day.
+        var bookingDate = TimeDisplay.ResolveBookingDate(date, startHour);
 
         if (startHour < selectedCourt.OpeningHour || endHour > selectedCourt.ClosingHour)
         {
@@ -134,7 +140,7 @@ public class BundleBookingsController : Controller
             return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
         }
 
-        if (!await _bookingService.IsSlotAvailableAsync(selectedCourt.Id, date, start, end))
+        if (!await _bookingService.IsSlotAvailableAsync(selectedCourt.Id, bookingDate, start, end))
         {
             TempData["Error"] = $"{selectedCourt.Name} is no longer free for this window.";
             return RedirectToAction(nameof(Create), new { bundleId, date, startHour, endHour, courtId });
@@ -169,7 +175,7 @@ public class BundleBookingsController : Controller
         var existingHold = await _db.Bookings.FirstOrDefaultAsync(b =>
             b.UserId == userId &&
             b.CourtId == selectedCourt.Id &&
-            b.BookingDate == date &&
+            b.BookingDate == bookingDate &&
             b.StartTime == start &&
             b.EndTime == end &&
             b.CourtBundleId == bundle.Id &&
@@ -213,7 +219,7 @@ public class BundleBookingsController : Controller
                 CourtName     = selectedCourt.Name,
                 CustomerName  = customerName,
                 UserId        = userId,
-                BookingDate   = date,
+                BookingDate   = bookingDate,
                 StartTime     = start,
                 EndTime       = end,
                 TotalPrice    = price - discountAmount,

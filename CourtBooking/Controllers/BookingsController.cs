@@ -174,7 +174,13 @@ public class BookingsController : Controller
 
         if (!ModelState.IsValid) return View(vm);
 
-        var available = await _bookingService.IsSlotAvailableAsync(vm.CourtId, vm.BookingDate, vm.StartTime, vm.EndTime);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court, e.g. one that
+        // closes at 3am) means the slot is entirely after midnight — the real BookingDate is the
+        // next calendar day, even though vm.BookingDate is still the "business day" the customer
+        // was browsing.
+        var bookingDate = TimeDisplay.ResolveBookingDate(vm.BookingDate, vm.StartHour);
+
+        var available = await _bookingService.IsSlotAvailableAsync(vm.CourtId, bookingDate, vm.StartTime, vm.EndTime);
         if (!available)
         {
             ModelState.AddModelError("", "This time slot is no longer available. Please choose another time.");
@@ -263,7 +269,7 @@ public class BookingsController : Controller
             FacilityName = facilityName,
             CourtName = court.Name,
             CustomerName = customerName,
-            BookingDate = vm.BookingDate,
+            BookingDate = bookingDate,
             StartTime = vm.StartTime,
             EndTime = vm.EndTime,
             TotalPrice = subtotal - discountAmount,

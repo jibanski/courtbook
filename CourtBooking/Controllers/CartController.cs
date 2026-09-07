@@ -152,12 +152,15 @@ public class CartController : Controller
         // A bundle-priced item (CourtBundleId set client-side) skips the normal hourly-rate path
         // entirely and is instead re-resolved against the court's current bundle rate blocks, same
         // check BundleBookingsController.Create uses for a single window.
-        var resolved = new List<(CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
+        var resolved = new List<(CartItemRequest Item, Court Court, DateOnly BookingDate, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
         foreach (var item in items)
         {
             var court = courtsById[item.CourtId];
             var start = new TimeOnly(item.StartHour % 24, 0);
             var end   = new TimeOnly(item.EndHour % 24, 0);
+            // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+            // slot is entirely after midnight — the real BookingDate is the next calendar day.
+            var bookingDate = TimeDisplay.ResolveBookingDate(item.Date, item.StartHour);
 
             if (item.EndHour <= item.StartHour ||
                 item.StartHour < court.OpeningHour || item.EndHour > court.ClosingHour)
@@ -166,7 +169,7 @@ public class CartController : Controller
                 continue;
             }
 
-            if (!await _bookingService.IsSlotAvailableAsync(court.Id, item.Date, start, end))
+            if (!await _bookingService.IsSlotAvailableAsync(court.Id, bookingDate, start, end))
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is no longer available.");
                 continue;
@@ -180,12 +183,12 @@ public class CartController : Controller
                     errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle window is no longer available.");
                     continue;
                 }
-                resolved.Add((item, court, start, end, bundleMatch.Value.Price, bundleMatch.Value.Bundle));
+                resolved.Add((item, court, bookingDate, start, end, bundleMatch.Value.Price, bundleMatch.Value.Bundle));
                 continue;
             }
 
             var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
-            resolved.Add((item, court, start, end, price, null));
+            resolved.Add((item, court, bookingDate, start, end, price, null));
         }
 
         if (errors.Count > 0)
@@ -225,7 +228,7 @@ public class CartController : Controller
         // eligibility is checked once against the whole cart, but the discount itself is then
         // applied independently, in full, to each row's own price (not divided across courts).
         var itemAddOns = new List<(List<BookingAddOn> AddOns, decimal AddOnsTotal)>();
-        foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
+        foreach (var (item, court, bookingDate, start, end, slotPrice, bundle) in resolved)
         {
             var addOnsResult = court.OwnerId != null
                 ? await _bookingService.ResolveAddOnsAsync(
@@ -253,7 +256,7 @@ public class CartController : Controller
 
         for (int i = 0; i < resolved.Count; i++)
         {
-            var (item, court, start, end, slotPrice, bundle) = resolved[i];
+            var (item, court, bookingDate, start, end, slotPrice, bundle) = resolved[i];
             var (addOns, addOnsTotal) = itemAddOns[i];
 
             // Applied per row against that row's own price — a fixed-amount voucher discounts
@@ -269,7 +272,7 @@ public class CartController : Controller
                 CourtName        = court.Name,
                 CustomerName     = customerName,
                 UserId           = userId,
-                BookingDate      = item.Date,
+                BookingDate      = bookingDate,
                 StartTime        = start,
                 EndTime          = end,
                 TotalPrice       = rowSubtotals[i] - rowDiscount,
