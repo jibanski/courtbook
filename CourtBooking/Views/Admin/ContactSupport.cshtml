@@ -1,0 +1,61 @@
+@{
+    ViewData["Title"] = "Contact Support";
+}
+
+<div class="bg-dark text-white py-4 mb-4">
+    <div class="container">
+        <h1 class="fw-bold mb-1"><i class="bi bi-life-preserver me-2"></i>Contact Support</h1>
+        <p class="mb-0 opacity-75">Send us a message and we'll reply directly to your account email.</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            @if (TempData["Success"] is string success)
+            {
+                <div class="alert alert-success">@success</div>
+            }
+            @if (TempData["Error"] is string error)
+            {
+                <div class="alert alert-danger">@error</div>
+            }
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-envelope me-2 text-primary"></i>Send a Message
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Have a question, an issue, or feedback? Send us a message below and we'll get back
+                        to you by replying straight to your email.
+                    </p>
+                    <form asp-action="ContactSupport" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <div class="mb-3">
+                            <label for="subject" class="form-label fw-semibold">Subject</label>
+                            <input type="text" id="subject" name="subject" class="form-control"
+                                   placeholder="Briefly describe your concern" maxlength="200" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label fw-semibold">Your Message</label>
+                            <textarea id="message" name="message" class="form-control" rows="6" required
+                                      placeholder="Describe your question or concern..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="screenshot" class="form-label fw-semibold">
+                                Screenshot <span class="text-muted fw-normal">(optional)</span>
+                            </label>
+                            <input type="file" id="screenshot" name="screenshot" class="form-control"
+                                   accept="image/png,image/jpeg,image/webp,image/gif" />
+                            <div class="form-text">Max 5 MB. Attach a screenshot if it helps explain the issue.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send me-1"></i>Send Message
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

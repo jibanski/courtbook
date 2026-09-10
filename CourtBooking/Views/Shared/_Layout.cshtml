@@ -163,6 +163,14 @@
                     }
                 </ul>
                 <ul class="navbar-nav align-items-lg-center gap-1">
+                    @if (User.IsInRole("Admin"))
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Admin" asp-action="ContactSupport" title="Contact Support">
+                                <i class="bi bi-life-preserver me-1 text-danger"></i><span class="d-none d-lg-inline">Contact Support</span>
+                            </a>
+                        </li>
+                    }
                     <li class="nav-item">
                         <button type="button" id="themeToggleBtn" class="btn btn-sm btn-outline-secondary border-0" title="Toggle light/dark theme">
                             <i class="bi bi-sun-fill" id="themeToggleIcon"></i>

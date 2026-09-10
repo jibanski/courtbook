@@ -2089,6 +2089,57 @@ public class AdminController : Controller
         return RedirectToAction(nameof(OpenPlaySignups));
     }
 
+    // ── Contact Support ────────────────────────────────────────────────────────
+
+    public IActionResult ContactSupport() => View();
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ContactSupport(string subject, string message, IFormFile? screenshot)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            TempData["Error"] = "Please enter a message before sending.";
+            return RedirectToAction(nameof(ContactSupport));
+        }
+
+        var settings  = await GetMySettingsAsync();
+        var admin     = await _userManager.FindByIdAsync(CurrentUserId);
+        var adminName = admin?.FullName ?? "Facility Admin";
+
+        if (string.IsNullOrWhiteSpace(admin?.Email))
+        {
+            TempData["Error"] = "We couldn't find an email address on your account. Please contact support directly.";
+            return RedirectToAction(nameof(ContactSupport));
+        }
+
+        EmailAttachment? attachment = null;
+        if (screenshot is { Length: > 0 })
+        {
+            var ext = Path.GetExtension(screenshot.FileName).ToLowerInvariant();
+            if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp" or ".gif"))
+            {
+                TempData["Error"] = "Screenshot must be an image file (jpg, png, webp, gif).";
+                return RedirectToAction(nameof(ContactSupport));
+            }
+            if (screenshot.Length > 5 * 1024 * 1024)
+            {
+                TempData["Error"] = "Screenshot is too large. Please keep it under 5 MB.";
+                return RedirectToAction(nameof(ContactSupport));
+            }
+
+            using var ms = new MemoryStream();
+            await screenshot.CopyToAsync(ms);
+            attachment = new EmailAttachment(screenshot.FileName, ms.ToArray(), screenshot.ContentType);
+        }
+
+        await _email.SendContactSupportEmailAsync(
+            settings?.FacilityName ?? "(no facility name set)", adminName, admin.Email,
+            subject?.Trim() ?? "", message.Trim(), attachment);
+
+        TempData["Success"] = "Message sent! We'll get back to you by email soon.";
+        return RedirectToAction(nameof(ContactSupport));
+    }
+
     // ── Settings ──────────────────────────────────────────────────────────────
 
     public async Task<IActionResult> Settings()
