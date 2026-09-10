@@ -27,6 +27,7 @@ public class StaffController : Controller
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<StaffController> _logger;
     private readonly ImageCompressionService _imageCompression;
+    private readonly VoucherService _voucherService;
 
     public StaffController(
         ApplicationDbContext db,
@@ -35,7 +36,8 @@ public class StaffController : Controller
         EmailService email,
         UserManager<ApplicationUser> userManager,
         ILogger<StaffController> logger,
-        ImageCompressionService imageCompression)
+        ImageCompressionService imageCompression,
+        VoucherService voucherService)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -44,6 +46,7 @@ public class StaffController : Controller
         _logger         = logger;
         _userManager    = userManager;
         _imageCompression = imageCompression;
+        _voucherService = voucherService;
     }
 
     // ── Employer scoping ─────────────────────────────────────────────────────
@@ -239,6 +242,8 @@ public class StaffController : Controller
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
             AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
+            VoucherCode = b.VoucherCode,
+            DiscountAmount = b.DiscountAmount,
             PaymentProofPath = b.PaymentProofPath
         }).ToList();
 
@@ -262,7 +267,9 @@ public class StaffController : Controller
             HasPaymentProof = sg.HasPaymentProof,
             PaymentMethod = sg.PaymentMethod,
             PaidAt = sg.PaidAt,
-            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
+            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null,
+            VoucherCode = sg.VoucherCode,
+            DiscountAmount = sg.DiscountAmount
         }));
 
         return rows;
@@ -476,7 +483,7 @@ public class StaffController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateWalkIn(
         int courtId, DateOnly date, int startHour, int durationHours, string customerName, string customerEmail, string customerPhone,
-        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, int? fixedEndHour)
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, int? fixedEndHour, string? voucherCode)
     {
         var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
@@ -569,6 +576,21 @@ public class StaffController : Controller
             }
         }
 
+        var subtotal = totalPrice + addOnsTotal;
+        decimal discountAmount = 0m;
+        Voucher? appliedVoucher = null;
+        if (!string.IsNullOrWhiteSpace(voucherCode) && employerOwnerId != null)
+        {
+            var voucherResult = await _voucherService.ValidateAsync(voucherCode, employerOwnerId, subtotal);
+            if (!voucherResult.Success)
+            {
+                TempData["Error"] = voucherResult.Error;
+                return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+            }
+            appliedVoucher = voucherResult.Voucher;
+            discountAmount = voucherResult.DiscountAmount;
+        }
+
         // Optional proof-of-payment screenshot for GCash/Maya walk-ins — not required (staff has
         // already confirmed the payment in person), but kept for the owner's records if provided.
         string? proofPath;
@@ -599,7 +621,10 @@ public class StaffController : Controller
             BookingDate   = bookingDate,
             StartTime     = startTime,
             EndTime       = endTime,
-            TotalPrice    = totalPrice + addOnsTotal,
+            TotalPrice    = subtotal - discountAmount,
+            VoucherId     = appliedVoucher?.Id,
+            VoucherCode   = appliedVoucher?.Code,
+            DiscountAmount = discountAmount,
             Notes         = notes,
             Status        = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
             PaymentStatus = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -613,6 +638,7 @@ public class StaffController : Controller
             CustomerNameSnapshot = customerName,
             AddOns        = addOns
         };
+        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         await _bookingService.CreateBookingAsync(booking);
 
         var customerEmailToNotify = customerEmail.Trim();
@@ -734,7 +760,7 @@ public class StaffController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateWalkInCart(
         string cartJson, string customerName, string customerEmail, string customerPhone,
-        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, string? voucherCode)
     {
         List<CartController.CartItemRequest>? items;
         try
@@ -882,29 +908,56 @@ public class StaffController : Controller
         var staffName = await CurrentStaffNameAsync();
         var addOnStockReserved = new Dictionary<int, int>();
 
+        // Resolve add-ons and per-item subtotals up front — a voucher's min-spend eligibility is
+        // checked once against the whole cart, but the discount itself is applied independently,
+        // in full, to each row's own price (same pattern as CartController.Checkout).
+        var itemAddOns = new List<(List<BookingAddOn> AddOns, decimal AddOnsTotal)>();
         foreach (var (item, court, bookingDate, start, end, slotPrice, bundle) in resolved)
         {
-            List<BookingAddOn> addOns; decimal addOnsTotal;
-            if (employerOwnerId != null)
+            if (employerOwnerId is null)
             {
-                try
-                {
-                    (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
-                        employerOwnerId,
-                        (item.AddOns ?? new List<CartController.CartAddOnRequest>())
-                            .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
-                        item.EndHour - item.StartHour, bookingDate, start, end, extraReserved: addOnStockReserved);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    TempData["Error"] = $"{court.Name} on {item.Date:MMM d}: {ex.Message}";
-                    return RedirectToAction(nameof(WalkInCartForm));
-                }
+                itemAddOns.Add((new List<BookingAddOn>(), 0m));
+                continue;
             }
-            else
+            try
             {
-                (addOns, addOnsTotal) = (new List<BookingAddOn>(), 0m);
+                itemAddOns.Add(await _bookingService.ResolveAddOnsAsync(
+                    employerOwnerId,
+                    (item.AddOns ?? new List<CartController.CartAddOnRequest>())
+                        .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
+                    item.EndHour - item.StartHour, bookingDate, start, end, extraReserved: addOnStockReserved));
             }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = $"{court.Name} on {item.Date:MMM d}: {ex.Message}";
+                return RedirectToAction(nameof(WalkInCartForm));
+            }
+        }
+        var rowSubtotals = resolved.Select((r, i) => r.SlotPrice + itemAddOns[i].AddOnsTotal).ToList();
+        var cartSubtotal = rowSubtotals.Sum();
+
+        Voucher? appliedVoucher = null;
+        if (!string.IsNullOrWhiteSpace(voucherCode) && employerOwnerId != null)
+        {
+            var voucherResult = await _voucherService.ValidateAsync(voucherCode, employerOwnerId, cartSubtotal);
+            if (!voucherResult.Success)
+            {
+                TempData["Error"] = voucherResult.Error;
+                return RedirectToAction(nameof(WalkInCartForm));
+            }
+            appliedVoucher = voucherResult.Voucher;
+        }
+
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            var (item, court, bookingDate, start, end, slotPrice, bundle) = resolved[i];
+            var (addOns, addOnsTotal) = itemAddOns[i];
+
+            // Applied per row against that row's own price — a fixed-amount voucher discounts
+            // EVERY court by its full value, it isn't split thin across however many are booked.
+            decimal rowDiscount = appliedVoucher is not null
+                ? VoucherService.ComputeDiscount(appliedVoucher, rowSubtotals[i])
+                : 0m;
 
             bookings.Add(new Booking
             {
@@ -916,7 +969,10 @@ public class StaffController : Controller
                 BookingDate          = bookingDate,
                 StartTime            = start,
                 EndTime              = end,
-                TotalPrice           = slotPrice + addOnsTotal,
+                TotalPrice           = rowSubtotals[i] - rowDiscount,
+                VoucherId            = appliedVoucher?.Id,
+                VoucherCode          = appliedVoucher?.Code,
+                DiscountAmount       = rowDiscount,
                 Notes                = notes,
                 Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
                 PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -934,6 +990,7 @@ public class StaffController : Controller
             });
         }
 
+        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         _db.Bookings.AddRange(bookings);
         await _db.SaveChangesAsync();
 
@@ -1152,7 +1209,7 @@ public class StaffController : Controller
     public async Task<IActionResult> CreateWalkInBundle(
         int bundleId, int courtId, DateOnly date, int startHour, int endHour,
         string customerName, string customerEmail, string customerPhone,
-        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, string? voucherCode)
     {
         var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
@@ -1218,6 +1275,21 @@ public class StaffController : Controller
             return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
         }
 
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        decimal discountAmount = 0m;
+        Voucher? appliedVoucher = null;
+        if (!string.IsNullOrWhiteSpace(voucherCode) && employerOwnerId != null)
+        {
+            var voucherResult = await _voucherService.ValidateAsync(voucherCode, employerOwnerId, bundleMatch.Value.Price);
+            if (!voucherResult.Success)
+            {
+                TempData["Error"] = voucherResult.Error;
+                return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
+            }
+            appliedVoucher = voucherResult.Voucher;
+            discountAmount = voucherResult.DiscountAmount;
+        }
+
         bool isCash = IsCashPayment(paymentMethod);
 
         var booking = new Booking
@@ -1230,7 +1302,10 @@ public class StaffController : Controller
             BookingDate          = bookingDate,
             StartTime            = start,
             EndTime              = end,
-            TotalPrice           = bundleMatch.Value.Price,
+            TotalPrice           = bundleMatch.Value.Price - discountAmount,
+            VoucherId            = appliedVoucher?.Id,
+            VoucherCode          = appliedVoucher?.Code,
+            DiscountAmount       = discountAmount,
             Notes                = notes,
             Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
             PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -1245,6 +1320,7 @@ public class StaffController : Controller
             CourtBundleId        = bundle.Id,
             BundleGroupId        = Guid.NewGuid()
         };
+        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         await _bookingService.CreateBookingAsync(booking);
 
         var customerEmailToNotify = customerEmail.Trim();
@@ -1271,7 +1347,6 @@ public class StaffController : Controller
         }
         else
         {
-            var employerOwnerId = await GetEmployerOwnerIdAsync();
             var owner = employerOwnerId != null ? await _userManager.FindByIdAsync(employerOwnerId) : null;
             await SendWalkInPaymentSubmittedNotificationAsync(new List<Booking> { booking }, new List<Court> { court }, owner);
             TempData["Success"] = $"Logged {court.Name} ({bundle.Name}) for {customerName} ({TimeDisplay.HourRange(startHour, endHour)}) — ₱{booking.TotalPrice:N0} via {paymentMethod}, pending confirmation.";
