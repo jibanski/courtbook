@@ -55,6 +55,12 @@ public class AdminBookingRow
     /// zero for Open Play sign-ups, which don't support add-ons.</summary>
     public decimal AddOnsTotal { get; set; }
 
+    /// <summary>Discount code applied at checkout, if any — null when no voucher was used.</summary>
+    public string? VoucherCode { get; set; }
+
+    /// <summary>Peso amount knocked off by <see cref="VoucherCode"/> — already reflected in <see cref="TotalPrice"/>.</summary>
+    public decimal DiscountAmount { get; set; }
+
     /// <summary>Human-readable "2x Paddle Rental, 1x Shuttlecock" summary for a tooltip — null when there are none.</summary>
     public string? AddOnsSummary { get; set; }
 

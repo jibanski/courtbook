@@ -62,7 +62,15 @@
                                 <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
                                 <td>@b.CourtName</td>
                                 <td>@b.CustomerName</td>
-                                <td>₱@b.TotalPrice.ToString("N0")</td>
+                                <td>
+                                    ₱@b.TotalPrice.ToString("N0")
+                                    @if (!string.IsNullOrWhiteSpace(b.VoucherCode))
+                                    {
+                                        <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@b.DiscountAmount.ToString("N0")">
+                                            <i class="bi bi-ticket-perforated"></i> @b.VoucherCode
+                                        </span>
+                                    }
+                                </td>
                                 <td>@(b.PaymentMethod ?? "—")</td>
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
@@ -227,6 +235,12 @@
                                             <div class="text-muted text-nowrap" style="font-size:.7rem;" title="@b.AddOnsSummary">
                                                 Court ₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0")) + Add-ons ₱@b.AddOnsTotal.ToString("N0")
                                             </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(b.VoucherCode))
+                                        {
+                                            <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@b.DiscountAmount.ToString("N0")">
+                                                <i class="bi bi-ticket-perforated"></i> @b.VoucherCode
+                                            </span>
                                         }
                                     </td>
                                     <td>

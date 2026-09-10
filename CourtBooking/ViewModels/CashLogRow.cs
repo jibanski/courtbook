@@ -31,6 +31,13 @@ public class CashLogRow
     public string? AddOnsSummary { get; set; }
     public decimal TotalPrice { get; set; }
 
+    /// <summary>Discount code applied at checkout, if any — null when no voucher was used (always
+    /// null for add-on-only rentals, which don't support vouchers).</summary>
+    public string? VoucherCode { get; set; }
+
+    /// <summary>Peso amount knocked off by <see cref="VoucherCode"/> — already reflected in <see cref="TotalPrice"/>.</summary>
+    public decimal DiscountAmount { get; set; }
+
     /// <summary>Cash, GCash, Maya, or GoTyme — lets the reconciliation views split totals by method
     /// instead of assuming everything logged here was handed over as physical cash.</summary>
     public string? PaymentMethod { get; set; }

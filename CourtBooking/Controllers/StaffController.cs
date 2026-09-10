@@ -242,6 +242,8 @@ public class StaffController : Controller
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
             AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
+            VoucherCode = b.VoucherCode,
+            DiscountAmount = b.DiscountAmount,
             PaymentProofPath = b.PaymentProofPath
         }).ToList();
 
@@ -265,7 +267,9 @@ public class StaffController : Controller
             HasPaymentProof = sg.HasPaymentProof,
             PaymentMethod = sg.PaymentMethod,
             PaidAt = sg.PaidAt,
-            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
+            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null,
+            VoucherCode = sg.VoucherCode,
+            DiscountAmount = sg.DiscountAmount
         }));
 
         return rows;

@@ -168,6 +168,8 @@ public class AdminController : Controller
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
             AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
+            VoucherCode = b.VoucherCode,
+            DiscountAmount = b.DiscountAmount,
             RefundedAt = b.RefundedAt,
             RefundAmount = b.RefundAmount,
             RefundReason = b.RefundReason
@@ -197,6 +199,8 @@ public class AdminController : Controller
             PaymentProofPath = sg.PaymentProofPath,
             PaidAt = sg.PaidAt,
             BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null,
+            VoucherCode = sg.VoucherCode,
+            DiscountAmount = sg.DiscountAmount,
             RefundedAt = sg.RefundedAt,
             RefundAmount = sg.RefundAmount,
             RefundReason = sg.RefundReason

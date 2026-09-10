@@ -820,7 +820,9 @@ public class BookingService
                 PaymentMethod   = b.PaymentMethod,
                 Status          = b.Status,
                 LoggedByStaffId = b.LoggedByStaffId,
-                CreatedAt       = b.CreatedAt
+                CreatedAt       = b.CreatedAt,
+                VoucherCode     = b.VoucherCode,
+                DiscountAmount  = b.DiscountAmount
             };
         }).ToList();
 
@@ -842,7 +844,9 @@ public class BookingService
             PaymentMethod   = s.PaymentMethod,
             Status          = s.Status,
             LoggedByStaffId = s.LoggedByStaffId,
-            CreatedAt       = s.CreatedAt
+            CreatedAt       = s.CreatedAt,
+            VoucherCode     = s.VoucherCode,
+            DiscountAmount  = s.DiscountAmount
         }));
 
         rows.AddRange(rentals.Select(r =>

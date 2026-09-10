@@ -71,6 +71,12 @@
                                     </div>
                                     <span class="badge @groupBadgeClass">@groupRows[0].Status</span>
                                 </div>
+                                @if (!string.IsNullOrWhiteSpace(groupRows[0].VoucherCode))
+                                {
+                                    <span class="badge bg-success-subtle text-success-emphasis mb-2" title="Voucher discount -₱@groupRows.Sum(r => r.DiscountAmount).ToString("N0")">
+                                        <i class="bi bi-ticket-perforated"></i> @groupRows[0].VoucherCode
+                                    </span>
+                                }
                                 <div class="mb-2">
                                     @foreach (var row in groupRows)
                                     {
@@ -185,6 +191,14 @@
                                 <i class="bi bi-cash-coin me-2 text-primary"></i>
                                 <strong>₱@booking.TotalPrice.ToString("N0")</strong>
                             </p>
+                            @if (!string.IsNullOrWhiteSpace(booking.VoucherCode))
+                            {
+                                <p class="mb-1">
+                                    <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@booking.DiscountAmount.ToString("N0")">
+                                        <i class="bi bi-ticket-perforated"></i> @booking.VoucherCode
+                                    </span>
+                                </p>
+                            }
                             @if (booking.PaidAt.HasValue)
                             {
                                 <p class="text-muted small mb-0">
@@ -266,6 +280,14 @@
                                     <i class="bi bi-people me-2 text-primary"></i>
                                     @s.SpotCount spot@(s.SpotCount != 1 ? "s" : "") &bull; <strong>₱@s.TotalPrice.ToString("N0")</strong>
                                 </p>
+                                @if (!string.IsNullOrWhiteSpace(s.VoucherCode))
+                                {
+                                    <p class="mb-1">
+                                        <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@s.DiscountAmount.ToString("N0")">
+                                            <i class="bi bi-ticket-perforated"></i> @s.VoucherCode
+                                        </span>
+                                    </p>
+                                }
                             </div>
                             @if (sPendingPayment && !sIsPast)
                             {
