@@ -342,24 +342,25 @@
     </section>
 }
 
-<!-- ── Free & Donation ────────────────────────────────────────────────── -->
+<!-- ── Pricing ────────────────────────────────────────────────────────── -->
 <section id="pricing" style="padding:5rem 0;background:var(--cb-surface);">
     <div class="container">
         <div class="text-center mb-5">
             <span class="badge mb-2 px-3 py-2" style="background:var(--cb-lime-dim);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.2);font-size:.78rem;font-weight:600;letter-spacing:.08em;">Free Forever</span>
-            <h2 style="font-size:clamp(1.5rem,3vw,2.25rem);font-weight:800;color:var(--cb-text);letter-spacing:-0.02em;">CourtBook is completely free.</h2>
-            <p style="color:var(--cb-text-3);font-size:1rem;">No plans. No subscriptions. No credit card. Just sign up and go.</p>
+            <h2 style="font-size:clamp(1.5rem,3vw,2.25rem);font-weight:800;color:var(--cb-text);letter-spacing:-0.02em;">No Monthly Subscription. Ever.</h2>
+            <p style="color:var(--cb-text-3);font-size:1rem;max-width:640px;margin:0 auto;">Get everything you need to run your sports facility online — with <strong style="color:var(--cb-text);">₱0 monthly software fees</strong>.</p>
+            <p style="color:var(--cb-text-3);font-size:.95rem;max-width:640px;margin:.5rem auto 0;">We only charge <strong style="color:var(--cb-lime);">2%</strong> when you generate court rental revenue through CourtBook.</p>
         </div>
 
         <div class="row justify-content-center g-4">
 
-            <!-- Everything included -->
+            <!-- Included -->
             <div class="col-md-5">
                 <div class="h-100 rounded-4 p-4 d-flex flex-column" style="background:var(--cb-bg);border:1px solid rgba(163,255,18,0.3);">
                     <div class="mb-3">
-                        <span class="badge mb-2 px-3 py-1" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.25);font-size:.75rem;">✓ Included — Free</span>
-                        <div style="font-size:2.5rem;font-weight:800;color:var(--cb-lime);letter-spacing:-0.03em;">₱0</div>
-                        <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">Everything. Forever. No strings attached.</p>
+                        <span class="badge mb-2 px-3 py-1" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.25);font-size:.75rem;">✓ Included</span>
+                        <div style="font-size:2.5rem;font-weight:800;color:var(--cb-lime);letter-spacing:-0.03em;">₱0<span style="font-size:1.1rem;font-weight:600;color:var(--cb-text-3);">/month</span></div>
+                        <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">No subscription. No setup fee.</p>
                     </div>
                     <hr style="border-color:var(--cb-border);margin:1rem 0;" />
                     <ul class="list-unstyled mb-4 flex-grow-1">
@@ -371,7 +372,7 @@
                             "Time slot management",
                             "Court photo uploads",
                             "Mobile-friendly & PWA",
-                            "All future updates"
+                            "All standard platform updates included"
                         })
                         {
                             <li class="mb-2" style="font-size:.875rem;color:var(--cb-text-2);">
@@ -383,45 +384,50 @@
                        class="btn btn-primary w-100 fw-bold btn-lg mt-auto">
                         <i class="bi bi-rocket-takeoff me-2"></i>Create Free Account
                     </a>
-                </div>
-            </div>
-
-            <!-- Donation -->
-            <div class="col-md-5">
-                <div class="h-100 rounded-4 p-4 d-flex flex-column" style="background:var(--cb-bg);border:1px solid rgba(239,68,68,0.25);">
-                    <div class="mb-3">
-                        <span class="badge mb-2 px-3 py-1" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);font-size:.75rem;">
-                            <i class="bi bi-heart-fill me-1"></i>Optional Support
-                        </span>
-                        <div style="font-size:2.5rem;font-weight:800;color:var(--cb-text);letter-spacing:-0.03em;">Any amount</div>
-                        <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">If CourtBook helps your business, a small donation goes a long way.</p>
-                    </div>
-                    <hr style="border-color:var(--cb-border);margin:1rem 0;" />
-                    <ul class="list-unstyled mb-4 flex-grow-1">
-                        @foreach (var f in new[] {
-                            "Helps cover server & hosting costs",
-                            "Keeps email notifications running",
-                            "Funds new features & improvements",
-                            "Supports a small indie team",
-                            "Completely optional — no pressure",
-                        })
-                        {
-                            <li class="mb-2" style="font-size:.875rem;color:var(--cb-text-2);">
-                                <i class="bi bi-heart me-2" style="color:#f87171;"></i>@f
-                            </li>
-                        }
-                    </ul>
-                    <a asp-controller="Home" asp-action="Donate"
-                       class="btn w-100 fw-semibold mt-auto" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.3);">
-                        <i class="bi bi-heart-fill me-2"></i>Support the Team
-                    </a>
                     <p class="text-center mt-2 mb-0" style="font-size:.75rem;color:var(--cb-text-3);">
-                        <i class="bi bi-shield-check me-1" style="color:var(--cb-lime);"></i>No obligation — CourtBook stays free regardless
+                        <i class="bi bi-shield-check me-1" style="color:var(--cb-lime);"></i>No credit card required
                     </p>
                 </div>
             </div>
 
+            <!-- Usage-based fee -->
+            <div class="col-md-5">
+                <div class="h-100 rounded-4 p-4 d-flex flex-column" style="background:var(--cb-bg);border:1px solid rgba(163,255,18,0.3);">
+                    <div class="mb-3">
+                        <span class="badge mb-2 px-3 py-1" style="background:rgba(163,255,18,0.15);color:var(--cb-lime);border:1px solid rgba(163,255,18,0.25);font-size:.75rem;">
+                            <i class="bi bi-heart-fill me-1"></i>Simple Usage-Based Pricing
+                        </span>
+                        <div style="font-size:2.5rem;font-weight:800;color:var(--cb-text);letter-spacing:-0.03em;">2%</div>
+                        <p style="color:var(--cb-text-3);font-size:.875rem;margin:0;">Only on court rental revenue generated through CourtBook.</p>
+                    </div>
+                    <hr style="border-color:var(--cb-border);margin:1rem 0;" />
+                    <ul class="list-unstyled mb-4 flex-grow-1">
+                        @foreach (var f in new[] {
+                            "No monthly subscription",
+                            "No setup fee",
+                            "No minimum monthly payment",
+                            "No fee when there are no bookings",
+                            "Pay more only when your facility earns more"
+                        })
+                        {
+                            <li class="mb-2" style="font-size:.875rem;color:var(--cb-text-2);">
+                                <i class="bi bi-check-circle-fill me-2" style="color:var(--cb-lime);"></i>@f
+                            </li>
+                        }
+                    </ul>
+                    <div class="mt-auto p-3 rounded-3" style="background:rgba(163,255,18,0.08);border:1px solid rgba(163,255,18,0.2);">
+                        <p class="mb-0 text-center" style="font-size:.85rem;color:var(--cb-text-2);">
+                            You earn <strong style="color:var(--cb-text);">₱100,000</strong> &rarr; CourtBook fee = <strong style="color:var(--cb-lime);">₱2,000</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
         </div>
+
+        <p class="text-center mt-4 mb-0" style="color:var(--cb-text-3);font-size:.85rem;">
+            Love CourtBook? <a asp-controller="Home" asp-action="Donate" style="color:#f87171;font-weight:600;text-decoration:none;"><i class="bi bi-heart-fill me-1"></i>Support the team</a> &mdash; completely optional, separate from platform pricing.
+        </p>
     </div>
 </section>
 
@@ -513,7 +519,7 @@
                     @foreach (var item in new[] {
                         new {
                             q = "Is CourtBook really free?",
-                            a = "Yes — completely free. No credit card, no subscription, no trial period. Create your account and start managing your facility right away."
+                            a = "Core platform access is free forever — no monthly subscription, no credit card, no trial period. We only charge a 2% fee on court rental revenue you generate through CourtBook, so if you have no bookings, you pay nothing."
                         },
                         new {
                             q = "How do I accept payments from customers?",
@@ -611,14 +617,14 @@
         </h2>
         <p style="color:var(--cb-text-2);font-size:1.05rem;margin-bottom:2.5rem;line-height:1.7;">
             Join facility owners who have moved their court bookings online.<br>
-            Get started in minutes — free forever, no strings attached.
+            Get started in minutes — you only pay when your courts earn.
         </p>
         <a asp-controller="Trial" asp-action="Start" asp-route-role="Admin"
            class="btn btn-primary btn-lg fw-bold px-5 py-3">
             <i class="bi bi-rocket-takeoff me-2"></i>Create Your Free Account Now
         </a>
         <p style="margin-top:1rem;color:var(--cb-text-3);font-size:.82rem;">
-            No credit card &nbsp;·&nbsp; Free forever &nbsp;·&nbsp; Donation-supported
+            No credit card &nbsp;·&nbsp; ₱0/month &nbsp;·&nbsp; 2% only when you earn
         </p>
     </div>
 </section>
