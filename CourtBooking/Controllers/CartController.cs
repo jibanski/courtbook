@@ -228,16 +228,32 @@ public class CartController : Controller
         // eligibility is checked once against the whole cart, but the discount itself is then
         // applied independently, in full, to each row's own price (not divided across courts).
         var itemAddOns = new List<(List<BookingAddOn> AddOns, decimal AddOnsTotal)>();
+        var addOnStockReserved = new Dictionary<int, int>();
         foreach (var (item, court, bookingDate, start, end, slotPrice, bundle) in resolved)
         {
-            var addOnsResult = court.OwnerId != null
-                ? await _bookingService.ResolveAddOnsAsync(
+            if (court.OwnerId is null)
+            {
+                itemAddOns.Add((new List<BookingAddOn>(), 0m));
+                continue;
+            }
+            try
+            {
+                itemAddOns.Add(await _bookingService.ResolveAddOnsAsync(
                     court.OwnerId,
                     (item.AddOns ?? new List<CartAddOnRequest>())
                         .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
-                    item.EndHour - item.StartHour)
-                : (new List<BookingAddOn>(), 0m);
-            itemAddOns.Add(addOnsResult);
+                    item.EndHour - item.StartHour, bookingDate, start, end, extraReserved: addOnStockReserved));
+            }
+            catch (InvalidOperationException ex)
+            {
+                errors.Add($"{court.Name} on {item.Date:MMM d}: {ex.Message}");
+                itemAddOns.Add((new List<BookingAddOn>(), 0m));
+            }
+        }
+        if (errors.Count > 0)
+        {
+            TempData["Error"] = string.Join(" ", errors);
+            return RedirectToAction(nameof(Checkout), new { slug });
         }
         var rowSubtotals = resolved.Select((r, i) => r.SlotPrice + itemAddOns[i].AddOnsTotal).ToList();
         var cartSubtotal = rowSubtotals.Sum();

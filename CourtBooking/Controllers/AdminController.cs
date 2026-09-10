@@ -1223,7 +1223,7 @@ public class AdminController : Controller
         if (court is null) return NotFound();
 
         var daysCsv = NormalizeDays(days);
-        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 48)
         {
             TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
             return RedirectToAction(nameof(Schedule), new { id = courtId });
@@ -1298,7 +1298,7 @@ public class AdminController : Controller
         if (court is null) return NotFound();
 
         var daysCsv = NormalizeDays(days);
-        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 48)
         {
             TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
             return RedirectToAction(nameof(Schedule), new { id = courtId });
@@ -3241,17 +3241,38 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateAddOn(string name, decimal price, AddOnPricingType pricingType = AddOnPricingType.PerUnit)
+    public async Task<IActionResult> CreateAddOn(string name, decimal price, AddOnPricingType pricingType = AddOnPricingType.PerUnit, int stockQuantity = 0)
     {
-        if (string.IsNullOrWhiteSpace(name) || price < 0)
+        if (string.IsNullOrWhiteSpace(name) || price < 0 || stockQuantity < 0)
         {
-            TempData["Error"] = "Name is required and price can't be negative.";
+            TempData["Error"] = "Name is required, price and stock can't be negative.";
             return RedirectToAction(nameof(AddOns));
         }
 
-        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price, PricingType = pricingType });
+        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price, PricingType = pricingType, StockQuantity = stockQuantity });
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Add-on '{name}' created.";
+        return RedirectToAction(nameof(AddOns));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditAddOn(int id, string name, decimal price, AddOnPricingType pricingType, int stockQuantity = 0)
+    {
+        var item = await _db.AddOnItems.FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == CurrentUserId);
+        if (item is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(name) || price < 0 || stockQuantity < 0)
+        {
+            TempData["Error"] = "Name is required, price and stock can't be negative.";
+            return RedirectToAction(nameof(AddOns));
+        }
+
+        item.Name = name.Trim();
+        item.Price = price;
+        item.PricingType = pricingType;
+        item.StockQuantity = stockQuantity;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Add-on '{name}' updated.";
         return RedirectToAction(nameof(AddOns));
     }
 
@@ -3626,7 +3647,17 @@ public class AdminController : Controller
         }
 
         var totalPrice = await _bookingService.GetTotalPriceAsync(court, date, startTime, endTime);
-        var (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(CurrentUserId, Request.Form, durationHours);
+        List<BookingAddOn> addOns; decimal addOnsTotal;
+        try
+        {
+            (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(
+                CurrentUserId, Request.Form, durationHours, bookingDate, startTime, endTime);
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+        }
 
         string? proofPath;
         try
@@ -3838,14 +3869,24 @@ public class AdminController : Controller
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
         var staffName = await CurrentUserFullNameAsync();
+        var addOnStockReserved = new Dictionary<int, int>();
 
         foreach (var (item, court, bookingDate, start, end, slotPrice, bundle) in resolved)
         {
-            var (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
-                CurrentUserId,
-                (item.AddOns ?? new List<CartController.CartAddOnRequest>())
-                    .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
-                item.EndHour - item.StartHour);
+            List<BookingAddOn> addOns; decimal addOnsTotal;
+            try
+            {
+                (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
+                    CurrentUserId,
+                    (item.AddOns ?? new List<CartController.CartAddOnRequest>())
+                        .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
+                    item.EndHour - item.StartHour, bookingDate, start, end, extraReserved: addOnStockReserved);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = $"{court.Name} on {item.Date:MMM d}: {ex.Message}";
+                return RedirectToAction(nameof(WalkInCartForm));
+            }
 
             bookings.Add(new Booking
             {

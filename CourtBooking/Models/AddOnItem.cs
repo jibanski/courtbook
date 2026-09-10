@@ -23,5 +23,12 @@ public class AddOnItem
 
     public AddOnPricingType PricingType { get; set; } = AddOnPricingType.PerUnit;
 
+    /// <summary>How many physical units the facility owns (e.g. 1 paddle). 0 means unlimited —
+    /// no stock cap is enforced. Only checked for <see cref="AddOnPricingType.PerUnit"/> items,
+    /// since a PerHour item's <see cref="BookingAddOn.Quantity"/> stores billed hours, not a
+    /// concurrent physical count.</summary>
+    [Range(0, 100000)]
+    public int StockQuantity { get; set; } = 0;
+
     public bool IsActive { get; set; } = true;
 }

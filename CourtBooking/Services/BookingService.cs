@@ -312,13 +312,94 @@ public class BookingService
     public Task<List<AddOnItem>> GetActiveAddOnsAsync(string ownerId) =>
         _db.AddOnItems.AsNoTracking().Where(a => a.OwnerId == ownerId && a.IsActive).OrderBy(a => a.Name).ToListAsync();
 
+    /// <summary>Absolute [start, end) instant for a date/time pair, correctly placing the end on
+    /// the calendar day after <paramref name="date"/> when it wraps past midnight (end &lt;= start
+    /// — see <see cref="TimeDisplay.WrapAwareEndHour"/>). Used to overlap-check add-on stock holds
+    /// against each other without needing a shared reference day like <see cref="ToVirtualHours"/> does.</summary>
+    private static (DateTime Start, DateTime End) ToInstantRange(DateOnly date, TimeOnly start, TimeOnly end)
+    {
+        var startDt = date.ToDateTime(start);
+        var endDate = end <= start ? date.AddDays(1) : date;
+        return (startDt, endDate.ToDateTime(end));
+    }
+
+    /// <summary>
+    /// Total quantity of this PerUnit add-on already committed to other non-cancelled bookings
+    /// (across all of the owner's courts) whose time range overlaps the requested slot. PerHour
+    /// add-ons aren't counted here — their <see cref="BookingAddOn.Quantity"/> stores billed hours,
+    /// not a concurrent physical count, so stock-conflict checking only applies to PerUnit items.
+    /// </summary>
+    public async Task<int> GetAddOnReservedQuantityAsync(string ownerId, int addOnItemId, DateOnly date, TimeOnly start, TimeOnly end, int? excludeBookingId = null)
+    {
+        var (reqStart, reqEnd) = ToInstantRange(date, start, end);
+
+        var candidates = await _db.BookingAddOns
+            .Where(a => a.AddOnItemId == addOnItemId
+                     && a.PricingType == AddOnPricingType.PerUnit
+                     && a.Booking.Court.OwnerId == ownerId
+                     && a.Booking.BookingDate >= date.AddDays(-1) && a.Booking.BookingDate <= date.AddDays(1)
+                     && a.Booking.Status != BookingStatus.Cancelled
+                     && (excludeBookingId == null || a.BookingId != excludeBookingId))
+            .Select(a => new { a.Quantity, a.Booking.BookingDate, a.Booking.StartTime, a.Booking.EndTime })
+            .ToListAsync();
+
+        return candidates
+            .Where(c => { var (s, e) = ToInstantRange(c.BookingDate, c.StartTime, c.EndTime); return s < reqEnd && reqStart < e; })
+            .Sum(c => c.Quantity);
+    }
+
+    /// <summary>
+    /// Checks that none of the requested PerUnit add-on quantities would exceed the item's
+    /// remaining stock for this slot (0 stock = unlimited, never checked). <paramref name="extraReserved"/>
+    /// lets a caller resolving several rows in the same submission (e.g. a multi-court cart
+    /// checkout) fold in quantities already claimed by earlier rows that aren't saved yet — the
+    /// accepted quantities from THIS call are added into it before returning, so the next call in
+    /// the same loop sees them too. Returns one short message per add-on that doesn't have enough
+    /// stock left, or an empty list if everything fits.
+    /// </summary>
+    public async Task<List<string>> ValidateAddOnStockAsync(
+        string ownerId, DateOnly date, TimeOnly start, TimeOnly end,
+        IEnumerable<AddOnSelection> selections, List<AddOnItem> catalog,
+        IDictionary<int, int>? extraReserved = null, int? excludeBookingId = null)
+    {
+        var errors = new List<string>();
+
+        foreach (var selection in selections)
+        {
+            var item = catalog.FirstOrDefault(i => i.Id == selection.AddOnItemId);
+            if (item is null || selection.Quantity <= 0 || item.PricingType != AddOnPricingType.PerUnit || item.StockQuantity <= 0)
+                continue; // not found, nothing requested, hourly-billed, or unlimited stock
+
+            var reserved = await GetAddOnReservedQuantityAsync(ownerId, item.Id, date, start, end, excludeBookingId);
+            var extra = extraReserved is not null && extraReserved.TryGetValue(item.Id, out var extraQty) ? extraQty : 0;
+            var available = item.StockQuantity - reserved - extra;
+
+            if (selection.Quantity > available)
+            {
+                errors.Add(available <= 0
+                    ? $"{item.Name} is fully booked for this timeslot."
+                    : $"Only {available} {item.Name} left available for this timeslot.");
+                continue;
+            }
+
+            if (extraReserved is not null)
+                extraReserved[item.Id] = extra + selection.Quantity;
+        }
+
+        return errors;
+    }
+
     /// <summary>
     /// Reads quantity form fields named <c>addon_{Id}</c> for each of the owner's active add-ons,
     /// builds a <see cref="BookingAddOn"/> for every quantity &gt; 0 (snapshotting the current price),
     /// and returns them along with their combined total. Shared by the customer and staff walk-in
-    /// booking flows so add-on handling stays identical between them.
+    /// booking flows so add-on handling stays identical between them. Throws
+    /// <see cref="InvalidOperationException"/> if any PerUnit selection would exceed its remaining
+    /// stock for this slot (see <see cref="ValidateAddOnStockAsync"/>).
     /// </summary>
-    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveSelectedAddOnsAsync(string ownerId, IFormCollection form, int durationHours = 1)
+    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveSelectedAddOnsAsync(
+        string ownerId, IFormCollection form, int durationHours, DateOnly date, TimeOnly start, TimeOnly end,
+        int? excludeBookingId = null, IDictionary<int, int>? extraReserved = null)
     {
         var items = await GetActiveAddOnsAsync(ownerId);
         var selections = new List<AddOnSelection>();
@@ -336,17 +417,28 @@ public class BookingService
             selections.Add(new AddOnSelection(item.Id, qty, hrs));
         }
 
+        var stockErrors = await ValidateAddOnStockAsync(ownerId, date, start, end, selections, items, extraReserved, excludeBookingId);
+        if (stockErrors.Count > 0) throw new InvalidOperationException(string.Join(" ", stockErrors));
+
         return ResolveAddOnsCore(items, selections, durationHours);
     }
 
     /// <summary>
-    /// Same resolution/pricing logic as <see cref="ResolveSelectedAddOnsAsync"/>, but for callers whose
-    /// selections don't come from an <see cref="IFormCollection"/> (e.g. a JSON-sourced multi-item cart
-    /// checkout). Both funnel through <see cref="ResolveAddOnsCore"/> so pricing/validation can't diverge.
+    /// Same resolution/pricing/stock-validation logic as <see cref="ResolveSelectedAddOnsAsync"/>, but for
+    /// callers whose selections don't come from an <see cref="IFormCollection"/> (e.g. a JSON-sourced
+    /// multi-item cart checkout). Both funnel through <see cref="ResolveAddOnsCore"/> so pricing/validation
+    /// can't diverge. Throws <see cref="InvalidOperationException"/> on a stock shortfall.
     /// </summary>
-    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveAddOnsAsync(string ownerId, IEnumerable<AddOnSelection> selections, int durationHours = 1)
+    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveAddOnsAsync(
+        string ownerId, IEnumerable<AddOnSelection> selections, int durationHours, DateOnly date, TimeOnly start, TimeOnly end,
+        int? excludeBookingId = null, IDictionary<int, int>? extraReserved = null)
     {
         var items = await GetActiveAddOnsAsync(ownerId);
+        selections = selections.ToList();
+
+        var stockErrors = await ValidateAddOnStockAsync(ownerId, date, start, end, selections, items, extraReserved, excludeBookingId);
+        if (stockErrors.Count > 0) throw new InvalidOperationException(string.Join(" ", stockErrors));
+
         return ResolveAddOnsCore(items, selections, durationHours);
     }
 

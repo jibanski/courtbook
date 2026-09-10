@@ -29,6 +29,10 @@
         _ when b.HasPaymentProof => "bg-info text-white",
         _ => "bg-warning text-dark"
     };
+
+    // EndTime <= StartTime signals the booking wraps past midnight (see TimeDisplay.WrapAwareEndHour) —
+    // the shown end time is really on the calendar day after BookingDate.
+    bool WrapsNextDay(TimeOnly start, TimeOnly end) => end <= start;
 }
 
 <div class="bg-dark text-white py-4 mb-4">
@@ -220,7 +224,7 @@
                                                 data-bundle="@b.BundleName"
                                                 data-spot-count="@b.SpotCount"
                                                 data-player-names="@b.PlayerNames"
-                                                data-date-time="@($"{b.BookingDate:MMM d, yyyy} {b.StartTime:h:mm tt}–{b.EndTime:h:mm tt}")"
+                                                data-date-time="@($"{b.BookingDate:MMM d, yyyy} {b.StartTime:h:mm tt}–{b.EndTime:h:mm tt}{(WrapsNextDay(b.StartTime, b.EndTime) ? " (Next Day)" : "")}")"
                                                 data-rental="@((b.TotalPrice - b.AddOnsTotal).ToString("N0"))"
                                                 data-addons-total="@b.AddOnsTotal.ToString("N0")"
                                                 data-addons-summary="@b.AddOnsSummary"
@@ -233,7 +237,13 @@
                                                 data-booked-by="@(b.BookedByStaffName ?? "Online")"
                                                 data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")"
                                                 data-paid="@(b.PaidAt.HasValue ? b.PaidAt.Value.AddHours(8).ToString("MMM d, yyyy h:mm tt") : "")">
-                                            <div class="fw-semibold" style="font-size:.7rem;">@b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")</div>
+                                            <div class="fw-semibold" style="font-size:.7rem;">
+                                                @b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")
+                                                @if (WrapsNextDay(b.StartTime, b.EndTime))
+                                                {
+                                                    <span class="badge bg-secondary" style="font-size:.6rem;">Next Day</span>
+                                                }
+                                            </div>
                                             <div class="text-truncate" style="font-size:.7rem;">@b.CourtName</div>
                                             <div class="text-truncate fw-semibold" style="font-size:.7rem;">@b.CustomerName</div>
                                             @if (b.Status == CourtBooking.Models.BookingStatus.Pending && b.HasPaymentProof)
@@ -309,7 +319,13 @@
                                                 </div>
                                                 @foreach (var row in groupRows)
                                                 {
-                                                    <div><i class="bi bi-calendar me-1 text-muted"></i>@row.Court.Name &bull; @row.BookingDate.ToString("MMM d, yyyy") @row.StartTime.ToString("hh:mm tt")–@row.EndTime.ToString("hh:mm tt")</div>
+                                                    <div>
+                                                        <i class="bi bi-calendar me-1 text-muted"></i>@row.Court.Name &bull; @row.BookingDate.ToString("MMM d, yyyy") @row.StartTime.ToString("hh:mm tt")–@row.EndTime.ToString("hh:mm tt")
+                                                        @if (WrapsNextDay(row.StartTime, row.EndTime))
+                                                        {
+                                                            <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Next Day</span>
+                                                        }
+                                                    </div>
                                                 }
                                             </div>
 
@@ -376,7 +392,13 @@
                                                 @if (b.User.IsGuest) { <span class="badge bg-secondary ms-1">Guest</span> }
                                             </div>
                                             <div><i class="bi bi-buildings me-1 text-muted"></i>@b.Court.Name — @b.Court.SportType</div>
-                                            <div><i class="bi bi-calendar me-1 text-muted"></i>@b.BookingDate.ToString("MMM d, yyyy") @b.StartTime.ToString("hh:mm tt")–@b.EndTime.ToString("hh:mm tt")</div>
+                                            <div>
+                                                <i class="bi bi-calendar me-1 text-muted"></i>@b.BookingDate.ToString("MMM d, yyyy") @b.StartTime.ToString("hh:mm tt")–@b.EndTime.ToString("hh:mm tt")
+                                                @if (WrapsNextDay(b.StartTime, b.EndTime))
+                                                {
+                                                    <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Next Day</span>
+                                                }
+                                            </div>
                                         </div>
 
                                         @if (!string.IsNullOrWhiteSpace(b.PaymentMethod) || !string.IsNullOrWhiteSpace(b.PaymentReference))
@@ -444,7 +466,13 @@
                                                 @if (s.User.IsGuest) { <span class="badge bg-secondary ms-1">Guest</span> }
                                             </div>
                                             <div><i class="bi bi-buildings me-1 text-muted"></i>@s.Court.Name — Open Play</div>
-                                            <div><i class="bi bi-calendar me-1 text-muted"></i>@s.BookingDate.ToString("MMM d, yyyy") @TimeDisplay.HourRange(s.StartHour, s.EndHour)</div>
+                                            <div>
+                                                <i class="bi bi-calendar me-1 text-muted"></i>@s.BookingDate.ToString("MMM d, yyyy") @TimeDisplay.HourRange(s.StartHour, s.EndHour)
+                                                @if (s.EndHour > 24)
+                                                {
+                                                    <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Next Day</span>
+                                                }
+                                            </div>
                                             <div><i class="bi bi-person-bounding-box me-1 text-muted"></i>@s.SpotCount spot@(s.SpotCount != 1 ? "s" : "")</div>
                                         </div>
 
@@ -557,7 +585,13 @@
                                         }
                                     </td>
                                     <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
-                                    <td>@b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")</td>
+                                    <td>
+                                        @b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")
+                                        @if (WrapsNextDay(b.StartTime, b.EndTime))
+                                        {
+                                            <br /><span class="badge bg-secondary" style="font-size:.65rem;">Next Day</span>
+                                        }
+                                    </td>
                                     <td>
                                         <div class="fw-semibold">₱@b.TotalPrice.ToString("N0")</div>
                                         @if (b.AddOnsSummary is not null)
