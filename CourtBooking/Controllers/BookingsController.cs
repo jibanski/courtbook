@@ -243,9 +243,20 @@ public class BookingsController : Controller
                 .FirstOrDefaultAsync()
             : null;
 
-        var (addOns, addOnsTotal) = court.OwnerId != null
-            ? await _bookingService.ResolveSelectedAddOnsAsync(court.OwnerId, Request.Form, vm.DurationHours)
-            : (new List<BookingAddOn>(), 0m);
+        var (addOns, addOnsTotal) = (new List<BookingAddOn>(), 0m);
+        if (court.OwnerId != null)
+        {
+            try
+            {
+                (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(
+                    court.OwnerId, Request.Form, vm.DurationHours, bookingDate, vm.StartTime, vm.EndTime);
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError("", ex.Message);
+                return View(vm);
+            }
+        }
 
         var subtotal = totalPrice + addOnsTotal;
         decimal discountAmount = 0m;

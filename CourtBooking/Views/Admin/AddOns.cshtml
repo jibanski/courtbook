@@ -39,6 +39,11 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Stock on hand</label>
+                            <input type="number" name="stockQuantity" class="form-control" min="0" step="1" value="0" />
+                            <div class="form-text">How many units you own (e.g. 1 paddle). Leave 0 for unlimited — only Per unit items are capped; a booking can't reserve more than what's on hand for an overlapping timeslot.</div>
+                        </div>
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="bi bi-plus-lg me-1"></i>Add Item
                         </button>
@@ -53,12 +58,12 @@
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead>
-                            <tr><th>Name</th><th>Price</th><th>Pricing</th><th>Status</th><th></th></tr>
+                            <tr><th>Name</th><th>Price</th><th>Pricing</th><th>Stock</th><th>Status</th><th></th></tr>
                         </thead>
                         <tbody>
                             @if (addOnList is null || !addOnList.Any())
                             {
-                                <tr><td colspan="4" class="text-center py-4" style="color:var(--cb-text-3);">No add-ons yet.</td></tr>
+                                <tr><td colspan="6" class="text-center py-4" style="color:var(--cb-text-3);">No add-ons yet.</td></tr>
                             }
                             else
                             {
@@ -68,6 +73,9 @@
                                         <td>@item.Name</td>
                                         <td>₱@item.Price.ToString("N2")</td>
                                         <td style="font-size:.82rem;color:var(--cb-text-3);">@(item.PricingType == CourtBooking.Models.AddOnPricingType.PerHour ? "Per hour" : "Per unit")</td>
+                                        <td style="font-size:.82rem;color:var(--cb-text-3);">
+                                            @(item.StockQuantity > 0 ? item.StockQuantity.ToString() : "Unlimited")
+                                        </td>
                                         <td>
                                             @if (item.IsActive)
                                             {
@@ -78,7 +86,12 @@
                                                 <span class="badge bg-secondary">Disabled</span>
                                             }
                                         </td>
-                                        <td class="text-end">
+                                        <td class="text-end text-nowrap">
+                                            <button type="button" class="btn btn-sm btn-outline-primary cb-edit-addon"
+                                                    data-id="@item.Id" data-name="@item.Name" data-price="@item.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                    data-pricing-type="@((int)item.PricingType)" data-stock="@item.StockQuantity">
+                                                Edit
+                                            </button>
                                             <form asp-action="ToggleAddOn" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@item.Id" />
@@ -159,3 +172,57 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="cbEditAddOnModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form asp-action="EditAddOn" method="post" class="modal-content">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" id="cbEditAddOnId" />
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Add-on</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Name</label>
+                    <input name="name" id="cbEditAddOnName" class="form-control" required />
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col">
+                        <label class="form-label small fw-semibold">Price (₱)</label>
+                        <input type="number" name="price" id="cbEditAddOnPrice" class="form-control" min="0" step="0.01" required />
+                    </div>
+                    <div class="col">
+                        <label class="form-label small fw-semibold">Pricing</label>
+                        <select name="pricingType" id="cbEditAddOnPricingType" class="form-select">
+                            <option value="0">Per unit</option>
+                            <option value="1">Per hour</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold">Stock on hand</label>
+                    <input type="number" name="stockQuantity" id="cbEditAddOnStock" class="form-control" min="0" step="1" />
+                    <div class="form-text">0 = unlimited (no cap enforced).</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.cb-edit-addon').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('cbEditAddOnId').value = btn.dataset.id;
+            document.getElementById('cbEditAddOnName').value = btn.dataset.name;
+            document.getElementById('cbEditAddOnPrice').value = btn.dataset.price;
+            document.getElementById('cbEditAddOnPricingType').value = btn.dataset.pricingType;
+            document.getElementById('cbEditAddOnStock').value = btn.dataset.stock;
+            new bootstrap.Modal(document.getElementById('cbEditAddOnModal')).show();
+        });
+    });
+</script>

@@ -554,9 +554,20 @@ public class StaffController : Controller
         var totalPrice = await _bookingService.GetTotalPriceAsync(court, date, startTime, endTime);
 
         var employerOwnerId = await GetEmployerOwnerIdAsync();
-        var (addOns, addOnsTotal) = employerOwnerId != null
-            ? await _bookingService.ResolveSelectedAddOnsAsync(employerOwnerId, Request.Form, durationHours)
-            : (new List<BookingAddOn>(), 0m);
+        var (addOns, addOnsTotal) = (new List<BookingAddOn>(), 0m);
+        if (employerOwnerId != null)
+        {
+            try
+            {
+                (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(
+                    employerOwnerId, Request.Form, durationHours, bookingDate, startTime, endTime);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
+            }
+        }
 
         // Optional proof-of-payment screenshot for GCash/Maya walk-ins — not required (staff has
         // already confirmed the payment in person), but kept for the owner's records if provided.
@@ -869,16 +880,31 @@ public class StaffController : Controller
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
         var staffName = await CurrentStaffNameAsync();
+        var addOnStockReserved = new Dictionary<int, int>();
 
         foreach (var (item, court, bookingDate, start, end, slotPrice, bundle) in resolved)
         {
-            var (addOns, addOnsTotal) = employerOwnerId != null
-                ? await _bookingService.ResolveAddOnsAsync(
-                    employerOwnerId,
-                    (item.AddOns ?? new List<CartController.CartAddOnRequest>())
-                        .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
-                    item.EndHour - item.StartHour)
-                : (new List<BookingAddOn>(), 0m);
+            List<BookingAddOn> addOns; decimal addOnsTotal;
+            if (employerOwnerId != null)
+            {
+                try
+                {
+                    (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
+                        employerOwnerId,
+                        (item.AddOns ?? new List<CartController.CartAddOnRequest>())
+                            .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
+                        item.EndHour - item.StartHour, bookingDate, start, end, extraReserved: addOnStockReserved);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    TempData["Error"] = $"{court.Name} on {item.Date:MMM d}: {ex.Message}";
+                    return RedirectToAction(nameof(WalkInCartForm));
+                }
+            }
+            else
+            {
+                (addOns, addOnsTotal) = (new List<BookingAddOn>(), 0m);
+            }
 
             bookings.Add(new Booking
             {

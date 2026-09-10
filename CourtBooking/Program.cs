@@ -830,6 +830,17 @@ using (var scope = app.Services.CreateScope())
     }
     catch { /* table already exists or db not ready — non-fatal */ }
 
+    // ── Add-on rental stock caps (e.g. only 1 paddle to rent out) ────────────────
+    try
+    {
+        if (isPostgres)
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"AddOnItems\" ADD COLUMN IF NOT EXISTS \"StockQuantity\" integer NOT NULL DEFAULT 0");
+        else
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"AddOnItems\" ADD COLUMN \"StockQuantity\" INTEGER NOT NULL DEFAULT 0"); } catch { }
+    }
+    catch { /* column already exists or db not ready — non-fatal */ }
+
     foreach (var role in new[] { "Admin", "Customer", "Staff" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));

@@ -116,8 +116,15 @@
     (function () {
         var addOnCatalog = JSON.parse(document.getElementById('cbAddOnsData').textContent || '[]');
 
-        function fmtDate(iso) {
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the slot
+        // is entirely after midnight — mirrors TimeDisplay.ResolveBookingDate so the date shown here
+        // matches the real BookingDate the server will persist, not the originally-viewed date.
+        function resolveDate(iso, startHour) {
             var d = new Date(iso + 'T00:00:00');
+            d.setDate(d.getDate() + Math.floor(startHour / 24));
+            return d;
+        }
+        function fmtDate(d) {
             return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         }
         function fmtHour(h) {
@@ -162,7 +169,9 @@
 
                 var left = document.createElement('div');
                 left.innerHTML = '<div class="fw-semibold">' + item.courtName + '</div>' +
-                    '<div class="small text-muted">' + fmtDate(item.date) + ' &bull; ' + fmtHour(item.startHour) + ' - ' + fmtHour(item.endHour) + '</div>' +
+                    '<div class="small text-muted">' + fmtDate(resolveDate(item.date, item.startHour)) +
+                    (item.startHour >= 24 ? ' <span class="badge bg-secondary" style="font-size:.62rem;">Next Day</span>' : '') +
+                    ' &bull; ' + fmtHour(item.startHour) + ' - ' + fmtHour(item.endHour) + '</div>' +
                     (item.courtBundleId ? '<div class="small mt-1"><span class="badge" style="background:var(--cb-surface-3);color:var(--cb-lime);"><i class="bi bi-box-seam me-1"></i>' + (item.bundleName || 'Bundle') + '</span></div>' : '');
 
                 // Bundle windows are sold at the block's flat price — no per-hour add-ons for those,

@@ -160,15 +160,15 @@
                                                     <div class="col-4">
                                                         <label class="form-label small fw-semibold">End</label>
                                                         <select name="endHour" class="form-select form-select-sm">
-                                                            @for (int h = 1; h <= 24; h++)
+                                                            @for (int h = 1; h <= 32; h++)
                                                             {
                                                                 if (t.EndHour == h)
                                                                 {
-                                                                    <option value="@h" selected>@TimeDisplay.Hour(h)</option>
+                                                                    <option value="@h" selected>@TimeDisplay.Hour(h)@(h > 24 ? " (next day)" : "")</option>
                                                                 }
                                                                 else
                                                                 {
-                                                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                                                    <option value="@h">@TimeDisplay.Hour(h)@(h > 24 ? " (next day)" : "")</option>
                                                                 }
                                                             }
                                                         </select>
@@ -229,9 +229,9 @@
                         <div class="col-4">
                             <label class="form-label small fw-semibold mb-1" style="color:var(--cb-text-2);">End</label>
                             <select name="endHour" class="form-select form-select-sm">
-                                @for (int h = 1; h <= 24; h++)
+                                @for (int h = 1; h <= 32; h++)
                                 {
-                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                    <option value="@h">@TimeDisplay.Hour(h)@(h > 24 ? " (next day)" : "")</option>
                                 }
                             </select>
                         </div>
