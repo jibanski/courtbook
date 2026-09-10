@@ -5,6 +5,8 @@ using System.Text.Json;
 
 namespace CourtBooking.Services;
 
+public readonly record struct EmailAttachment(string FileName, byte[] Data, string ContentType);
+
 /// <summary>
 /// Email sender that supports two providers, selected by the
 /// <c>Email:Provider</c> config key:
@@ -57,7 +59,8 @@ public class EmailService
     private bool IsBrevoHttp =>
         string.Equals(Provider, "BrevoHttp", StringComparison.OrdinalIgnoreCase);
 
-    public async Task SendAsync(string toEmail, string subject, string htmlBody, string? plainBody = null)
+    public async Task SendAsync(string toEmail, string subject, string htmlBody, string? plainBody = null,
+        string? replyToEmail = null, string? replyToName = null, EmailAttachment? attachment = null)
     {
         if (!IsConfigured)
         {
@@ -68,26 +71,57 @@ public class EmailService
         }
 
         if (IsBrevoHttp)
-            await SendViaBrevoHttpAsync(toEmail, subject, htmlBody, plainBody);
+            await SendViaBrevoHttpAsync(toEmail, subject, htmlBody, plainBody, replyToEmail, replyToName, attachment);
         else
-            await SendViaSmtpAsync(toEmail, subject, htmlBody, plainBody);
+            await SendViaSmtpAsync(toEmail, subject, htmlBody, plainBody, replyToEmail, replyToName, attachment);
+    }
+
+    /// <summary>
+    /// Facility admin → CourtBook support. Sent to <c>Subscription:ContactEmail</c> with the
+    /// admin's own address set as Reply-To, so replying from the inbox goes straight to them.
+    /// </summary>
+    public async Task SendContactSupportEmailAsync(string facilityName, string adminName, string adminEmail,
+        string subject, string message, EmailAttachment? attachment = null)
+    {
+        var supportEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        var safeMessage  = WebUtility.HtmlEncode(message).Replace("\n", "<br>");
+        var html = $"""
+            <p><strong>Facility:</strong> {WebUtility.HtmlEncode(facilityName)}</p>
+            <p><strong>From:</strong> {WebUtility.HtmlEncode(adminName)} ({WebUtility.HtmlEncode(adminEmail)})</p>
+            <hr>
+            <p>{safeMessage}</p>
+            """;
+        var subjectLine = string.IsNullOrWhiteSpace(subject) ? $"CourtBook Support Request — {facilityName}" : subject;
+        await SendAsync(supportEmail, subjectLine, html,
+            replyToEmail: adminEmail, replyToName: adminName, attachment: attachment);
     }
 
     // ── Brevo HTTP API ────────────────────────────────────────────────────────
 
-    private async Task SendViaBrevoHttpAsync(string toEmail, string subject, string htmlBody, string? plainBody)
+    private async Task SendViaBrevoHttpAsync(string toEmail, string subject, string htmlBody, string? plainBody,
+        string? replyToEmail, string? replyToName, EmailAttachment? attachment = null)
     {
         var apiKey   = _config["Email:ApiKey"]!;
         var fromAddr = _config["Email:FromAddress"]!;
         var fromName = _config["Email:FromName"] ?? "CourtBook";
 
+        object? replyTo = string.IsNullOrWhiteSpace(replyToEmail)
+            ? null
+            : new { email = replyToEmail, name = replyToName };
+
+        object[]? attachments = attachment is null
+            ? null
+            : new object[] { new { content = Convert.ToBase64String(attachment.Value.Data), name = attachment.Value.FileName } };
+
         var payload = new
         {
             sender      = new { name = fromName, email = fromAddr },
             to          = new[] { new { email = toEmail } },
+            replyTo     = replyTo,
             subject     = subject,
             htmlContent = htmlBody,
-            textContent = plainBody ?? StripHtml(htmlBody)
+            textContent = plainBody ?? StripHtml(htmlBody),
+            attachment  = attachments
         };
 
         using var http = _httpClientFactory.CreateClient();
@@ -132,7 +166,8 @@ public class EmailService
 
     // ── SMTP ──────────────────────────────────────────────────────────────────
 
-    private async Task SendViaSmtpAsync(string toEmail, string subject, string htmlBody, string? plainBody)
+    private async Task SendViaSmtpAsync(string toEmail, string subject, string htmlBody, string? plainBody,
+        string? replyToEmail, string? replyToName, EmailAttachment? attachment = null)
     {
         var fromAddress = _config["Email:FromAddress"]!;
         var fromName    = _config["Email:FromName"] ?? "CourtBook";
@@ -150,6 +185,8 @@ public class EmailService
             IsBodyHtml = true,
         };
         msg.To.Add(toEmail);
+        if (!string.IsNullOrWhiteSpace(replyToEmail))
+            msg.ReplyToList.Add(new MailAddress(replyToEmail, replyToName));
 
         if (!string.IsNullOrWhiteSpace(plainBody))
         {
@@ -158,6 +195,10 @@ public class EmailService
             msg.AlternateViews.Add(plainView);
             msg.AlternateViews.Add(htmlView);
         }
+
+        using var attachmentStream = attachment is null ? null : new MemoryStream(attachment.Value.Data);
+        if (attachmentStream is not null)
+            msg.Attachments.Add(new Attachment(attachmentStream, attachment!.Value.FileName, attachment.Value.ContentType));
 
         using var client = new SmtpClient(host, port)
         {
