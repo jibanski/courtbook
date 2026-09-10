@@ -6,8 +6,8 @@ const CACHE_NAME = 'courtbook-v2';
 const STATIC_ASSETS = [
     '/css/site.css',
     '/js/site.js',
-    '/icons/icon-192.svg',
-    '/icons/icon-512.svg',
+    '/icons/icon-192.png',
+    '/icons/icon-512.png',
     '/manifest.json',
 ];
 
