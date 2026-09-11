@@ -50,6 +50,14 @@ public class HomeController : Controller
                 .OrderBy(f => f.FacilityName)
                 .ToListAsync();
 
+            // Platform-wide social-proof numbers for the landing page stats strip.
+            // Plain COUNT aggregates only (no row loads), so this is cheap regardless of table size.
+            ViewBag.StatFacilities = await _db.FacilitySettings
+                .CountAsync(f => f.Slug != null && !f.IsSuspended && !f.IsDeactivated && f.FacilityName != "CourtBook");
+            ViewBag.StatBookings = await _db.Bookings.CountAsync(b => b.Status != BookingStatus.Cancelled)
+                + await _db.OpenPlaySignups.CountAsync(s => s.Status != BookingStatus.Cancelled);
+            ViewBag.StatCourts = await _db.Courts.CountAsync(c => c.IsActive);
+
             return View("Landing", featured);
         }
 
