@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" width="400" height="220">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <clipPath id="fClip">
+      <circle cx="200" cy="100" r="52"/>
+    </clipPath>
+  </defs>
+  <rect width="400" height="220" fill="url(#bg)"/>
+  <!-- Field lines faint -->
+  <ellipse cx="200" cy="110" rx="120" ry="60" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+  <line x1="200" y1="50" x2="200" y2="170" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+  <!-- Shadow -->
+  <ellipse cx="200" cy="163" rx="55" ry="8" fill="rgba(0,0,0,0.3)"/>
+  <!-- Soccer ball -->
+  <circle cx="200" cy="100" r="52" fill="white" opacity="0.92"/>
+  <g clip-path="url(#fClip)">
+    <!-- Black pentagons (simplified) -->
+    <polygon points="200,55 213,67 208,82 192,82 187,67" fill="#1a1a1a"/>
+    <polygon points="148,85 162,78 170,91 159,103 145,100" fill="#1a1a1a"/>
+    <polygon points="252,85 238,78 230,91 241,103 255,100" fill="#1a1a1a"/>
+    <polygon points="165,130 172,117 188,118 194,134 180,142" fill="#1a1a1a"/>
+    <polygon points="235,130 228,117 212,118 206,134 220,142" fill="#1a1a1a"/>
+    <!-- White hexagons connecting lines -->
+    <line x1="200" y1="82" x2="187" y2="67" stroke="rgba(200,200,200,0.3)" stroke-width="1"/>
+    <line x1="200" y1="82" x2="213" y2="67" stroke="rgba(200,200,200,0.3)" stroke-width="1"/>
+  </g>
+  <!-- Highlight -->
+  <ellipse cx="178" cy="76" rx="13" ry="9" fill="rgba(255,255,255,0.35)" transform="rotate(-25,178,76)"/>
+  <!-- Label -->
+  <text x="200" y="198" text-anchor="middle" fill="rgba(255,255,255,0.55)" font-family="Arial,Helvetica,sans-serif" font-size="11" letter-spacing="4" font-weight="700">FOOTBALL</text>
+</svg>

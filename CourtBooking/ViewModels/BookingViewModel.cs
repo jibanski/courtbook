@@ -30,6 +30,8 @@ public class BookingViewModel
     public string? GuestEmail { get; set; }
     public string? GuestPhone { get; set; }
 
+    public string? VoucherCode { get; set; }
+
     // When set (from the GET action), this is the tier-aware total for a fixed-slot booking
     // and takes precedence over the flat Court.PricePerHour * duration fallback below.
     public decimal? ResolvedSlotTotal { get; set; }
