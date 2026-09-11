@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" width="400" height="220">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c2d12"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+    <radialGradient id="ball" cx="40%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </radialGradient>
+    <clipPath id="ballClip">
+      <circle cx="200" cy="100" r="52"/>
+    </clipPath>
+  </defs>
+  <rect width="400" height="220" fill="url(#bg)"/>
+  <!-- Shadow -->
+  <ellipse cx="200" cy="163" rx="55" ry="8" fill="rgba(0,0,0,0.25)"/>
+  <!-- Basketball -->
+  <circle cx="200" cy="100" r="52" fill="url(#ball)"/>
+  <!-- Seam lines clipped to ball -->
+  <g clip-path="url(#ballClip)">
+    <line x1="200" y1="48" x2="200" y2="152" stroke="rgba(0,0,0,0.45)" stroke-width="2.5"/>
+    <path d="M 148 100 Q 200 65 252 100" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="2.5"/>
+    <path d="M 148 100 Q 200 135 252 100" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="2.5"/>
+    <path d="M 170 52 Q 148 100 170 148" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="2"/>
+    <path d="M 230 52 Q 252 100 230 148" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="2"/>
+  </g>
+  <!-- Highlight -->
+  <ellipse cx="182" cy="78" rx="14" ry="9" fill="rgba(255,255,255,0.12)" transform="rotate(-30,182,78)"/>
+  <!-- Label -->
+  <text x="200" y="198" text-anchor="middle" fill="rgba(255,255,255,0.55)" font-family="Arial,Helvetica,sans-serif" font-size="11" letter-spacing="4" font-weight="700">BASKETBALL</text>
+</svg>

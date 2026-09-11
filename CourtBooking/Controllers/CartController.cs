@@ -242,7 +242,7 @@ public class CartController : Controller
                     court.OwnerId,
                     (item.AddOns ?? new List<CartAddOnRequest>())
                         .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
-                    item.EndHour - item.StartHour, bookingDate, start, end, extraReserved: addOnStockReserved));
+                    item.EndHour - item.StartHour));
             }
             catch (InvalidOperationException ex)
             {

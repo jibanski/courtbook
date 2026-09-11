@@ -470,6 +470,29 @@ public class BookingService
         return null;
     }
 
+    /// <summary>Resolves a requested bundle window and its effective flat price.</summary>
+    public async Task<(CourtBundle Bundle, CourtBundleRateBlock Block, decimal Price)?> ResolveBundleWindowForBookingAsync(
+        Court court, int bundleId, DateOnly date, int startHour, int endHour)
+    {
+        var bundle = (await GetBundlesForCourtAsync(court.Id))
+            .FirstOrDefault(b => b.Id == bundleId);
+        if (bundle is null) return null;
+
+        var isHoliday = court.OwnerId != null && await IsHolidayAsync(court.OwnerId, date);
+        var blocks = (await GetBundleRateBlocksAsync(bundle.Id))
+            .Where(b => b.IsActive)
+            .ToList();
+        var block = ScheduleRules.ResolveBundleRateBlock(blocks, date, isHoliday, startHour);
+        if (block is null || startHour < block.StartHour || endHour > block.EndHour || endHour <= startHour)
+            return null;
+
+        var resolved = BundleWindow.Resolve(block, date);
+        if (resolved is null || startHour < resolved.Value.EffectiveStartHour)
+            return null;
+
+        return (bundle, block, resolved.Value.EffectivePrice);
+    }
+
     /// <summary>True when any hour in [start, end) is covered by an active bundle rate block for this court.</summary>
     public async Task<bool> HasBundleOnlyHoursAsync(Court court, DateOnly date, TimeOnly start, TimeOnly end)
     {
