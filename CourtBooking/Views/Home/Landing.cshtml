@@ -9,6 +9,13 @@
     var clients = ViewBag.Clients as List<CourtBooking.Models.FacilitySettings> ?? new List<CourtBooking.Models.FacilitySettings>();
     var hasClients = clients.Count > 0;
 
+    // Only show the stats strip once the numbers are actually meaningful (avoids
+    // showing a weak "3+ Facilities" stat while the platform is still small).
+    var statFacilities = ViewBag.StatFacilities is int sf ? sf : 0;
+    var statBookings = ViewBag.StatBookings is int sb ? sb : 0;
+    var statCourts = ViewBag.StatCourts is int sc ? sc : 0;
+    var showStats = statFacilities >= 5 && statBookings >= 100;
+
     string AvatarColor(string seed)
     {
         var palette = new[] { "#A3FF12", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4" };
@@ -224,7 +231,34 @@
     </div>
 </section>
 
-<!-- ── Clients Onboarded ─────────────────────────────────────────────── -->
+<!-- Stats Strip -->
+@if (showStats)
+{
+    <section style="padding:3rem 0;background:var(--cb-bg);border-top:1px solid var(--cb-border);">
+        <div class="container">
+            <div class="row g-4 text-center">
+                <div class="col-6 col-md-3">
+                    <div style="font-size:clamp(1.75rem,4vw,2.5rem);font-weight:800;color:var(--cb-lime);letter-spacing:-0.02em;">@statFacilities.ToString("N0")+</div>
+                    <div style="color:var(--cb-text-3);font-size:.85rem;font-weight:600;letter-spacing:.03em;">Facilities Onboarded</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div style="font-size:clamp(1.75rem,4vw,2.5rem);font-weight:800;color:var(--cb-lime);letter-spacing:-0.02em;">@statBookings.ToString("N0")+</div>
+                    <div style="color:var(--cb-text-3);font-size:.85rem;font-weight:600;letter-spacing:.03em;">Bookings Made</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div style="font-size:clamp(1.75rem,4vw,2.5rem);font-weight:800;color:var(--cb-lime);letter-spacing:-0.02em;">@statCourts.ToString("N0")+</div>
+                    <div style="color:var(--cb-text-3);font-size:.85rem;font-weight:600;letter-spacing:.03em;">Courts Managed</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div style="font-size:clamp(1.75rem,4vw,2.5rem);font-weight:800;color:var(--cb-lime);letter-spacing:-0.02em;">24/7</div>
+                    <div style="color:var(--cb-text-3);font-size:.85rem;font-weight:600;letter-spacing:.03em;">Always Open for Booking</div>
+                </div>
+            </div>
+        </div>
+    </section>
+}
+
+<!-- Clients Onboarded -->
 <section id="clients" style="padding:5rem 0;background:var(--cb-surface);border-top:1px solid var(--cb-border);">
     <div class="container">
         <div class="text-center mb-5">
