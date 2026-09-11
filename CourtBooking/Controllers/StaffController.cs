@@ -27,7 +27,6 @@ public class StaffController : Controller
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<StaffController> _logger;
     private readonly ImageCompressionService _imageCompression;
-    private readonly VoucherService _voucherService;
 
     public StaffController(
         ApplicationDbContext db,
@@ -36,8 +35,7 @@ public class StaffController : Controller
         EmailService email,
         UserManager<ApplicationUser> userManager,
         ILogger<StaffController> logger,
-        ImageCompressionService imageCompression,
-        VoucherService voucherService)
+        ImageCompressionService imageCompression)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -46,7 +44,6 @@ public class StaffController : Controller
         _logger         = logger;
         _userManager    = userManager;
         _imageCompression = imageCompression;
-        _voucherService = voucherService;
     }
 
     // ── Employer scoping ─────────────────────────────────────────────────────
@@ -121,14 +118,11 @@ public class StaffController : Controller
         bool calendarView = string.Equals(view, "calendar", StringComparison.OrdinalIgnoreCase);
 
         // No default date bound previously meant an unfiltered list fetched the entire
-        // booking/signup history — default to a 60-day window (29 days back through 30 days
-        // ahead); staff can widen it manually. Must include future dates, not just the past —
-        // a past-only window silently hid upcoming bookings from this list (see identical fix
-        // in AdminController.Bookings()).
+        // booking/signup history — default to the last 30 days; staff can widen it manually.
         if (!calendarView && !dateFrom.HasValue && !dateTo.HasValue)
         {
-            dateFrom = PhtClock.Today.AddDays(-29);
-            dateTo   = PhtClock.Today.AddDays(30);
+            dateTo   = PhtClock.Today;
+            dateFrom = dateTo.Value.AddDays(-29);
         }
 
         if (!calendarView)
@@ -238,12 +232,9 @@ public class StaffController : Controller
             PaymentStatus = b.PaymentStatus,
             HasPaymentProof = b.HasPaymentProof,
             PaymentMethod = b.PaymentMethod,
-            PaidAt = b.PaidAt,
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
             AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
-            VoucherCode = b.VoucherCode,
-            DiscountAmount = b.DiscountAmount,
             PaymentProofPath = b.PaymentProofPath
         }).ToList();
 
@@ -266,10 +257,7 @@ public class StaffController : Controller
             PaymentStatus = sg.PaymentStatus,
             HasPaymentProof = sg.HasPaymentProof,
             PaymentMethod = sg.PaymentMethod,
-            PaidAt = sg.PaidAt,
-            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null,
-            VoucherCode = sg.VoucherCode,
-            DiscountAmount = sg.DiscountAmount
+            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
         }));
 
         return rows;
@@ -380,7 +368,8 @@ public class StaffController : Controller
             .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
             .Select(kv => kv.Key).ToList();
         vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
-        vm.AvailableHours = TimeDisplay.HourSequence(court.OpeningHour, court.ClosingHour)
+        vm.AvailableHours = Enumerable
+            .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
             .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
                      && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
             .ToList();
@@ -483,7 +472,7 @@ public class StaffController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateWalkIn(
         int courtId, DateOnly date, int startHour, int durationHours, string customerName, string customerEmail, string customerPhone,
-        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, int? fixedEndHour, string? voucherCode)
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, int? fixedEndHour)
     {
         var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
@@ -526,11 +515,8 @@ public class StaffController : Controller
 
         var startTime = new TimeOnly(startHour % 24, 0);
         var endTime   = new TimeOnly((startHour + durationHours) % 24, 0);
-        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
-        // slot is entirely after midnight — the real BookingDate is the next calendar day.
-        var bookingDate = TimeDisplay.ResolveBookingDate(date, startHour);
 
-        var available = await _bookingService.IsSlotAvailableAsync(courtId, bookingDate, startTime, endTime);
+        var available = await _bookingService.IsSlotAvailableAsync(courtId, date, startTime, endTime);
         if (!available)
         {
             TempData["Error"] = "This time slot is no longer available. Please choose another time.";
@@ -561,35 +547,9 @@ public class StaffController : Controller
         var totalPrice = await _bookingService.GetTotalPriceAsync(court, date, startTime, endTime);
 
         var employerOwnerId = await GetEmployerOwnerIdAsync();
-        var (addOns, addOnsTotal) = (new List<BookingAddOn>(), 0m);
-        if (employerOwnerId != null)
-        {
-            try
-            {
-                (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(
-                    employerOwnerId, Request.Form, durationHours, bookingDate, startTime, endTime);
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = ex.Message;
-                return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
-            }
-        }
-
-        var subtotal = totalPrice + addOnsTotal;
-        decimal discountAmount = 0m;
-        Voucher? appliedVoucher = null;
-        if (!string.IsNullOrWhiteSpace(voucherCode) && employerOwnerId != null)
-        {
-            var voucherResult = await _voucherService.ValidateAsync(voucherCode, employerOwnerId, subtotal);
-            if (!voucherResult.Success)
-            {
-                TempData["Error"] = voucherResult.Error;
-                return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
-            }
-            appliedVoucher = voucherResult.Voucher;
-            discountAmount = voucherResult.DiscountAmount;
-        }
+        var (addOns, addOnsTotal) = employerOwnerId != null
+            ? await _bookingService.ResolveSelectedAddOnsAsync(employerOwnerId, Request.Form, durationHours)
+            : (new List<BookingAddOn>(), 0m);
 
         // Optional proof-of-payment screenshot for GCash/Maya walk-ins — not required (staff has
         // already confirmed the payment in person), but kept for the owner's records if provided.
@@ -618,13 +578,10 @@ public class StaffController : Controller
             FacilityName  = court.FacilityName,
             CourtName     = court.Name,
             CustomerName  = customerName,
-            BookingDate   = bookingDate,
+            BookingDate   = date,
             StartTime     = startTime,
             EndTime       = endTime,
-            TotalPrice    = subtotal - discountAmount,
-            VoucherId     = appliedVoucher?.Id,
-            VoucherCode   = appliedVoucher?.Code,
-            DiscountAmount = discountAmount,
+            TotalPrice    = totalPrice + addOnsTotal,
             Notes         = notes,
             Status        = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
             PaymentStatus = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -638,7 +595,6 @@ public class StaffController : Controller
             CustomerNameSnapshot = customerName,
             AddOns        = addOns
         };
-        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         await _bookingService.CreateBookingAsync(booking);
 
         var customerEmailToNotify = customerEmail.Trim();
@@ -760,7 +716,7 @@ public class StaffController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateWalkInCart(
         string cartJson, string customerName, string customerEmail, string customerPhone,
-        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, string? voucherCode)
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
     {
         List<CartController.CartItemRequest>? items;
         try
@@ -816,22 +772,19 @@ public class StaffController : Controller
         // A bundle-priced item (CourtBundleId set client-side) skips the normal hourly-rate path
         // entirely and is instead re-resolved against the court's current bundle rate blocks,
         // same check WalkInBundleForm/CreateWalkInBundle use for a single window.
-        var resolved = new List<(CartController.CartItemRequest Item, Court Court, DateOnly BookingDate, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
+        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
         foreach (var item in items)
         {
             var court = courtsById[item.CourtId];
             var start = new TimeOnly(item.StartHour % 24, 0);
             var end   = new TimeOnly(item.EndHour % 24, 0);
-            // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
-            // slot is entirely after midnight — the real BookingDate is the next calendar day.
-            var bookingDate = TimeDisplay.ResolveBookingDate(item.Date, item.StartHour);
 
             if (item.EndHour <= item.StartHour || item.StartHour < court.OpeningHour || item.EndHour > court.ClosingHour)
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} falls outside operating hours.");
                 continue;
             }
-            if (!await _bookingService.IsSlotAvailableAsync(court.Id, bookingDate, start, end))
+            if (!await _bookingService.IsSlotAvailableAsync(court.Id, item.Date, start, end))
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is no longer available.");
                 continue;
@@ -856,7 +809,7 @@ public class StaffController : Controller
                     errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle is no longer available.");
                     continue;
                 }
-                resolved.Add((item, court, bookingDate, start, end, bundleMatch.Value.Price, bundle));
+                resolved.Add((item, court, start, end, bundleMatch.FlatPrice, bundle));
                 continue;
             }
 
@@ -867,7 +820,7 @@ public class StaffController : Controller
             }
 
             var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
-            resolved.Add((item, court, bookingDate, start, end, price, null));
+            resolved.Add((item, court, start, end, price, null));
         }
 
         if (errors.Count > 0)
@@ -906,58 +859,16 @@ public class StaffController : Controller
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
         var staffName = await CurrentStaffNameAsync();
-        var addOnStockReserved = new Dictionary<int, int>();
 
-        // Resolve add-ons and per-item subtotals up front — a voucher's min-spend eligibility is
-        // checked once against the whole cart, but the discount itself is applied independently,
-        // in full, to each row's own price (same pattern as CartController.Checkout).
-        var itemAddOns = new List<(List<BookingAddOn> AddOns, decimal AddOnsTotal)>();
-        foreach (var (item, court, bookingDate, start, end, slotPrice, bundle) in resolved)
+        foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
         {
-            if (employerOwnerId is null)
-            {
-                itemAddOns.Add((new List<BookingAddOn>(), 0m));
-                continue;
-            }
-            try
-            {
-                itemAddOns.Add(await _bookingService.ResolveAddOnsAsync(
+            var (addOns, addOnsTotal) = employerOwnerId != null
+                ? await _bookingService.ResolveAddOnsAsync(
                     employerOwnerId,
                     (item.AddOns ?? new List<CartController.CartAddOnRequest>())
                         .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
-                    item.EndHour - item.StartHour, bookingDate, start, end, extraReserved: addOnStockReserved));
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = $"{court.Name} on {item.Date:MMM d}: {ex.Message}";
-                return RedirectToAction(nameof(WalkInCartForm));
-            }
-        }
-        var rowSubtotals = resolved.Select((r, i) => r.SlotPrice + itemAddOns[i].AddOnsTotal).ToList();
-        var cartSubtotal = rowSubtotals.Sum();
-
-        Voucher? appliedVoucher = null;
-        if (!string.IsNullOrWhiteSpace(voucherCode) && employerOwnerId != null)
-        {
-            var voucherResult = await _voucherService.ValidateAsync(voucherCode, employerOwnerId, cartSubtotal);
-            if (!voucherResult.Success)
-            {
-                TempData["Error"] = voucherResult.Error;
-                return RedirectToAction(nameof(WalkInCartForm));
-            }
-            appliedVoucher = voucherResult.Voucher;
-        }
-
-        for (int i = 0; i < resolved.Count; i++)
-        {
-            var (item, court, bookingDate, start, end, slotPrice, bundle) = resolved[i];
-            var (addOns, addOnsTotal) = itemAddOns[i];
-
-            // Applied per row against that row's own price — a fixed-amount voucher discounts
-            // EVERY court by its full value, it isn't split thin across however many are booked.
-            decimal rowDiscount = appliedVoucher is not null
-                ? VoucherService.ComputeDiscount(appliedVoucher, rowSubtotals[i])
-                : 0m;
+                    item.EndHour - item.StartHour)
+                : (new List<BookingAddOn>(), 0m);
 
             bookings.Add(new Booking
             {
@@ -966,13 +877,10 @@ public class StaffController : Controller
                 FacilityName         = court.FacilityName,
                 CourtName            = court.Name,
                 CustomerName         = customerName,
-                BookingDate          = bookingDate,
+                BookingDate          = item.Date,
                 StartTime            = start,
                 EndTime              = end,
-                TotalPrice           = rowSubtotals[i] - rowDiscount,
-                VoucherId            = appliedVoucher?.Id,
-                VoucherCode          = appliedVoucher?.Code,
-                DiscountAmount       = rowDiscount,
+                TotalPrice           = slotPrice + addOnsTotal,
                 Notes                = notes,
                 Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
                 PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -990,7 +898,6 @@ public class StaffController : Controller
             });
         }
 
-        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         _db.Bookings.AddRange(bookings);
         await _db.SaveChangesAsync();
 
@@ -1185,8 +1092,8 @@ public class StaffController : Controller
             .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive && b.Courts.Any(c => c.CourtId == courtId));
         if (bundle is null) return NotFound();
 
-        var bundleMatch = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
-        if (bundleMatch is null)
+        var block = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
+        if (block is null)
         {
             TempData["Error"] = "This bundle window is no longer available.";
             return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
@@ -1197,7 +1104,7 @@ public class StaffController : Controller
         ViewBag.Date       = date;
         ViewBag.StartHour  = startHour;
         ViewBag.EndHour    = endHour;
-        ViewBag.TotalPrice = bundleMatch.Value.Price;
+        ViewBag.TotalPrice = block.FlatPrice;
 
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(employerOwnerId);
@@ -1209,7 +1116,7 @@ public class StaffController : Controller
     public async Task<IActionResult> CreateWalkInBundle(
         int bundleId, int courtId, DateOnly date, int startHour, int endHour,
         string customerName, string customerEmail, string customerPhone,
-        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes, string? voucherCode)
+        string paymentMethod, string? paymentReference, IFormFile? paymentProof, string? notes)
     {
         var court = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
         if (court is null) return NotFound();
@@ -1230,8 +1137,8 @@ public class StaffController : Controller
             .FirstOrDefaultAsync(b => b.Id == bundleId && b.IsActive && b.Courts.Any(c => c.CourtId == courtId));
         if (bundle is null) return NotFound();
 
-        var bundleMatch = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
-        if (bundleMatch is null)
+        var block = await ResolveWalkInBundleBlockAsync(court, bundleId, date, startHour, endHour);
+        if (block is null)
         {
             TempData["Error"] = "This bundle window is no longer available.";
             return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
@@ -1243,11 +1150,8 @@ public class StaffController : Controller
         // 0-23, so wrap the same way BundleBookingsController does.
         var start = new TimeOnly(startHour % 24, 0);
         var end   = new TimeOnly(endHour % 24, 0);
-        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
-        // slot is entirely after midnight — the real BookingDate is the next calendar day.
-        var bookingDate = TimeDisplay.ResolveBookingDate(date, startHour);
 
-        if (!await _bookingService.IsSlotAvailableAsync(courtId, bookingDate, start, end))
+        if (!await _bookingService.IsSlotAvailableAsync(courtId, date, start, end))
         {
             TempData["Error"] = "This time slot is no longer available. Please choose another time.";
             return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
@@ -1275,21 +1179,6 @@ public class StaffController : Controller
             return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
         }
 
-        var employerOwnerId = await GetEmployerOwnerIdAsync();
-        decimal discountAmount = 0m;
-        Voucher? appliedVoucher = null;
-        if (!string.IsNullOrWhiteSpace(voucherCode) && employerOwnerId != null)
-        {
-            var voucherResult = await _voucherService.ValidateAsync(voucherCode, employerOwnerId, bundleMatch.Value.Price);
-            if (!voucherResult.Success)
-            {
-                TempData["Error"] = voucherResult.Error;
-                return RedirectToAction(nameof(WalkInBundleForm), new { bundleId, courtId, date, startHour, endHour });
-            }
-            appliedVoucher = voucherResult.Voucher;
-            discountAmount = voucherResult.DiscountAmount;
-        }
-
         bool isCash = IsCashPayment(paymentMethod);
 
         var booking = new Booking
@@ -1299,13 +1188,10 @@ public class StaffController : Controller
             FacilityName         = court.FacilityName,
             CourtName            = court.Name,
             CustomerName         = customerName,
-            BookingDate          = bookingDate,
+            BookingDate          = date,
             StartTime            = start,
             EndTime              = end,
-            TotalPrice           = bundleMatch.Value.Price - discountAmount,
-            VoucherId            = appliedVoucher?.Id,
-            VoucherCode          = appliedVoucher?.Code,
-            DiscountAmount       = discountAmount,
+            TotalPrice           = block.FlatPrice,
             Notes                = notes,
             Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
             PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -1320,7 +1206,6 @@ public class StaffController : Controller
             CourtBundleId        = bundle.Id,
             BundleGroupId        = Guid.NewGuid()
         };
-        if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         await _bookingService.CreateBookingAsync(booking);
 
         var customerEmailToNotify = customerEmail.Trim();
@@ -1347,6 +1232,7 @@ public class StaffController : Controller
         }
         else
         {
+            var employerOwnerId = await GetEmployerOwnerIdAsync();
             var owner = employerOwnerId != null ? await _userManager.FindByIdAsync(employerOwnerId) : null;
             await SendWalkInPaymentSubmittedNotificationAsync(new List<Booking> { booking }, new List<Court> { court }, owner);
             TempData["Success"] = $"Logged {court.Name} ({bundle.Name}) for {customerName} ({TimeDisplay.HourRange(startHour, endHour)}) — ₱{booking.TotalPrice:N0} via {paymentMethod}, pending confirmation.";
@@ -1355,10 +1241,15 @@ public class StaffController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    private async Task<(CourtBundleRateBlock Block, decimal Price)?> ResolveWalkInBundleBlockAsync(Court court, int bundleId, DateOnly date, int startHour, int endHour)
+    private async Task<CourtBundleRateBlock?> ResolveWalkInBundleBlockAsync(Court court, int bundleId, DateOnly date, int startHour, int endHour)
     {
-        var resolved = await _bookingService.ResolveBundleWindowForBookingAsync(court, bundleId, date, startHour, endHour);
-        return resolved is null ? null : (resolved.Value.Block, resolved.Value.Price);
+        var resolved = await _bookingService.ResolveBundleForHourAsync(court, date, startHour);
+        return resolved is not null
+            && resolved.Value.Bundle.Id == bundleId
+            && resolved.Value.Block.StartHour == startHour
+            && resolved.Value.Block.EndHour == endHour
+            ? resolved.Value.Block
+            : null;
     }
 
     // ── Walk-in Open Play sign-up ────────────────────────────────────────────

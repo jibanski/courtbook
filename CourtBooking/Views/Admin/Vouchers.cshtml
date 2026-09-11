@@ -94,6 +94,7 @@
                             {
                                 @foreach (var v in voucherList)
                                 {
+                                        var isExpired = v.ExpiresAt <= DateTime.UtcNow;
                                     <tr>
                                         <td>
                                             <code>@v.Code</code>
@@ -116,7 +117,11 @@
                                         <td>@v.TimesRedeemed@(v.MaxRedemptions.HasValue ? $" / {v.MaxRedemptions}" : "")</td>
                                         <td style="font-size:.82rem;">@v.ExpiresAt.AddHours(8).ToString("MMM d, yyyy")</td>
                                         <td>
-                                            @if (v.IsActive)
+                                                @if (isExpired)
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger">Expired</span>
+                                                }
+                                                else if (v.IsActive)
                                             {
                                                 <span class="badge bg-success-subtle">Active</span>
                                             }
@@ -136,8 +141,8 @@
                                             <form asp-action="ToggleVoucher" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="id" value="@v.Id" />
-                                                <button type="submit" class="btn btn-sm @(v.IsActive ? "btn-outline-secondary" : "btn-outline-success")">
-                                                    @(v.IsActive ? "Disable" : "Enable")
+                                                    <button type="submit" class="btn btn-sm @(v.IsActive ? "btn-outline-secondary" : "btn-outline-success")" @(isExpired ? "disabled title=\"Expired vouchers cannot be enabled\"" : null)>
+                                                        @(v.IsActive ? "Disable" : "Enable")
                                                 </button>
                                             </form>
                                             <form asp-action="DeleteVoucher" method="post" class="d-inline" onsubmit="return confirm('Delete voucher @v.Code? This cannot be undone.');">

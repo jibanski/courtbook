@@ -17,10 +17,6 @@ namespace CourtBooking.Controllers;
 [Authorize(Roles = "Admin")]
 public class AdminController : Controller
 {
-    /// <summary>Sentinel value for the "Booked By" filter on All Bookings, meaning "customer
-    /// self-booked online" (LoggedByStaffId == null) — distinct from an actual staff GUID.</summary>
-    private const string OnlineBookedByValue = "online";
-
     private readonly ApplicationDbContext _db;
     private readonly BookingService _bookingService;
     private readonly GuestCheckoutService _guestCheckout;
@@ -152,7 +148,6 @@ public class AdminController : Controller
             CourtId = b.CourtId,
             CourtName = b.Court.Name,
             BundleName = b.CourtBundle?.Name,
-            BundleGroupId = b.CourtBundleId != null ? b.BundleGroupId : null,
             BookingDate = b.BookingDate,
             StartTime = b.StartTime,
             EndTime = b.EndTime,
@@ -164,15 +159,9 @@ public class AdminController : Controller
             PaymentMethod = b.PaymentMethod,
             PaymentReference = b.PaymentReference,
             PaymentProofPath = b.PaymentProofPath,
-            PaidAt = b.PaidAt,
             BookedByStaffName = b.LoggedByStaffId != null && staffNames.TryGetValue(b.LoggedByStaffId, out var sn) ? sn : null,
             AddOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice),
-            AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
-            VoucherCode = b.VoucherCode,
-            DiscountAmount = b.DiscountAmount,
-            RefundedAt = b.RefundedAt,
-            RefundAmount = b.RefundAmount,
-            RefundReason = b.RefundReason
+            AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null
         }).ToList();
 
         rows.AddRange(signups.Select(sg => new AdminBookingRow
@@ -197,13 +186,7 @@ public class AdminController : Controller
             PaymentMethod = sg.PaymentMethod,
             PaymentReference = sg.PaymentReference,
             PaymentProofPath = sg.PaymentProofPath,
-            PaidAt = sg.PaidAt,
-            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null,
-            VoucherCode = sg.VoucherCode,
-            DiscountAmount = sg.DiscountAmount,
-            RefundedAt = sg.RefundedAt,
-            RefundAmount = sg.RefundAmount,
-            RefundReason = sg.RefundReason
+            BookedByStaffName = sg.LoggedByStaffId != null && staffNames.TryGetValue(sg.LoggedByStaffId, out var sgn) ? sgn : null
         }));
 
         return rows;
@@ -234,7 +217,7 @@ public class AdminController : Controller
     private sealed record AnalyticsRow(
         DateOnly BookingDate, decimal TotalPrice, BookingStatus Status, PaymentStatus PaymentStatus,
         DateTime? PaidAt, bool HasProof, string? PaymentReference, string? PaymentMethod,
-        int? CourtId, string? LoggedByStaffId, decimal? RefundAmount = null)
+        int? CourtId, string? LoggedByStaffId)
     {
         /// <summary>The date every range filter/breakdown below buckets a row into — when it was
         /// paid (PHT calendar day), falling back to the court's BookingDate for unpaid rows (which
@@ -248,7 +231,7 @@ public class AdminController : Controller
     /// <summary>One add-on line (from a Booking or a standalone rental) for the Top Add-On Items
     /// breakdown — kept separate from <see cref="AnalyticsRow"/> since it aggregates per item, not
     /// per sale.</summary>
-    private sealed record AddOnItemRow(int AddOnItemId, string Name, int Quantity, decimal Revenue, DateOnly BookingDate, DateTime? PaidAt, BookingStatus Status, PaymentStatus PaymentStatus)
+    private sealed record AddOnItemRow(int AddOnItemId, string Name, int Quantity, decimal Revenue, DateOnly BookingDate, DateTime? PaidAt, BookingStatus Status)
     {
         public DateOnly EffectiveDate => PaidAt.HasValue ? DateOnly.FromDateTime(PaidAt.Value.AddHours(8)) : BookingDate;
     }
@@ -282,18 +265,12 @@ public class AdminController : Controller
         var todayBookings = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == today && b.Status != BookingStatus.Cancelled)
                           + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == today && s.Status != BookingStatus.Cancelled)
                           + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.CreatedAt >= todayDt && r.CreatedAt < tomorrowDt));
-        // Fully-refunded rows are excluded from every revenue aggregate below (todayRevenue,
-        // totalRevenue, add-ons, per-day/court/staff/item breakdowns further down) regardless of
-        // BookingStatus — the money was given back, so it must stop counting as revenue even
-        // though the booking itself might still read Completed (e.g. a post-play dispute refund).
-        // A PartiallyRefunded row stays in these sums, but nets out only the refunded portion
-        // (TotalPrice - RefundAmount) rather than either the full price or zero.
-        var todayRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && b.PaidAt != null && b.PaidAt >= todayDt && b.PaymentStatus != PaymentStatus.Refunded).SumAsync(b => (decimal?)(b.PaymentStatus == PaymentStatus.PartiallyRefunded ? b.TotalPrice - (b.RefundAmount ?? 0m) : b.TotalPrice)) ?? 0m)
-                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && s.PaidAt != null && s.PaidAt >= todayDt && s.PaymentStatus != PaymentStatus.Refunded).SumAsync(s => (decimal?)(s.PaymentStatus == PaymentStatus.PartiallyRefunded ? s.TotalPrice - (s.RefundAmount ?? 0m) : s.TotalPrice)) ?? 0m)
-                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && r.PaidAt != null && r.PaidAt >= todayDt && r.PaymentStatus != PaymentStatus.Refunded).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
-        var totalRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed) && b.PaymentStatus != PaymentStatus.Refunded).SumAsync(b => (decimal?)(b.PaymentStatus == PaymentStatus.PartiallyRefunded ? b.TotalPrice - (b.RefundAmount ?? 0m) : b.TotalPrice)) ?? 0m)
-                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed) && s.PaymentStatus != PaymentStatus.Refunded).SumAsync(s => (decimal?)(s.PaymentStatus == PaymentStatus.PartiallyRefunded ? s.TotalPrice - (s.RefundAmount ?? 0m) : s.TotalPrice)) ?? 0m)
-                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed) && r.PaymentStatus != PaymentStatus.Refunded).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
+        var todayRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && b.PaidAt != null && b.PaidAt >= todayDt).SumAsync(b => (decimal?)b.TotalPrice) ?? 0m)
+                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && s.PaidAt != null && s.PaidAt >= todayDt).SumAsync(s => (decimal?)s.TotalPrice) ?? 0m)
+                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && r.PaidAt != null && r.PaidAt >= todayDt).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
+        var totalRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => (decimal?)b.TotalPrice) ?? 0m)
+                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed)).SumAsync(s => (decimal?)s.TotalPrice) ?? 0m)
+                         + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed)).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
         var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null)
                              + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null)
                              + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.Status == BookingStatus.Pending && r.PaymentProofPath != null));
@@ -306,11 +283,10 @@ public class AdminController : Controller
         // sales separately. Both are all-time SQL aggregates, same reasoning as above.
         var bookingAddOnsRevenue = await _db.BookingAddOns
             .Where(a => courtIds.Contains(a.Booking.CourtId)
-                     && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed)
-                     && a.Booking.PaymentStatus != PaymentStatus.Refunded)
+                     && (a.Booking.Status == BookingStatus.Confirmed || a.Booking.Status == BookingStatus.Completed))
             .SumAsync(a => (decimal?)(a.Quantity * a.UnitPrice)) ?? 0m;
         var standaloneAddOnRentalsRevenue = courtId.HasValue ? 0m : (await _db.AddOnRentals
-            .Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed) && r.PaymentStatus != PaymentStatus.Refunded)
+            .Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed))
             .SumAsync(r => (decimal?)r.TotalPrice) ?? 0m);
         var addOnsRevenue = bookingAddOnsRevenue + standaloneAddOnRentalsRevenue;
         var courtRentalRevenue = totalRevenue - addOnsRevenue;
@@ -326,7 +302,7 @@ public class AdminController : Controller
                          || (b.PaidAt == null && b.BookingDate >= rangeFrom && b.BookingDate <= rangeTo)))
             .Select(b => new AnalyticsRow(b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
                 b.PaidAt, b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod,
-                b.CourtId, b.LoggedByStaffId, b.RefundAmount))
+                b.CourtId, b.LoggedByStaffId))
             .ToListAsync();
         var signupRows = await _db.OpenPlaySignups
             .Where(s => courtIds.Contains(s.CourtId)
@@ -334,7 +310,7 @@ public class AdminController : Controller
                          || (s.PaidAt == null && s.BookingDate >= rangeFrom && s.BookingDate <= rangeTo)))
             .Select(s => new AnalyticsRow(s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
                 s.PaidAt, s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod,
-                s.CourtId, s.LoggedByStaffId, s.RefundAmount))
+                s.CourtId, s.LoggedByStaffId))
             .ToListAsync();
         // Standalone add-on rentals (e.g. paddle-only counter sales) have no court/slot, so they
         // can't be scoped to a specific court — only fold them in for the "all courts" view.
@@ -359,10 +335,9 @@ public class AdminController : Controller
 
         var revenueRows = combined
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
-                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
-                        && x.PaymentStatus != PaymentStatus.Refunded)
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
             .GroupBy(x => x.EffectiveDate)
-            .Select(g => new { Day = g.Key, Revenue = g.Sum(x => x.PaymentStatus == PaymentStatus.PartiallyRefunded ? x.TotalPrice - (x.RefundAmount ?? 0m) : x.TotalPrice), Count = g.Count() })
+            .Select(g => new { Day = g.Key, Revenue = g.Sum(x => x.TotalPrice), Count = g.Count() })
             .ToList();
 
         var revenueByDay = new List<object>();
@@ -380,15 +355,15 @@ public class AdminController : Controller
         // Payment mix — bucketed by EffectiveDate (paid date, falling back to BookingDate),
         // matching every other range breakdown below so they never disagree on the same range.
         var methodRows = combined
-            .Where(x => (x.PaymentStatus == PaymentStatus.Paid || x.PaymentStatus == PaymentStatus.PartiallyRefunded) && x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo)
+            .Where(x => x.PaymentStatus == PaymentStatus.Paid && x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo)
             .GroupBy(x => x.PaymentMethod ?? "Unknown")
-            .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(x => x.PaymentStatus == PaymentStatus.PartiallyRefunded ? x.TotalPrice - (x.RefundAmount ?? 0m) : x.TotalPrice) })
+            .Select(g => new { Method = g.Key, Count = g.Count(), Revenue = g.Sum(x => x.TotalPrice) })
             .ToList();
 
         var bookingsInRange = combined
             .Count(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo && x.Status != BookingStatus.Cancelled);
         var paidInRange = combined
-            .Count(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo && (x.PaymentStatus == PaymentStatus.Paid || x.PaymentStatus == PaymentStatus.PartiallyRefunded));
+            .Count(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo && x.PaymentStatus == PaymentStatus.Paid);
         var conversion = bookingsInRange > 0 ? Math.Round(paidInRange * 100.0 / bookingsInRange, 1) : 0.0;
         // Paid revenue for the selected range — distinct from totalRevenue (all-time) and
         // todayRevenue (today only); this is what the "Selected Range" cards surface.
@@ -396,20 +371,10 @@ public class AdminController : Controller
 
         // Status mix within the selected range, so filtering also answers "how many of these
         // were cancelled / still pending" instead of just the pass/fail conversion percentage.
-        // A refunded (or partially refunded) row is bucketed as its own status here (by
-        // PaymentStatus, not BookingStatus) regardless of whether the booking itself is
-        // Cancelled or Completed — otherwise its (already-returned) revenue would silently blend
-        // into that status's total and overstate it. Its revenue is the amount actually given
-        // back, not the original price.
         var statusBreakdown = combined
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo)
-            .GroupBy(x => x.PaymentStatus == PaymentStatus.Refunded ? "Refunded"
-                        : x.PaymentStatus == PaymentStatus.PartiallyRefunded ? "Partially Refunded"
-                        : x.Status.ToString())
-            .Select(g => new { status = g.Key, count = g.Count(), revenue = g.Sum(x =>
-                x.PaymentStatus == PaymentStatus.Refunded ? (x.RefundAmount ?? x.TotalPrice)
-                : x.PaymentStatus == PaymentStatus.PartiallyRefunded ? (x.RefundAmount ?? 0m)
-                : x.TotalPrice) })
+            .GroupBy(x => x.Status)
+            .Select(g => new { status = g.Key.ToString(), count = g.Count(), revenue = g.Sum(x => x.TotalPrice) })
             .OrderByDescending(g => g.count)
             .ToList();
 
@@ -420,14 +385,13 @@ public class AdminController : Controller
             .Select(c => new { c.Id, c.Name }).ToDictionaryAsync(c => c.Id, c => c.Name);
         var courtBreakdown = combined
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
-                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
-                        && x.PaymentStatus != PaymentStatus.Refunded)
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
             .GroupBy(x => x.CourtId)
             .Select(g => new
             {
                 court   = g.Key.HasValue ? (courtNames.TryGetValue(g.Key.Value, out var n) ? n : $"Court #{g.Key}") : "Add-ons / Other",
                 count   = g.Count(),
-                revenue = g.Sum(x => x.PaymentStatus == PaymentStatus.PartiallyRefunded ? x.TotalPrice - (x.RefundAmount ?? 0m) : x.TotalPrice)
+                revenue = g.Sum(x => x.TotalPrice)
             })
             .OrderByDescending(g => g.revenue)
             .ToList();
@@ -440,14 +404,13 @@ public class AdminController : Controller
             .ToDictionaryAsync(u => u.Id, u => u.FullName);
         var staffBreakdown = combined
             .Where(x => x.LoggedByStaffId != null && x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
-                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
-                        && x.PaymentStatus != PaymentStatus.Refunded)
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
             .GroupBy(x => x.LoggedByStaffId)
             .Select(g => new
             {
                 staff   = staffNames.TryGetValue(g.Key!, out var n) ? n : "Unknown",
                 count   = g.Count(),
-                revenue = g.Sum(x => x.PaymentStatus == PaymentStatus.PartiallyRefunded ? x.TotalPrice - (x.RefundAmount ?? 0m) : x.TotalPrice)
+                revenue = g.Sum(x => x.TotalPrice)
             })
             .OrderByDescending(g => g.revenue)
             .ToList();
@@ -460,10 +423,10 @@ public class AdminController : Controller
                      && ((a.Booking.PaidAt != null && a.Booking.PaidAt >= rangeFromUtc && a.Booking.PaidAt < rangeToExclusiveUtc)
                          || (a.Booking.PaidAt == null && a.Booking.BookingDate >= rangeFrom && a.Booking.BookingDate <= rangeTo)))
             .Select(a => new { a.AddOnItemId, Name = a.AddOnItem.Name, a.Quantity, a.UnitPrice,
-                a.Booking.BookingDate, a.Booking.PaidAt, a.Booking.Status, a.Booking.PaymentStatus })
+                a.Booking.BookingDate, a.Booking.PaidAt, a.Booking.Status })
             .ToListAsync())
             .Select(a => new AddOnItemRow(a.AddOnItemId, a.Name, a.Quantity, a.Quantity * a.UnitPrice,
-                a.BookingDate, a.PaidAt, a.Status, a.PaymentStatus))
+                a.BookingDate, a.PaidAt, a.Status))
             .ToList();
         var standaloneAddOnItemRows = courtId.HasValue
             ? new List<AddOnItemRow>()
@@ -472,15 +435,14 @@ public class AdminController : Controller
                          && ((i.AddOnRental.PaidAt != null && i.AddOnRental.PaidAt >= rangeFromUtc && i.AddOnRental.PaidAt < rangeToExclusiveUtc)
                              || (i.AddOnRental.PaidAt == null && i.AddOnRental.CreatedAt >= rangeFromUtc && i.AddOnRental.CreatedAt < rangeToExclusiveUtc)))
                 .Select(i => new { i.AddOnItemId, Name = i.AddOnItem.Name, i.Quantity, i.UnitPrice,
-                    i.AddOnRental.CreatedAt, i.AddOnRental.PaidAt, i.AddOnRental.Status, i.AddOnRental.PaymentStatus })
+                    i.AddOnRental.CreatedAt, i.AddOnRental.PaidAt, i.AddOnRental.Status })
                 .ToListAsync())
                 .Select(i => new AddOnItemRow(i.AddOnItemId, i.Name, i.Quantity, i.Quantity * i.UnitPrice,
-                    DateOnly.FromDateTime(i.CreatedAt.AddHours(8)), i.PaidAt, i.Status, i.PaymentStatus))
+                    DateOnly.FromDateTime(i.CreatedAt.AddHours(8)), i.PaidAt, i.Status))
                 .ToList();
         var topAddOnItems = bookingAddOnItemRows.Concat(standaloneAddOnItemRows)
             .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
-                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed)
-                        && x.PaymentStatus != PaymentStatus.Refunded)
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
             .GroupBy(x => new { x.AddOnItemId, x.Name })
             .Select(g => new { name = g.Key.Name, quantity = g.Sum(x => x.Quantity), revenue = g.Sum(x => x.Revenue) })
             .OrderByDescending(g => g.revenue)
@@ -521,34 +483,21 @@ public class AdminController : Controller
         });
     }
 
-    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart, string? view, string? bookedBy, string? dateMode)
+    public async Task<IActionResult> Bookings(string? status, DateOnly? dateFrom, DateOnly? dateTo, bool? awaitingConfirmation, string? search, DateOnly? weekStart, string? view)
     {
         // List and Calendar are two full page navigations (separate GET requests, not client-side
         // tabs), so only the block the visitor actually asked for needs to run each request —
         // this used to always fetch both regardless of which one was being viewed.
         bool calendarView = string.Equals(view, "calendar", StringComparison.OrdinalIgnoreCase);
 
-        // "Payment Date" mode filters by the same EffectiveDate (PaidAt, falling back to
-        // BookingDate) bucketing AnalyticsData uses, instead of BookingDate alone — so owners can
-        // reconcile All Bookings against Analytics for a given date range without the two lists
-        // silently disagreeing on which bookings count toward that day.
-        bool paidDateMode = string.Equals(dateMode, "paid", StringComparison.OrdinalIgnoreCase);
-        DateTime? rangeFromUtc        = paidDateMode && dateFrom.HasValue ? dateFrom.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8) : null;
-        DateTime? rangeToExclusiveUtc = paidDateMode && dateTo.HasValue   ? dateTo.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddHours(-8) : null;
-
         // The list view previously had no default date bound, so with no filter set it fetched
         // the entire booking/signup history (with several joined tables) on every page view —
         // the biggest remaining Supabase egress source as a facility's history grows. Default to
-        // a 60-day window (29 days back through 30 days ahead) when neither end is specified —
-        // owners can still widen/clear it manually. MUST include future dates, not just the past:
-        // an earlier past-only version (today back 29 days) silently hid upcoming/future bookings
-        // from the default view entirely (they'd still show in "Recent Bookings", which has no
-        // date filter, causing a "booking I can see on the dashboard is missing from All Bookings"
-        // report).
+        // the last 30 days when neither end is specified; owners can still widen/clear it manually.
         if (awaitingConfirmation != true && !calendarView && !dateFrom.HasValue && !dateTo.HasValue)
         {
-            dateFrom = PhtClock.Today.AddDays(-29);
-            dateTo   = PhtClock.Today.AddDays(30);
+            dateTo   = PhtClock.Today;
+            dateFrom = dateTo.Value.AddDays(-29);
         }
 
         var courtIds = await GetMyCourtIdsAsync();
@@ -565,24 +514,11 @@ public class AdminController : Controller
 
             if (awaitingConfirmation == true)
                 query = query.Where(b => b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
-            else if (string.Equals(status, "Refunded", StringComparison.OrdinalIgnoreCase))
-                query = query.Where(b => b.PaymentStatus == PaymentStatus.Refunded);
             else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
                 query = query.Where(b => b.Status == s);
 
-            if (paidDateMode)
-            {
-                query = query.Where(b =>
-                    (b.PaidAt != null && (!rangeFromUtc.HasValue || b.PaidAt >= rangeFromUtc) && (!rangeToExclusiveUtc.HasValue || b.PaidAt < rangeToExclusiveUtc))
-                    || (b.PaidAt == null && (!dateFrom.HasValue || b.BookingDate >= dateFrom.Value) && (!dateTo.HasValue || b.BookingDate <= dateTo.Value)));
-            }
-            else
-            {
-                if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
-                if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
-            }
-            if (bookedBy == OnlineBookedByValue)         query = query.Where(b => b.LoggedByStaffId == null);
-            else if (!string.IsNullOrWhiteSpace(bookedBy)) query = query.Where(b => b.LoggedByStaffId == bookedBy);
+            if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
+            if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
 
             bookings = await query.OrderByDescending(b => b.PaymentProofSubmittedAt ?? b.CreatedAt).ToListAsync();
         }
@@ -609,23 +545,10 @@ public class AdminController : Controller
                 .Where(sg => courtIds.Contains(sg.CourtId))
                 .Include(sg => sg.Court).Include(sg => sg.User).AsQueryable();
 
-            if (string.Equals(status, "Refunded", StringComparison.OrdinalIgnoreCase))
-                signupQuery = signupQuery.Where(sg => sg.PaymentStatus == PaymentStatus.Refunded);
-            else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var signupStatus))
+            if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var signupStatus))
                 signupQuery = signupQuery.Where(sg => sg.Status == signupStatus);
-            if (paidDateMode)
-            {
-                signupQuery = signupQuery.Where(sg =>
-                    (sg.PaidAt != null && (!rangeFromUtc.HasValue || sg.PaidAt >= rangeFromUtc) && (!rangeToExclusiveUtc.HasValue || sg.PaidAt < rangeToExclusiveUtc))
-                    || (sg.PaidAt == null && (!dateFrom.HasValue || sg.BookingDate >= dateFrom.Value) && (!dateTo.HasValue || sg.BookingDate <= dateTo.Value)));
-            }
-            else
-            {
-                if (dateFrom.HasValue) signupQuery = signupQuery.Where(sg => sg.BookingDate >= dateFrom.Value);
-                if (dateTo.HasValue)   signupQuery = signupQuery.Where(sg => sg.BookingDate <= dateTo.Value);
-            }
-            if (bookedBy == OnlineBookedByValue)         signupQuery = signupQuery.Where(sg => sg.LoggedByStaffId == null);
-            else if (!string.IsNullOrWhiteSpace(bookedBy)) signupQuery = signupQuery.Where(sg => sg.LoggedByStaffId == bookedBy);
+            if (dateFrom.HasValue) signupQuery = signupQuery.Where(sg => sg.BookingDate >= dateFrom.Value);
+            if (dateTo.HasValue)   signupQuery = signupQuery.Where(sg => sg.BookingDate <= dateTo.Value);
 
             var signups = await signupQuery.ToListAsync();
 
@@ -678,12 +601,6 @@ public class AdminController : Controller
         ViewBag.SelectedDateTo       = dateTo;
         ViewBag.Search               = search;
         ViewBag.AwaitingConfirmation = awaitingConfirmation;
-        ViewBag.SelectedBookedBy     = bookedBy;
-        ViewBag.SelectedDateMode     = paidDateMode ? "paid" : "booking";
-        // FullName is a computed C# property (FirstName + LastName), not a mapped column — must
-        // order client-side after materializing, .OrderBy(u => u.FullName) fails to translate to SQL.
-        ViewBag.StaffList            = (await _db.Users.Where(u => u.EmployerOwnerId == CurrentUserId).ToListAsync())
-            .OrderBy(u => u.FullName).ToList();
         var pendingBookingCount = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId)
                                                                   && b.Status == BookingStatus.Pending
                                                                   && b.PaymentStatus == PaymentStatus.Unpaid
@@ -696,9 +613,6 @@ public class AdminController : Controller
         ViewBag.AwaitingSignups      = awaitingSignups;
         ViewBag.PendingSignupCount   = pendingSignupCount;
         ViewBag.AvailablePaymentMethods = await GetAvailablePaymentMethodsAsync(CurrentUserId);
-        // For the Reschedule modal's "move to court" dropdown.
-        ViewBag.Courts = await MyCourts.Where(c => c.IsActive).OrderBy(c => c.Name)
-            .Select(c => new { c.Id, c.Name }).ToListAsync();
         return View(bookings);
     }
 
@@ -862,8 +776,6 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateCourt(Court court, IFormFile? photo)
     {
-        if (court.ClosingHour <= court.OpeningHour)
-            ModelState.AddModelError(nameof(Court.ClosingHour), "Closing time must be after opening time.");
         if (!ModelState.IsValid) { await PopulateSportsAsync(); return View(court); }
         court.OwnerId = CurrentUserId;
         court.FacilityName = (await GetMySettingsAsync())?.FacilityName;
@@ -897,7 +809,7 @@ public class AdminController : Controller
         var bookedHours  = await _bookingService.GetBookedHoursAsync(id, selectedDate);
         var blockedHours = slots
             .Where(s => !s.IsActive)
-            .SelectMany(s => TimeDisplay.HourSequence(s.StartHour, s.EndHour))
+            .SelectMany(s => Enumerable.Range(s.StartHour, s.EndHour - s.StartHour))
             .ToHashSet();
 
         // Date/time range blocks that cover the selected date (for banner display)
@@ -1000,8 +912,6 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> EditCourt(Court court, IFormFile? photo)
     {
-        if (court.ClosingHour <= court.OpeningHour)
-            ModelState.AddModelError(nameof(Court.ClosingHour), "Closing time must be after opening time.");
         if (!ModelState.IsValid) { await PopulateSportsAsync(); return View(court); }
 
         var existing = await MyCourts.FirstOrDefaultAsync(c => c.Id == court.Id);
@@ -1227,7 +1137,7 @@ public class AdminController : Controller
         if (court is null) return NotFound();
 
         var daysCsv = NormalizeDays(days);
-        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 48)
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
         {
             TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
             return RedirectToAction(nameof(Schedule), new { id = courtId });
@@ -1302,7 +1212,7 @@ public class AdminController : Controller
         if (court is null) return NotFound();
 
         var daysCsv = NormalizeDays(days);
-        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 48)
+        if ((daysCsv.Length == 0 && !includeHolidays) || endHour <= startHour || startHour < 0 || endHour > 24)
         {
             TempData["Error"] = "Pick at least one day (or include holidays) and a valid hour range.";
             return RedirectToAction(nameof(Schedule), new { id = courtId });
@@ -2093,57 +2003,6 @@ public class AdminController : Controller
         return RedirectToAction(nameof(OpenPlaySignups));
     }
 
-    // ── Contact Support ────────────────────────────────────────────────────────
-
-    public IActionResult ContactSupport() => View();
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ContactSupport(string subject, string message, IFormFile? screenshot)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            TempData["Error"] = "Please enter a message before sending.";
-            return RedirectToAction(nameof(ContactSupport));
-        }
-
-        var settings  = await GetMySettingsAsync();
-        var admin     = await _userManager.FindByIdAsync(CurrentUserId);
-        var adminName = admin?.FullName ?? "Facility Admin";
-
-        if (string.IsNullOrWhiteSpace(admin?.Email))
-        {
-            TempData["Error"] = "We couldn't find an email address on your account. Please contact support directly.";
-            return RedirectToAction(nameof(ContactSupport));
-        }
-
-        EmailAttachment? attachment = null;
-        if (screenshot is { Length: > 0 })
-        {
-            var ext = Path.GetExtension(screenshot.FileName).ToLowerInvariant();
-            if (ext is not (".jpg" or ".jpeg" or ".png" or ".webp" or ".gif"))
-            {
-                TempData["Error"] = "Screenshot must be an image file (jpg, png, webp, gif).";
-                return RedirectToAction(nameof(ContactSupport));
-            }
-            if (screenshot.Length > 5 * 1024 * 1024)
-            {
-                TempData["Error"] = "Screenshot is too large. Please keep it under 5 MB.";
-                return RedirectToAction(nameof(ContactSupport));
-            }
-
-            using var ms = new MemoryStream();
-            await screenshot.CopyToAsync(ms);
-            attachment = new EmailAttachment(screenshot.FileName, ms.ToArray(), screenshot.ContentType);
-        }
-
-        await _email.SendContactSupportEmailAsync(
-            settings?.FacilityName ?? "(no facility name set)", adminName, admin.Email,
-            subject?.Trim() ?? "", message.Trim(), attachment);
-
-        TempData["Success"] = "Message sent! We'll get back to you by email soon.";
-        return RedirectToAction(nameof(ContactSupport));
-    }
-
     // ── Settings ──────────────────────────────────────────────────────────────
 
     public async Task<IActionResult> Settings()
@@ -2387,7 +2246,7 @@ public class AdminController : Controller
         foreach (var b in bookings)
         {
             var bStartHour = b.StartTime.Hour;
-            var bEndHour   = TimeDisplay.WrapAwareEndHour(b.StartTime, b.EndTime);
+            var bEndHour   = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
             if (ToInstant(b.BookingDate, bStartHour) < blockEnd && ToInstant(b.BookingDate, bEndHour) > blockStart)
                 return $"{b.BookingDate:MMM d} {TimeDisplay.HourRange(bStartHour, bEndHour)} is already booked";
         }
@@ -2786,278 +2645,9 @@ public class AdminController : Controller
         {
             booking.PaymentStatus = PaymentStatus.Paid;
             booking.PaidAt ??= DateTime.UtcNow;
-            // No payment-method input on this dropdown, so default to Cash (same as the null==Cash
-            // convention used by the payment-method selector/log) instead of leaving it "Unknown" in Analytics.
-            booking.PaymentMethod ??= "Cash";
         }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Booking status updated.";
-        return RedirectToAction(nameof(Bookings));
-    }
-
-    /// <summary>
-    /// Records that a paid booking's money was returned to the customer outside the app (manual
-    /// GCash/Maya/cash refund) — this is a bookkeeping action, not a payment-gateway call. Only
-    /// allowed on a currently-Paid booking (can't refund something never charged, or double-refund
-    /// one already marked Refunded). Frees the slot by cancelling the booking unless it already
-    /// happened (Completed), since a future/current reservation whose payment was refunded
-    /// shouldn't keep occupying the court. Reverses any accrued platform commission on
-    /// commission-model facilities so the owner isn't billed commission on money they gave back.
-    /// </summary>
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> RefundBooking(int id, decimal amount, string? reason)
-    {
-        var courtIds = await GetMyCourtIdsAsync();
-        var booking  = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
-        if (booking is null) return NotFound();
-
-        if (booking.PaymentStatus != PaymentStatus.Paid && booking.PaymentStatus != PaymentStatus.PartiallyRefunded)
-        {
-            TempData["Error"] = $"Booking #{id} isn't Paid, so it can't be refunded.";
-            return RedirectToAction(nameof(Bookings));
-        }
-        if (amount <= 0)
-        {
-            TempData["Error"] = "Refund amount must be greater than zero.";
-            return RedirectToAction(nameof(Bookings));
-        }
-
-        // Cumulative: a booking already topped up by an earlier partial refund can be refunded
-        // again (e.g. a bundle booking refunded hour-by-hour) — RefundAmount tracks the running
-        // total given back, not just this transaction's amount.
-        var alreadyRefunded = booking.RefundAmount ?? 0m;
-        var remaining       = booking.TotalPrice - alreadyRefunded;
-        if (amount > remaining + 0.01m)
-        {
-            TempData["Error"] = $"Refund amount exceeds the ₱{remaining:N2} still refundable on booking #{id}.";
-            return RedirectToAction(nameof(Bookings));
-        }
-        // Tiny epsilon absorbs rounding on the "refund everything left" case.
-        var isFullRefund = amount >= remaining - 0.01m;
-
-        booking.PaymentStatus = isFullRefund ? PaymentStatus.Refunded : PaymentStatus.PartiallyRefunded;
-        booking.RefundedAt    = DateTime.UtcNow;
-        booking.RefundAmount  = isFullRefund ? booking.TotalPrice : alreadyRefunded + amount;
-        booking.RefundReason  = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-
-        // A reservation that hasn't happened yet loses its hold on the slot once fully refunded;
-        // a partial refund is bookkeeping only — the reservation/slot is untouched. One that's
-        // already Completed stays Completed either way (the play session still happened).
-        if (isFullRefund && booking.Status is BookingStatus.Pending or BookingStatus.Confirmed)
-        {
-            booking.Status = BookingStatus.Cancelled;
-        }
-
-        // Reverse commission proportional to this refund so a refund doesn't leave the owner
-        // owing platform commission on money that was given back to the customer. Since
-        // CommissionAmount and `remaining` always shrink in lockstep across successive partial
-        // refunds, CommissionAmount/remaining stays equal to the original commission rate.
-        if (booking.CommissionAmount is > 0 && remaining > 0)
-        {
-            var commissionShare = isFullRefund ? booking.CommissionAmount.Value : booking.CommissionAmount.Value * (amount / remaining);
-            var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
-            if (settings is not null)
-            {
-                settings.CommissionBalanceOwed = Math.Max(0, settings.CommissionBalanceOwed - commissionShare);
-            }
-            booking.CommissionAmount = Math.Max(0, booking.CommissionAmount.Value - commissionShare);
-        }
-
-        await _db.SaveChangesAsync();
-
-        _logger.LogWarning(
-            "[Bookings] Booking #{Id} refunded: {Amount:0.00} (reason: {Reason}) by {Email} (Id={UserId}) at {Time:o}",
-            id, amount, booking.RefundReason ?? "(none)", User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
-
-        TempData["Success"] = isFullRefund
-            ? $"Booking #{id} marked as refunded (₱{booking.RefundAmount:N0})."
-            : $"Booking #{id} partially refunded (₱{amount:N0}); ₱{booking.TotalPrice - booking.RefundAmount:N2} still stands.";
-        return RedirectToAction(nameof(Bookings));
-    }
-
-    /// <summary>
-    /// Moves a booking to a different date/time (and optionally a different court), e.g. when a
-    /// customer needs a last-minute change or the facility needs the original slot back. Only
-    /// covers regular/bundle-court `Booking` rows (not Open Play sign-ups, which have their own
-    /// signup flow), and refuses to touch Cancelled/Completed bookings or bundle rows (moving one
-    /// court out of a synced multi-court bundle window would desync the group — unsupported here).
-    /// </summary>
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> RescheduleBooking(int id, int courtId, DateOnly newDate, int startHour, int endHour)
-    {
-        var courtIds = await GetMyCourtIdsAsync();
-        var booking = await _db.Bookings
-            .Include(b => b.Court).Include(b => b.User).Include(b => b.AddOns)
-            .FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
-        if (booking is null) return NotFound();
-
-        if (booking.Status is BookingStatus.Cancelled or BookingStatus.Completed)
-        {
-            TempData["Error"] = $"Booking #{id} is {booking.Status} and can't be rescheduled.";
-            return RedirectToAction(nameof(Bookings));
-        }
-        if (booking.CourtBundleId != null)
-        {
-            TempData["Error"] = $"Booking #{id} is part of a bundled multi-court booking and can't be rescheduled individually.";
-            return RedirectToAction(nameof(Bookings));
-        }
-
-        var targetCourt = await MyCourts.FirstOrDefaultAsync(c => c.Id == courtId);
-        if (targetCourt is null) return NotFound();
-
-        if (endHour <= startHour || startHour < 0 || endHour > 48)
-        {
-            TempData["Error"] = "Invalid time range.";
-            return RedirectToAction(nameof(Bookings));
-        }
-
-        var newStart = new TimeOnly(startHour % 24, 0);
-        var newEnd   = new TimeOnly(endHour % 24, 0);
-        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
-        // slot is entirely after midnight — the real BookingDate is the next calendar day.
-        var newBookingDate = TimeDisplay.ResolveBookingDate(newDate, startHour);
-
-        var available = await _bookingService.IsSlotAvailableAsync(courtId, newBookingDate, newStart, newEnd, excludeBookingId: id);
-        if (!available)
-        {
-            TempData["Error"] = $"Booking #{id} can't be moved to {targetCourt.Name} on {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — that slot isn't available.";
-            return RedirectToAction(nameof(Bookings));
-        }
-
-        var oldCourtName = booking.CourtName ?? booking.Court.Name;
-        var oldDate      = booking.BookingDate;
-        var oldStart     = booking.StartTime;
-        var oldEnd       = booking.EndTime;
-
-        booking.CourtId     = courtId;
-        booking.CourtName   = targetCourt.Name;
-        booking.BookingDate = newBookingDate;
-        booking.StartTime   = newStart;
-        booking.EndTime     = newEnd;
-
-        // Paid bookings keep their originally-charged price; only an unpaid/refunded reservation's
-        // price is re-resolved against the new court/date/time (mirrors ResyncUnpaidPricesAsync's
-        // "never touch an already-paid amount" rule).
-        if (booking.PaymentStatus != PaymentStatus.Paid)
-        {
-            var rentalTotal = await _bookingService.GetTotalPriceAsync(targetCourt, newDate, newStart, newEnd);
-            var addOnsTotal = booking.AddOns.Sum(a => a.Quantity * a.UnitPrice);
-            booking.TotalPrice = rentalTotal + addOnsTotal;
-        }
-
-        await _db.SaveChangesAsync();
-
-        _logger.LogWarning(
-            "[Bookings] Booking #{Id} rescheduled: {OldCourt} {OldDate:yyyy-MM-dd} {OldStart}-{OldEnd} -> {NewCourt} {NewDate:yyyy-MM-dd} {NewStart}-{NewEnd} by {Email} (Id={UserId}) at {Time:o}",
-            id, oldCourtName, oldDate, oldStart, oldEnd, targetCourt.Name, newDate, newStart, newEnd, User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
-
-        if (!string.IsNullOrWhiteSpace(booking.User?.Email))
-        {
-            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
-            _ = _email.SendBookingRescheduledToCustomerAsync(
-                booking.User.Email!, booking.User.FirstName, id,
-                oldCourtName, oldDate, oldStart, oldEnd,
-                targetCourt.Name, newDate, newStart, newEnd,
-                baseUrl, booking.User.IsGuest);
-        }
-
-        TempData["Success"] = $"Booking #{id} rescheduled to {targetCourt.Name} on {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)}.";
-        return RedirectToAction(nameof(Bookings));
-    }
-
-    /// <summary>
-    /// Group-aware counterpart to <see cref="RescheduleBooking"/>: moves every court that was
-    /// purchased together as one <see cref="CourtBundle"/> package (same <see cref="Booking.BundleGroupId"/>)
-    /// to a new date AND time in one atomic operation, so the package can't be desynced by moving
-    /// just one court out of the group. Every eligible court is moved to the same
-    /// <paramref name="startHour"/>-<paramref name="endHour"/> window (bundle windows are sold as
-    /// one shared slot across member courts). Rejects the move if the new date/time doesn't
-    /// actually have a matching <see cref="CourtBundleRateBlock"/> (wrong day of week/holiday, or
-    /// a conflicting booking) for any of the eligible courts.
-    /// </summary>
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> RescheduleBundleGroup(Guid groupId, DateOnly newDate, int startHour, int endHour)
-    {
-        if (endHour <= startHour || startHour < 0 || endHour > 48)
-        {
-            TempData["Error"] = "Invalid time range.";
-            return RedirectToAction(nameof(Bookings));
-        }
-        var newStart = new TimeOnly(startHour % 24, 0);
-        var newEnd   = new TimeOnly(endHour % 24, 0);
-        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
-        // slot is entirely after midnight — the real BookingDate is the next calendar day.
-        var newBookingDate = TimeDisplay.ResolveBookingDate(newDate, startHour);
-
-        var courtIds = await GetMyCourtIdsAsync();
-        var rows = await _db.Bookings
-            .Include(b => b.Court).Include(b => b.User).Include(b => b.AddOns)
-            .Where(b => b.BundleGroupId == groupId && b.CourtBundleId != null && courtIds.Contains(b.CourtId))
-            .ToListAsync();
-        if (rows.Count == 0) return NotFound();
-
-        var eligible = rows.Where(b => b.Status is BookingStatus.Pending or BookingStatus.Confirmed).ToList();
-        if (eligible.Count == 0)
-        {
-            TempData["Error"] = "This bundle booking has no Pending/Confirmed courts left to reschedule.";
-            return RedirectToAction(nameof(Bookings));
-        }
-
-        // Check every eligible court is free AND still has a matching bundle rate block for the
-        // new date/time (day-of-week/holiday schedule) before moving any of them — all-or-nothing
-        // so a conflict/no-schedule on one court can't leave the group half-moved.
-        var newPrices = new Dictionary<int, decimal>();
-        foreach (var b in eligible)
-        {
-            var available = await _bookingService.IsSlotAvailableAsync(b.CourtId, newBookingDate, newStart, newEnd, excludeBookingId: b.Id);
-            if (!available)
-            {
-                TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — {b.CourtName ?? b.Court.Name} isn't free then.";
-                return RedirectToAction(nameof(Bookings));
-            }
-
-            var match = await _bookingService.ResolveBundleWindowForBookingAsync(b.Court, b.CourtBundleId!.Value, newDate, startHour, endHour);
-            if (match is null)
-            {
-                TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — {b.CourtName ?? b.Court.Name}'s bundle window doesn't run then.";
-                return RedirectToAction(nameof(Bookings));
-            }
-            newPrices[b.Id] = match.Value.Price;
-        }
-
-        var moves = eligible.Select(b => (b.Court.Name, OldDate: b.BookingDate, b.StartTime, b.EndTime)).ToList();
-
-        foreach (var b in eligible)
-        {
-            b.BookingDate = newBookingDate;
-            b.StartTime   = newStart;
-            b.EndTime     = newEnd;
-
-            // Paid rows keep their originally-charged price; only unpaid/refunded rows are
-            // re-resolved against the new date/time — using the bundle's flat price (from the
-            // schedule check above), never GetTotalPriceAsync's regular hourly rate.
-            if (b.PaymentStatus != PaymentStatus.Paid)
-            {
-                var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
-                b.TotalPrice = newPrices[b.Id] + addOnsTotal;
-            }
-        }
-
-        await _db.SaveChangesAsync();
-
-        _logger.LogWarning(
-            "[Bookings] Bundle group {GroupId} ({Count} courts) rescheduled to {NewDate:yyyy-MM-dd} {NewStart}-{NewEnd} by {Email} (Id={UserId}) at {Time:o}",
-            groupId, eligible.Count, newDate, newStart, newEnd, User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
-
-        var first = eligible[0];
-        if (!string.IsNullOrWhiteSpace(first.User?.Email))
-        {
-            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
-            _ = _email.SendBundleGroupRescheduledToCustomerAsync(
-                first.User.Email!, first.User.FirstName, moves, newDate, newStart, newEnd, baseUrl, first.User.IsGuest);
-        }
-
-        TempData["Success"] = $"Bundle booking moved to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} across {eligible.Count} court(s).";
         return RedirectToAction(nameof(Bookings));
     }
 
@@ -3072,71 +2662,9 @@ public class AdminController : Controller
         {
             signup.PaymentStatus = PaymentStatus.Paid;
             signup.PaidAt ??= DateTime.UtcNow;
-            signup.PaymentMethod ??= "Cash";
         }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Sign-up status updated.";
-        return RedirectToAction(nameof(Bookings));
-    }
-
-    /// <summary>Same manual-refund bookkeeping as <see cref="RefundBooking"/>, for an Open Play sign-up.</summary>
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> RefundSignup(int id, decimal amount, string? reason)
-    {
-        var courtIds = await GetMyCourtIdsAsync();
-        var signup   = await _db.OpenPlaySignups.FirstOrDefaultAsync(sg => sg.Id == id && courtIds.Contains(sg.CourtId));
-        if (signup is null) return NotFound();
-
-        if (signup.PaymentStatus != PaymentStatus.Paid && signup.PaymentStatus != PaymentStatus.PartiallyRefunded)
-        {
-            TempData["Error"] = $"Sign-up #{id} isn't Paid, so it can't be refunded.";
-            return RedirectToAction(nameof(Bookings));
-        }
-        if (amount <= 0)
-        {
-            TempData["Error"] = "Refund amount must be greater than zero.";
-            return RedirectToAction(nameof(Bookings));
-        }
-
-        var alreadyRefunded = signup.RefundAmount ?? 0m;
-        var remaining       = signup.TotalPrice - alreadyRefunded;
-        if (amount > remaining + 0.01m)
-        {
-            TempData["Error"] = $"Refund amount exceeds the ₱{remaining:N2} still refundable on sign-up #{id}.";
-            return RedirectToAction(nameof(Bookings));
-        }
-        var isFullRefund = amount >= remaining - 0.01m;
-
-        signup.PaymentStatus = isFullRefund ? PaymentStatus.Refunded : PaymentStatus.PartiallyRefunded;
-        signup.RefundedAt    = DateTime.UtcNow;
-        signup.RefundAmount  = isFullRefund ? signup.TotalPrice : alreadyRefunded + amount;
-        signup.RefundReason  = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-
-        if (isFullRefund && signup.Status is BookingStatus.Pending or BookingStatus.Confirmed)
-        {
-            signup.Status = BookingStatus.Cancelled;
-        }
-
-        if (signup.CommissionAmount is > 0 && remaining > 0)
-        {
-            var commissionShare = isFullRefund ? signup.CommissionAmount.Value : signup.CommissionAmount.Value * (amount / remaining);
-            var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
-            if (settings is not null)
-            {
-                settings.CommissionBalanceOwed = Math.Max(0, settings.CommissionBalanceOwed - commissionShare);
-            }
-            signup.CommissionAmount = Math.Max(0, signup.CommissionAmount.Value - commissionShare);
-        }
-
-        await _db.SaveChangesAsync();
-
-        _logger.LogWarning(
-            "[Bookings] Sign-up #{Id} refunded: {Amount:0.00} (reason: {Reason}) by {Email} (Id={UserId}) at {Time:o}",
-            id, amount, signup.RefundReason ?? "(none)", User.Identity?.Name, CurrentUserId, DateTime.UtcNow);
-
-        TempData["Success"] = isFullRefund
-            ? $"Sign-up #{id} marked as refunded (₱{signup.RefundAmount:N0})."
-            : $"Sign-up #{id} partially refunded (₱{amount:N0}); ₱{signup.TotalPrice - signup.RefundAmount:N2} still stands.";
         return RedirectToAction(nameof(Bookings));
     }
 
@@ -3296,38 +2824,17 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateAddOn(string name, decimal price, AddOnPricingType pricingType = AddOnPricingType.PerUnit, int stockQuantity = 0)
+    public async Task<IActionResult> CreateAddOn(string name, decimal price, AddOnPricingType pricingType = AddOnPricingType.PerUnit)
     {
-        if (string.IsNullOrWhiteSpace(name) || price < 0 || stockQuantity < 0)
+        if (string.IsNullOrWhiteSpace(name) || price < 0)
         {
-            TempData["Error"] = "Name is required, price and stock can't be negative.";
+            TempData["Error"] = "Name is required and price can't be negative.";
             return RedirectToAction(nameof(AddOns));
         }
 
-        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price, PricingType = pricingType, StockQuantity = stockQuantity });
+        _db.AddOnItems.Add(new AddOnItem { OwnerId = CurrentUserId, Name = name.Trim(), Price = price, PricingType = pricingType });
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Add-on '{name}' created.";
-        return RedirectToAction(nameof(AddOns));
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditAddOn(int id, string name, decimal price, AddOnPricingType pricingType, int stockQuantity = 0)
-    {
-        var item = await _db.AddOnItems.FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == CurrentUserId);
-        if (item is null) return NotFound();
-
-        if (string.IsNullOrWhiteSpace(name) || price < 0 || stockQuantity < 0)
-        {
-            TempData["Error"] = "Name is required, price and stock can't be negative.";
-            return RedirectToAction(nameof(AddOns));
-        }
-
-        item.Name = name.Trim();
-        item.Price = price;
-        item.PricingType = pricingType;
-        item.StockQuantity = stockQuantity;
-        await _db.SaveChangesAsync();
-        TempData["Success"] = $"Add-on '{name}' updated.";
         return RedirectToAction(nameof(AddOns));
     }
 
@@ -3339,137 +2846,6 @@ public class AdminController : Controller
         item.IsActive = !item.IsActive;
         await _db.SaveChangesAsync();
         return RedirectToAction(nameof(AddOns));
-    }
-
-    // ── Voucher codes (discount codes customers can apply at checkout) ─────────────
-
-    public async Task<IActionResult> Vouchers()
-    {
-        ViewBag.VoucherList = await _db.Vouchers
-            .Where(v => v.OwnerId == CurrentUserId)
-            .OrderByDescending(v => v.CreatedAt)
-            .ToListAsync();
-
-        return View();
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateVoucher(
-        string code, string? description, VoucherDiscountType discountType, decimal discountValue,
-        decimal? maxDiscountAmount, decimal? minSpend, int? maxRedemptions, DateOnly? expiresOn)
-    {
-        code = (code ?? string.Empty).Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            TempData["Error"] = "A voucher code is required.";
-            return RedirectToAction(nameof(Vouchers));
-        }
-        if (discountValue <= 0 || (discountType == VoucherDiscountType.Percentage && discountValue > 100))
-        {
-            TempData["Error"] = discountType == VoucherDiscountType.Percentage
-                ? "Percentage discount must be between 0 and 100."
-                : "Discount value must be greater than 0.";
-            return RedirectToAction(nameof(Vouchers));
-        }
-        if (!expiresOn.HasValue || expiresOn.Value < PhtClock.Today)
-        {
-            TempData["Error"] = "An expiry date (today or later) is required for every voucher.";
-            return RedirectToAction(nameof(Vouchers));
-        }
-
-        bool exists = await _db.Vouchers.AnyAsync(v => v.OwnerId == CurrentUserId && v.Code == code);
-        if (exists)
-        {
-            TempData["Error"] = $"A voucher with code '{code}' already exists.";
-            return RedirectToAction(nameof(Vouchers));
-        }
-
-        _db.Vouchers.Add(new Voucher
-        {
-            OwnerId           = CurrentUserId,
-            Code              = code,
-            Description       = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-            DiscountType      = discountType,
-            DiscountValue     = discountValue,
-            MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null,
-            MinSpend          = minSpend,
-            MaxRedemptions    = maxRedemptions,
-            // Expiry covers the whole calendar day it names (PHT), stored as a UTC instant —
-            // Npgsql rejects DateTimeKind.Unspecified for "timestamp with time zone" columns.
-            ExpiresAt         = expiresOn.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc).AddHours(-8)
-        });
-        await _db.SaveChangesAsync();
-        TempData["Success"] = $"Voucher '{code}' created.";
-        return RedirectToAction(nameof(Vouchers));
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> EditVoucher(
-        int id, string code, string? description, VoucherDiscountType discountType, decimal discountValue,
-        decimal? maxDiscountAmount, decimal? minSpend, int? maxRedemptions, DateOnly? expiresOn)
-    {
-        var voucher = await _db.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == CurrentUserId);
-        if (voucher is null) return NotFound();
-
-        code = (code ?? string.Empty).Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            TempData["Error"] = "A voucher code is required.";
-            return RedirectToAction(nameof(Vouchers));
-        }
-        if (discountValue <= 0 || (discountType == VoucherDiscountType.Percentage && discountValue > 100))
-        {
-            TempData["Error"] = discountType == VoucherDiscountType.Percentage
-                ? "Percentage discount must be between 0 and 100."
-                : "Discount value must be greater than 0.";
-            return RedirectToAction(nameof(Vouchers));
-        }
-        if (!expiresOn.HasValue || expiresOn.Value < PhtClock.Today)
-        {
-            TempData["Error"] = "An expiry date (today or later) is required for every voucher.";
-            return RedirectToAction(nameof(Vouchers));
-        }
-
-        bool exists = await _db.Vouchers.AnyAsync(v => v.Id != id && v.OwnerId == CurrentUserId && v.Code == code);
-        if (exists)
-        {
-            TempData["Error"] = $"A voucher with code '{code}' already exists.";
-            return RedirectToAction(nameof(Vouchers));
-        }
-
-        voucher.Code              = code;
-        voucher.Description       = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
-        voucher.DiscountType      = discountType;
-        voucher.DiscountValue     = discountValue;
-        voucher.MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null;
-        voucher.MinSpend          = minSpend;
-        voucher.MaxRedemptions    = maxRedemptions;
-        // Same UTC-instant conversion as CreateVoucher — Npgsql rejects Kind=Unspecified.
-        voucher.ExpiresAt         = expiresOn.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc).AddHours(-8);
-        await _db.SaveChangesAsync();
-        TempData["Success"] = $"Voucher '{code}' updated.";
-        return RedirectToAction(nameof(Vouchers));
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ToggleVoucher(int id)
-    {
-        var voucher = await _db.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == CurrentUserId);
-        if (voucher is null) return NotFound();
-        voucher.IsActive = !voucher.IsActive;
-        await _db.SaveChangesAsync();
-        return RedirectToAction(nameof(Vouchers));
-    }
-
-    [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteVoucher(int id)
-    {
-        var voucher = await _db.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == CurrentUserId);
-        if (voucher is null) return NotFound();
-        _db.Vouchers.Remove(voucher);
-        await _db.SaveChangesAsync();
-        TempData["Success"] = $"Voucher '{voucher.Code}' deleted.";
-        return RedirectToAction(nameof(Vouchers));
     }
 
     // ── Walk-in booking (owner logging a court booking for a customer themselves) ──
@@ -3570,7 +2946,8 @@ public class AdminController : Controller
             .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
             .Select(kv => kv.Key).ToList();
         vm.HourlyRates    = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
-        vm.AvailableHours = TimeDisplay.HourSequence(court.OpeningHour, court.ClosingHour)
+        vm.AvailableHours = Enumerable
+            .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
             .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
                      && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
             .ToList();
@@ -3669,11 +3046,8 @@ public class AdminController : Controller
 
         var startTime = new TimeOnly(startHour % 24, 0);
         var endTime   = new TimeOnly((startHour + durationHours) % 24, 0);
-        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
-        // slot is entirely after midnight — the real BookingDate is the next calendar day.
-        var bookingDate = TimeDisplay.ResolveBookingDate(date, startHour);
 
-        var available = await _bookingService.IsSlotAvailableAsync(courtId, bookingDate, startTime, endTime);
+        var available = await _bookingService.IsSlotAvailableAsync(courtId, date, startTime, endTime);
         if (!available)
         {
             TempData["Error"] = "This time slot is no longer available. Please choose another time.";
@@ -3702,17 +3076,7 @@ public class AdminController : Controller
         }
 
         var totalPrice = await _bookingService.GetTotalPriceAsync(court, date, startTime, endTime);
-        List<BookingAddOn> addOns; decimal addOnsTotal;
-        try
-        {
-            (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(
-                CurrentUserId, Request.Form, durationHours, bookingDate, startTime, endTime);
-        }
-        catch (InvalidOperationException ex)
-        {
-            TempData["Error"] = ex.Message;
-            return RedirectToAction(nameof(WalkInForm), new { courtId, date, startHour, endHour = fixedEndHour });
-        }
+        var (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(CurrentUserId, Request.Form, durationHours);
 
         string? proofPath;
         try
@@ -3734,7 +3098,7 @@ public class AdminController : Controller
             FacilityName  = court.FacilityName,
             CourtName     = court.Name,
             CustomerName  = customerName,
-            BookingDate   = bookingDate,
+            BookingDate   = date,
             StartTime     = startTime,
             EndTime       = endTime,
             TotalPrice    = totalPrice + addOnsTotal,
@@ -3838,22 +3202,19 @@ public class AdminController : Controller
             return RedirectToAction(nameof(WalkInCartForm));
         }
 
-        var resolved = new List<(CartController.CartItemRequest Item, Court Court, DateOnly BookingDate, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
+        var resolved = new List<(CartController.CartItemRequest Item, Court Court, TimeOnly Start, TimeOnly End, decimal SlotPrice, CourtBundle? Bundle)>();
         foreach (var item in items)
         {
             var court = courtsById[item.CourtId];
             var start = new TimeOnly(item.StartHour % 24, 0);
             var end   = new TimeOnly(item.EndHour % 24, 0);
-            // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
-            // slot is entirely after midnight — the real BookingDate is the next calendar day.
-            var bookingDate = TimeDisplay.ResolveBookingDate(item.Date, item.StartHour);
 
             if (item.EndHour <= item.StartHour || item.StartHour < court.OpeningHour || item.EndHour > court.ClosingHour)
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} falls outside operating hours.");
                 continue;
             }
-            if (!await _bookingService.IsSlotAvailableAsync(court.Id, bookingDate, start, end))
+            if (!await _bookingService.IsSlotAvailableAsync(court.Id, item.Date, start, end))
             {
                 errors.Add($"{court.Name} on {item.Date:MMM d} at {TimeDisplay.Hour(item.StartHour)} is no longer available.");
                 continue;
@@ -3878,7 +3239,7 @@ public class AdminController : Controller
                     errors.Add($"{court.Name} on {item.Date:MMM d} — that bundle is no longer available.");
                     continue;
                 }
-                resolved.Add((item, court, bookingDate, start, end, bundleMatch.FlatPrice, bundle));
+                resolved.Add((item, court, start, end, bundleMatch.FlatPrice, bundle));
                 continue;
             }
 
@@ -3889,7 +3250,7 @@ public class AdminController : Controller
             }
 
             var price = await _bookingService.GetTotalPriceAsync(court, item.Date, start, end);
-            resolved.Add((item, court, bookingDate, start, end, price, null));
+            resolved.Add((item, court, start, end, price, null));
         }
 
         if (errors.Count > 0)
@@ -3924,24 +3285,14 @@ public class AdminController : Controller
         var groupId = Guid.NewGuid();
         var bookings = new List<Booking>();
         var staffName = await CurrentUserFullNameAsync();
-        var addOnStockReserved = new Dictionary<int, int>();
 
-        foreach (var (item, court, bookingDate, start, end, slotPrice, bundle) in resolved)
+        foreach (var (item, court, start, end, slotPrice, bundle) in resolved)
         {
-            List<BookingAddOn> addOns; decimal addOnsTotal;
-            try
-            {
-                (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
-                    CurrentUserId,
-                    (item.AddOns ?? new List<CartController.CartAddOnRequest>())
-                        .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
-                    item.EndHour - item.StartHour, bookingDate, start, end, extraReserved: addOnStockReserved);
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = $"{court.Name} on {item.Date:MMM d}: {ex.Message}";
-                return RedirectToAction(nameof(WalkInCartForm));
-            }
+            var (addOns, addOnsTotal) = await _bookingService.ResolveAddOnsAsync(
+                CurrentUserId,
+                (item.AddOns ?? new List<CartController.CartAddOnRequest>())
+                    .Select(a => new BookingService.AddOnSelection(a.AddOnItemId, a.Quantity, a.Hours)),
+                item.EndHour - item.StartHour);
 
             bookings.Add(new Booking
             {
@@ -3950,7 +3301,7 @@ public class AdminController : Controller
                 FacilityName         = court.FacilityName,
                 CourtName            = court.Name,
                 CustomerName         = customerName,
-                BookingDate          = bookingDate,
+                BookingDate          = item.Date,
                 StartTime            = start,
                 EndTime              = end,
                 TotalPrice           = slotPrice + addOnsTotal,
@@ -4065,11 +3416,8 @@ public class AdminController : Controller
 
         var start = new TimeOnly(startHour % 24, 0);
         var end   = new TimeOnly(endHour % 24, 0);
-        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
-        // slot is entirely after midnight — the real BookingDate is the next calendar day.
-        var bookingDate = TimeDisplay.ResolveBookingDate(date, startHour);
 
-        if (!await _bookingService.IsSlotAvailableAsync(courtId, bookingDate, start, end))
+        if (!await _bookingService.IsSlotAvailableAsync(courtId, date, start, end))
         {
             TempData["Error"] = "This time slot is no longer available. Please choose another time.";
             return RedirectToAction(nameof(NewWalkIn), new { courtId, date = date.ToDateTime(TimeOnly.MinValue) });
@@ -4106,7 +3454,7 @@ public class AdminController : Controller
             FacilityName         = court.FacilityName,
             CourtName            = court.Name,
             CustomerName         = customerName,
-            BookingDate          = bookingDate,
+            BookingDate          = date,
             StartTime            = start,
             EndTime              = end,
             TotalPrice           = block.FlatPrice,
@@ -4459,9 +3807,7 @@ public class AdminController : Controller
             .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
             .AsQueryable();
 
-        if (string.Equals(status, "Refunded", StringComparison.OrdinalIgnoreCase))
-            query = query.Where(b => b.PaymentStatus == PaymentStatus.Refunded);
-        else if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, out var s))
             query = query.Where(b => b.Status == s);
         if (dateFrom.HasValue) query = query.Where(b => b.BookingDate >= dateFrom.Value);
         if (dateTo.HasValue)   query = query.Where(b => b.BookingDate <= dateTo.Value);
