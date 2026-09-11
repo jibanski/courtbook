@@ -21,29 +21,38 @@ public class BookingService
 
     public async Task<List<int>> GetBookedHoursAsync(int courtId, DateOnly date)
     {
-        // Only confirmed/completed bookings count as fully "booked". BookingDate range is
-        // widened by a day either side so an overnight-spanning booking (see ToVirtualHours)
-        // still shows up on the calendar day its wrapped hours actually belong to.
+        // Only confirmed/completed bookings count as fully "booked"
         var bookings = await _db.Bookings
-            .Where(b => b.CourtId == courtId
-                     && b.BookingDate >= date.AddDays(-1) && b.BookingDate <= date.AddDays(1)
+            .Where(b => b.CourtId == courtId && b.BookingDate == date
                      && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed))
             .AsNoTracking()
             .ToListAsync();
 
-        return bookings.SelectMany(b => ToVirtualHours(date, b.BookingDate, b.StartTime, b.EndTime)).ToList();
+        var bookedHours = new List<int>();
+        foreach (var b in bookings)
+        {
+            int endHour = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
+            for (int h = b.StartTime.Hour; h < endHour; h++)
+                bookedHours.Add(h);
+        }
+        return bookedHours;
     }
 
     public async Task<List<int>> GetPendingHoursAsync(int courtId, DateOnly date)
     {
         var bookings = await _db.Bookings
-            .Where(b => b.CourtId == courtId
-                     && b.BookingDate >= date.AddDays(-1) && b.BookingDate <= date.AddDays(1)
-                     && b.Status == BookingStatus.Pending)
+            .Where(b => b.CourtId == courtId && b.BookingDate == date && b.Status == BookingStatus.Pending)
             .AsNoTracking()
             .ToListAsync();
 
-        return bookings.SelectMany(b => ToVirtualHours(date, b.BookingDate, b.StartTime, b.EndTime)).ToList();
+        var pendingHours = new List<int>();
+        foreach (var b in bookings)
+        {
+            int endHour = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
+            for (int h = b.StartTime.Hour; h < endHour; h++)
+                pendingHours.Add(h);
+        }
+        return pendingHours;
     }
 
     /// <summary>Subset of <see cref="GetPendingHoursAsync"/>'s result whose booking already has a
@@ -52,25 +61,29 @@ public class BookingService
     public async Task<List<int>> GetAwaitingConfirmationHoursAsync(int courtId, DateOnly date)
     {
         var bookings = await _db.Bookings
-            .Where(b => b.CourtId == courtId
-                     && b.BookingDate >= date.AddDays(-1) && b.BookingDate <= date.AddDays(1)
-                     && b.Status == BookingStatus.Pending && b.PaymentProofPath != null)
+            .Where(b => b.CourtId == courtId && b.BookingDate == date && b.Status == BookingStatus.Pending && b.PaymentProofPath != null)
             .AsNoTracking()
             .ToListAsync();
 
-        return bookings.SelectMany(b => ToVirtualHours(date, b.BookingDate, b.StartTime, b.EndTime)).ToList();
+        var hours = new List<int>();
+        foreach (var b in bookings)
+        {
+            int endHour = b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour;
+            for (int h = b.StartTime.Hour; h < endHour; h++)
+                hours.Add(h);
+        }
+        return hours;
     }
 
     /// <summary>
-    /// Pending bundle bookings for a court/date, keyed by their virtual start hour (see
-    /// <see cref="ToVirtualHours"/>) so availability views can render each reservation as one
-    /// blocked range instead of separate hourly tiles.
+    /// Pending bundle bookings for a court/date, keyed by their start hour so availability views
+    /// can render each reservation as one blocked range instead of separate hourly tiles.
     /// </summary>
     public async Task<Dictionary<int, Booking>> GetPendingBundleWindowsAsync(int courtId, DateOnly date)
     {
         var bookings = await _db.Bookings
             .Where(b => b.CourtId == courtId
-                     && b.BookingDate >= date.AddDays(-1) && b.BookingDate <= date.AddDays(1)
+                     && b.BookingDate == date
                      && b.Status == BookingStatus.Pending
                      && b.CourtBundleId != null)
             .Include(b => b.CourtBundle)
@@ -78,30 +91,8 @@ public class BookingService
             .ToListAsync();
 
         return bookings
-            .Select(b => (Hour: ToVirtualHours(date, b.BookingDate, b.StartTime, b.EndTime).FirstOrDefault(-1), Booking: b))
-            .Where(x => x.Hour >= 0)
-            .GroupBy(x => x.Hour)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Booking.CreatedAt).First().Booking);
-    }
-
-    /// <summary>
-    /// Expands one booking's real (BookingDate, StartTime, EndTime) into "virtual hour" numbers
-    /// relative to <paramref name="referenceDate"/>, so an overnight-spanning court (whose
-    /// Court.ClosingHour can exceed 24, e.g. "opens 4pm, closes 3am") can be treated as one
-    /// continuous per-date hour range without Booking itself needing an end-date column. A
-    /// booking that wraps past its own BookingDate's midnight occupies hours &gt;=24 relative to
-    /// that date; a booking stored on referenceDate-1 that wraps into referenceDate contributes
-    /// hours starting at 0 for referenceDate; a booking stored on referenceDate+1 (a fresh booking
-    /// that starts after midnight, with no earlier portion) occupies hours &gt;=24 relative to
-    /// referenceDate.
-    /// </summary>
-    private static IEnumerable<int> ToVirtualHours(DateOnly referenceDate, DateOnly bookingDate, TimeOnly start, TimeOnly end)
-    {
-        int dayOffsetHours = (bookingDate.DayNumber - referenceDate.DayNumber) * 24;
-        int from = start.Hour + dayOffsetHours;
-        int to   = TimeDisplay.WrapAwareEndHour(start, end) + dayOffsetHours;
-        for (int h = Math.Max(from, 0); h < to; h++)
-            yield return h;
+            .GroupBy(b => b.StartTime.Hour)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(b => b.CreatedAt).First());
     }
 
     /// <summary>
@@ -118,7 +109,7 @@ public class BookingService
             .ToListAsync();
 
         var hours = slotBlocked
-            .SelectMany(s => TimeDisplay.HourSequence(s.StartHour, s.EndHour))
+            .SelectMany(s => Enumerable.Range(s.StartHour, s.EndHour - s.StartHour))
             .ToHashSet();
 
         // Date/time range blocks that overlap this date
@@ -154,7 +145,7 @@ public class BookingService
         return reasons;
     }
 
-    public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end, int? excludeBookingId = null)
+    public async Task<bool> IsSlotAvailableAsync(int courtId, DateOnly date, TimeOnly start, TimeOnly end)
     {
         // Reject past slots and the 20-minute grace window before a slot starts (PHT = UTC+8)
         var localNow = PhtClock.Now;
@@ -162,9 +153,8 @@ public class BookingService
         if (date < today) return false;
         if (date == today && (start.Hour * 60 + start.Minute + 20) < (localNow.Hour * 60 + localNow.Minute)) return false;
 
-        // end<=start signals the slot wraps past midnight into the next calendar day (an
-        // overnight-spanning court) — see TimeDisplay.WrapAwareEndHour.
-        int endHourInt = TimeDisplay.WrapAwareEndHour(start, end);
+        // end.Hour==0 means midnight (24:00 wrapped to 00:00); treat as end-of-day
+        int endHourInt = end.Hour == 0 ? 24 : end.Hour;
 
         // Sequential awaits — EF Core DbContext is not thread-safe; Task.WhenAll on the same context causes errors
         var slotBlocked = await _db.CourtTimeSlots.AnyAsync(s =>
@@ -185,40 +175,37 @@ public class BookingService
             if (from < endHourInt && to > start.Hour) return false;
         }
 
-        // Bookings can themselves wrap past midnight, so a conflicting row may be stored under
-        // the day before/after `date` — expand every candidate to virtual hours relative to
-        // `date` (see ToVirtualHours) and compare in that shared space instead of raw TimeOnly.
         var bookings = await _db.Bookings
             .Where(b =>
                 b.CourtId == courtId &&
-                b.BookingDate >= date.AddDays(-1) && b.BookingDate <= date.AddDays(1) &&
-                b.Status != BookingStatus.Cancelled &&
-                (excludeBookingId == null || b.Id != excludeBookingId))
+                b.BookingDate == date &&
+                b.Status != BookingStatus.Cancelled)
             .ToListAsync();
-
-        var requestedHours = Enumerable.Range(start.Hour, endHourInt - start.Hour);
+        
         foreach (var b in bookings)
         {
-            var existingHours = ToVirtualHours(date, b.BookingDate, b.StartTime, b.EndTime);
-            if (existingHours.Intersect(requestedHours).Any())
+            // Normalize midnight times: treat 00:00 as 24:00 (end-of-day)
+            TimeOnly existingEnd = b.EndTime == TimeOnly.MinValue ? TimeOnly.MaxValue : b.EndTime;
+            TimeOnly newEnd = end == TimeOnly.MinValue ? TimeOnly.MaxValue : end;
+            
+            // Check for overlap: existing starts before new ends AND existing ends after new starts
+            if (b.StartTime < newEnd && existingEnd > start)
                 return false;
         }
-
+        
         return true;
     }
 
     public async Task<List<int>> GetUnavailableSlotIdsAsync(int courtId, DateOnly date, IEnumerable<CourtTimeSlot> slots)
     {
         var bookings = await _db.Bookings
-            .Where(b => b.CourtId == courtId
-                     && b.BookingDate >= date.AddDays(-1) && b.BookingDate <= date.AddDays(1)
-                     && b.Status != BookingStatus.Cancelled)
+            .Where(b => b.CourtId == courtId && b.BookingDate == date && b.Status != BookingStatus.Cancelled)
             .ToListAsync();
 
-        var bookedHours = bookings.SelectMany(b => ToVirtualHours(date, b.BookingDate, b.StartTime, b.EndTime)).ToHashSet();
-
         return slots
-            .Where(slot => TimeDisplay.HourSequence(slot.StartHour, slot.EndHour).Any(bookedHours.Contains))
+            .Where(slot => bookings.Any(b =>
+                b.StartTime < new TimeOnly(slot.EndHour % 24, 0) &&
+                (b.EndTime == TimeOnly.MinValue || b.EndTime > new TimeOnly(slot.StartHour % 24, 0))))
             .Select(s => s.Id)
             .ToList();
     }
@@ -312,94 +299,13 @@ public class BookingService
     public Task<List<AddOnItem>> GetActiveAddOnsAsync(string ownerId) =>
         _db.AddOnItems.AsNoTracking().Where(a => a.OwnerId == ownerId && a.IsActive).OrderBy(a => a.Name).ToListAsync();
 
-    /// <summary>Absolute [start, end) instant for a date/time pair, correctly placing the end on
-    /// the calendar day after <paramref name="date"/> when it wraps past midnight (end &lt;= start
-    /// — see <see cref="TimeDisplay.WrapAwareEndHour"/>). Used to overlap-check add-on stock holds
-    /// against each other without needing a shared reference day like <see cref="ToVirtualHours"/> does.</summary>
-    private static (DateTime Start, DateTime End) ToInstantRange(DateOnly date, TimeOnly start, TimeOnly end)
-    {
-        var startDt = date.ToDateTime(start);
-        var endDate = end <= start ? date.AddDays(1) : date;
-        return (startDt, endDate.ToDateTime(end));
-    }
-
-    /// <summary>
-    /// Total quantity of this PerUnit add-on already committed to other non-cancelled bookings
-    /// (across all of the owner's courts) whose time range overlaps the requested slot. PerHour
-    /// add-ons aren't counted here — their <see cref="BookingAddOn.Quantity"/> stores billed hours,
-    /// not a concurrent physical count, so stock-conflict checking only applies to PerUnit items.
-    /// </summary>
-    public async Task<int> GetAddOnReservedQuantityAsync(string ownerId, int addOnItemId, DateOnly date, TimeOnly start, TimeOnly end, int? excludeBookingId = null)
-    {
-        var (reqStart, reqEnd) = ToInstantRange(date, start, end);
-
-        var candidates = await _db.BookingAddOns
-            .Where(a => a.AddOnItemId == addOnItemId
-                     && a.PricingType == AddOnPricingType.PerUnit
-                     && a.Booking.Court.OwnerId == ownerId
-                     && a.Booking.BookingDate >= date.AddDays(-1) && a.Booking.BookingDate <= date.AddDays(1)
-                     && a.Booking.Status != BookingStatus.Cancelled
-                     && (excludeBookingId == null || a.BookingId != excludeBookingId))
-            .Select(a => new { a.Quantity, a.Booking.BookingDate, a.Booking.StartTime, a.Booking.EndTime })
-            .ToListAsync();
-
-        return candidates
-            .Where(c => { var (s, e) = ToInstantRange(c.BookingDate, c.StartTime, c.EndTime); return s < reqEnd && reqStart < e; })
-            .Sum(c => c.Quantity);
-    }
-
-    /// <summary>
-    /// Checks that none of the requested PerUnit add-on quantities would exceed the item's
-    /// remaining stock for this slot (0 stock = unlimited, never checked). <paramref name="extraReserved"/>
-    /// lets a caller resolving several rows in the same submission (e.g. a multi-court cart
-    /// checkout) fold in quantities already claimed by earlier rows that aren't saved yet — the
-    /// accepted quantities from THIS call are added into it before returning, so the next call in
-    /// the same loop sees them too. Returns one short message per add-on that doesn't have enough
-    /// stock left, or an empty list if everything fits.
-    /// </summary>
-    public async Task<List<string>> ValidateAddOnStockAsync(
-        string ownerId, DateOnly date, TimeOnly start, TimeOnly end,
-        IEnumerable<AddOnSelection> selections, List<AddOnItem> catalog,
-        IDictionary<int, int>? extraReserved = null, int? excludeBookingId = null)
-    {
-        var errors = new List<string>();
-
-        foreach (var selection in selections)
-        {
-            var item = catalog.FirstOrDefault(i => i.Id == selection.AddOnItemId);
-            if (item is null || selection.Quantity <= 0 || item.PricingType != AddOnPricingType.PerUnit || item.StockQuantity <= 0)
-                continue; // not found, nothing requested, hourly-billed, or unlimited stock
-
-            var reserved = await GetAddOnReservedQuantityAsync(ownerId, item.Id, date, start, end, excludeBookingId);
-            var extra = extraReserved is not null && extraReserved.TryGetValue(item.Id, out var extraQty) ? extraQty : 0;
-            var available = item.StockQuantity - reserved - extra;
-
-            if (selection.Quantity > available)
-            {
-                errors.Add(available <= 0
-                    ? $"{item.Name} is fully booked for this timeslot."
-                    : $"Only {available} {item.Name} left available for this timeslot.");
-                continue;
-            }
-
-            if (extraReserved is not null)
-                extraReserved[item.Id] = extra + selection.Quantity;
-        }
-
-        return errors;
-    }
-
     /// <summary>
     /// Reads quantity form fields named <c>addon_{Id}</c> for each of the owner's active add-ons,
     /// builds a <see cref="BookingAddOn"/> for every quantity &gt; 0 (snapshotting the current price),
     /// and returns them along with their combined total. Shared by the customer and staff walk-in
-    /// booking flows so add-on handling stays identical between them. Throws
-    /// <see cref="InvalidOperationException"/> if any PerUnit selection would exceed its remaining
-    /// stock for this slot (see <see cref="ValidateAddOnStockAsync"/>).
+    /// booking flows so add-on handling stays identical between them.
     /// </summary>
-    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveSelectedAddOnsAsync(
-        string ownerId, IFormCollection form, int durationHours, DateOnly date, TimeOnly start, TimeOnly end,
-        int? excludeBookingId = null, IDictionary<int, int>? extraReserved = null)
+    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveSelectedAddOnsAsync(string ownerId, IFormCollection form, int durationHours = 1)
     {
         var items = await GetActiveAddOnsAsync(ownerId);
         var selections = new List<AddOnSelection>();
@@ -417,28 +323,17 @@ public class BookingService
             selections.Add(new AddOnSelection(item.Id, qty, hrs));
         }
 
-        var stockErrors = await ValidateAddOnStockAsync(ownerId, date, start, end, selections, items, extraReserved, excludeBookingId);
-        if (stockErrors.Count > 0) throw new InvalidOperationException(string.Join(" ", stockErrors));
-
         return ResolveAddOnsCore(items, selections, durationHours);
     }
 
     /// <summary>
-    /// Same resolution/pricing/stock-validation logic as <see cref="ResolveSelectedAddOnsAsync"/>, but for
-    /// callers whose selections don't come from an <see cref="IFormCollection"/> (e.g. a JSON-sourced
-    /// multi-item cart checkout). Both funnel through <see cref="ResolveAddOnsCore"/> so pricing/validation
-    /// can't diverge. Throws <see cref="InvalidOperationException"/> on a stock shortfall.
+    /// Same resolution/pricing logic as <see cref="ResolveSelectedAddOnsAsync"/>, but for callers whose
+    /// selections don't come from an <see cref="IFormCollection"/> (e.g. a JSON-sourced multi-item cart
+    /// checkout). Both funnel through <see cref="ResolveAddOnsCore"/> so pricing/validation can't diverge.
     /// </summary>
-    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveAddOnsAsync(
-        string ownerId, IEnumerable<AddOnSelection> selections, int durationHours, DateOnly date, TimeOnly start, TimeOnly end,
-        int? excludeBookingId = null, IDictionary<int, int>? extraReserved = null)
+    public async Task<(List<BookingAddOn> AddOns, decimal Total)> ResolveAddOnsAsync(string ownerId, IEnumerable<AddOnSelection> selections, int durationHours = 1)
     {
         var items = await GetActiveAddOnsAsync(ownerId);
-        selections = selections.ToList();
-
-        var stockErrors = await ValidateAddOnStockAsync(ownerId, date, start, end, selections, items, extraReserved, excludeBookingId);
-        if (stockErrors.Count > 0) throw new InvalidOperationException(string.Join(" ", stockErrors));
-
         return ResolveAddOnsCore(items, selections, durationHours);
     }
 
@@ -539,8 +434,7 @@ public class BookingService
     {
         var isHoliday = court.OwnerId != null && await IsHolidayAsync(court.OwnerId, date);
         var blocks = (await GetScheduleBlocksAsync(court.Id)).Where(b => b.IsActive).ToList();
-        int endHour = TimeDisplay.WrapAwareEndHour(start, end);
-        for (int h = start.Hour; h < endHour; h++)
+        for (int h = start.Hour; h < end.Hour; h++)
             if (ScheduleRules.ResolveBookingType(blocks, date, isHoliday, h) == BookingType.AdminHostedOpenPlay)
                 return true;
         return false;
@@ -579,34 +473,10 @@ public class BookingService
     /// <summary>True when any hour in [start, end) is covered by an active bundle rate block for this court.</summary>
     public async Task<bool> HasBundleOnlyHoursAsync(Court court, DateOnly date, TimeOnly start, TimeOnly end)
     {
-        int endHour = TimeDisplay.WrapAwareEndHour(start, end);
-        for (int h = start.Hour; h < endHour; h++)
+        for (int h = start.Hour; h < end.Hour; h++)
             if (await ResolveBundleForHourAsync(court, date, h) is not null)
                 return true;
         return false;
-    }
-
-    /// <summary>
-    /// Resolves a bundle booking request, accepting either a block's originally-configured start
-    /// hour or its auto-shrunk <see cref="Helpers.BundleWindow"/> effective start (once part of the
-    /// window has already elapsed today) — e.g. a 1pm-4pm window can still be booked as 2pm-4pm once
-    /// it's already past 1pm. <paramref name="requestedEndHour"/> must still match the block's
-    /// configured end hour exactly (only the start can shrink). Returns the price actually owed,
-    /// pro-rated when the window was shrunk.
-    /// </summary>
-    public async Task<(CourtBundle Bundle, CourtBundleRateBlock Block, decimal Price)?> ResolveBundleWindowForBookingAsync(
-        Court court, int bundleId, DateOnly date, int requestedStartHour, int requestedEndHour)
-    {
-        var resolved = await ResolveBundleForHourAsync(court, date, requestedStartHour);
-        if (resolved is null || resolved.Value.Bundle.Id != bundleId || resolved.Value.Block.EndHour != requestedEndHour)
-            return null;
-
-        var block = resolved.Value.Block;
-        var effective = Helpers.BundleWindow.Resolve(block, date);
-        if (effective is null || effective.Value.EffectiveStartHour != requestedStartHour)
-            return null;
-
-        return (resolved.Value.Bundle, block, effective.Value.EffectivePrice);
     }
 
     /// <summary>"Bundled Booking Only" — sellable only if every member court is free for the whole window.</summary>
@@ -726,7 +596,8 @@ public class BookingService
             .Where(kv => kv.Value.Type == BookingType.AdminHostedOpenPlay && !bundleOnlyHours.ContainsKey(kv.Key))
             .Select(kv => kv.Key).ToList();
         vm.HourlyRates = schedule.ToDictionary(kv => kv.Key, kv => kv.Value.Rate);
-        vm.AvailableHours = TimeDisplay.HourSequence(court.OpeningHour, court.ClosingHour)
+        vm.AvailableHours = Enumerable
+            .Range(court.OpeningHour, court.ClosingHour - court.OpeningHour)
             .Where(h => !bookedHours.Contains(h) && !pendingHours.Contains(h) && !blockedHours.Contains(h)
                      && !vm.OpenPlayHours.Contains(h) && !bundleOnlyHours.ContainsKey(h))
             .ToList();
@@ -820,9 +691,7 @@ public class BookingService
                 PaymentMethod   = b.PaymentMethod,
                 Status          = b.Status,
                 LoggedByStaffId = b.LoggedByStaffId,
-                CreatedAt       = b.CreatedAt,
-                VoucherCode     = b.VoucherCode,
-                DiscountAmount  = b.DiscountAmount
+                CreatedAt       = b.CreatedAt
             };
         }).ToList();
 
@@ -844,9 +713,7 @@ public class BookingService
             PaymentMethod   = s.PaymentMethod,
             Status          = s.Status,
             LoggedByStaffId = s.LoggedByStaffId,
-            CreatedAt       = s.CreatedAt,
-            VoucherCode     = s.VoucherCode,
-            DiscountAmount  = s.DiscountAmount
+            CreatedAt       = s.CreatedAt
         }));
 
         rows.AddRange(rentals.Select(r =>

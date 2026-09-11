@@ -62,15 +62,7 @@
                                 <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
                                 <td>@b.CourtName</td>
                                 <td>@b.CustomerName</td>
-                                <td>
-                                    ₱@b.TotalPrice.ToString("N0")
-                                    @if (!string.IsNullOrWhiteSpace(b.VoucherCode))
-                                    {
-                                        <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@b.DiscountAmount.ToString("N0")">
-                                            <i class="bi bi-ticket-perforated"></i> @b.VoucherCode
-                                        </span>
-                                    }
-                                </td>
+                                <td>₱@b.TotalPrice.ToString("N0")</td>
                                 <td>@(b.PaymentMethod ?? "—")</td>
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
@@ -130,7 +122,7 @@
         <div class="card mb-4">
             <div class="card-body">
                 <p class="text-muted small mb-3">
-                    <i class="bi bi-info-circle me-1"></i>Showing 30 days back through 30 days ahead by default — clear the date fields to see full history.
+                    <i class="bi bi-info-circle me-1"></i>Showing the last 30 days by default — clear the date fields to see full history.
                 </p>
                 <form method="get" class="row g-3 align-items-end">
                     <div class="col-sm-3">
@@ -236,12 +228,6 @@
                                                 Court ₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0")) + Add-ons ₱@b.AddOnsTotal.ToString("N0")
                                             </div>
                                         }
-                                        @if (!string.IsNullOrWhiteSpace(b.VoucherCode))
-                                        {
-                                            <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@b.DiscountAmount.ToString("N0")">
-                                                <i class="bi bi-ticket-perforated"></i> @b.VoucherCode
-                                            </span>
-                                        }
                                     </td>
                                     <td>
                                         @if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid)
@@ -265,12 +251,6 @@
                                             <div><a href="@b.PaymentProofPath" target="_blank" style="font-size:.7rem;">View proof</a></div>
                                         }
                                         <div class="text-muted" style="font-size:.7rem;">@(b.PaymentMethod ?? "Cash")</div>
-                                        @if (b.PaidAt is not null)
-                                        {
-                                            <div class="text-muted text-nowrap" style="font-size:.65rem;" title="The date Analytics counts this sale toward">
-                                                Paid: @b.PaidAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
-                                            </div>
-                                        }
                                     </td>
                                     <td>
                                         <span class="badge @badgeClass">@(isAwaitingConfirmation ? "Awaiting confirmation" : b.Status.ToString())</span>
@@ -344,8 +324,7 @@
                                                 data-reference="@b.PaymentReference"
                                                 data-proof="@b.PaymentProofPath"
                                                 data-booked-by="@(b.BookedByStaffName ?? "Online")"
-                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")"
-                                                data-paid="@(b.PaidAt.HasValue ? b.PaidAt.Value.AddHours(8).ToString("MMM d, yyyy h:mm tt") : "")">
+                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")">
                                             <div class="fw-semibold" style="font-size:.7rem;">@b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")</div>
                                             <div class="text-truncate" style="font-size:.7rem;">@b.CourtName</div>
                                             <div class="text-truncate fw-semibold" style="font-size:.7rem;">@b.CustomerName</div>
@@ -406,9 +385,6 @@
                 <div class="small text-muted">
                     <i class="bi bi-person-badge me-1"></i>Booked by: <span id="bdBookedBy"></span>
                     &bull; <i class="bi bi-clock-history me-1"></i>Booked on: <span id="bdCreated"></span>
-                </div>
-                <div id="bdPaidRow" class="small text-muted d-none">
-                    <i class="bi bi-cash-coin me-1"></i>Paid on: <span id="bdPaid"></span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -519,8 +495,6 @@
 
             document.getElementById('bdBookedBy').textContent = d.bookedBy;
             document.getElementById('bdCreated').textContent = d.created;
-            toggle('bdPaidRow', !!d.paid);
-            document.getElementById('bdPaid').textContent = d.paid || '';
         });
     })();
 </script>

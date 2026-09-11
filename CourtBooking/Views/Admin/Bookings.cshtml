@@ -5,9 +5,6 @@
     var selectedDateFrom     = ViewBag.SelectedDateFrom as DateOnly?;
     var selectedDateTo       = ViewBag.SelectedDateTo as DateOnly?;
     var search               = ViewBag.Search as string;
-    var selectedBookedBy     = ViewBag.SelectedBookedBy as string;
-    var staffList            = ViewBag.StaffList as List<CourtBooking.Models.ApplicationUser> ?? new();
-    var selectedDateMode     = ViewBag.SelectedDateMode as string ?? "booking";
     bool awaitingMode        = ViewBag.AwaitingConfirmation == true;
     int  pendingPaymentCount = (int)(ViewBag.PendingPaymentCount ?? 0);
     var rows = ViewBag.Rows as List<CourtBooking.ViewModels.AdminBookingRow>;
@@ -22,17 +19,12 @@
     // look identical to a plain Pending slot nobody has paid towards yet.
     string StatusCls(CourtBooking.ViewModels.AdminBookingRow b) => b.Status switch
     {
-        CourtBooking.Models.BookingStatus.Cancelled when b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded => "bg-secondary text-white",
         CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
         CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
         CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
         _ when b.HasPaymentProof => "bg-info text-white",
         _ => "bg-warning text-dark"
     };
-
-    // EndTime <= StartTime signals the booking wraps past midnight (see TimeDisplay.WrapAwareEndHour) —
-    // the shown end time is really on the calendar day after BookingDate.
-    bool WrapsNextDay(TimeOnly start, TimeOnly end) => end <= start;
 }
 
 <div class="bg-dark text-white py-4 mb-4">
@@ -65,7 +57,7 @@
         <!-- List / Calendar view toggle -->
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div class="btn-group" role="group">
-                <a href="@Url.Action("Bookings", new { status = selectedStatus, dateFrom = selectedDateFrom, dateTo = selectedDateTo, search, bookedBy = selectedBookedBy, dateMode = selectedDateMode })"
+                <a href="@Url.Action("Bookings", new { status = selectedStatus, dateFrom = selectedDateFrom, dateTo = selectedDateTo, search })"
                    class="btn btn-sm @(!calendarView ? "btn-primary" : "btn-outline-primary")">
                     <i class="bi bi-list-ul me-1"></i>List View
                 </a>
@@ -97,18 +89,9 @@
         <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <p class="text-muted small mb-3">
-                    <i class="bi bi-info-circle me-1"></i>Showing 30 days back through 30 days ahead by default — clear the date fields to see full history.
+                    <i class="bi bi-info-circle me-1"></i>Showing the last 30 days by default — clear the date fields to see full history.
                 </p>
                 <form method="get" class="row g-3 align-items-end">
-                    <div class="col-sm-2">
-                        <label class="form-label fw-semibold" title="Booking Date filters by when the court is played. Payment Date filters by when the sale was paid — the same way Analytics counts it.">
-                            Date filter <i class="bi bi-info-circle text-muted"></i>
-                        </label>
-                        <select name="dateMode" class="form-select">
-                            <option value="booking" selected="@(selectedDateMode == "booking")">Booking Date</option>
-                            <option value="paid" selected="@(selectedDateMode == "paid")">Payment Date (matches Analytics)</option>
-                        </select>
-                    </div>
                     <div class="col-sm-3">
                         <label class="form-label fw-semibold">Search</label>
                         <input type="text" name="search" class="form-control" placeholder="Customer name or phone" value="@search" />
@@ -121,8 +104,6 @@
                             {
                                 <option value="@s" selected="@(selectedStatus == s)">@s</option>
                             }
-                            <!-- Refunded is a PaymentStatus, not a BookingStatus, so it's a separate pseudo-status value the controller special-cases -->
-                            <option value="Refunded" selected="@(selectedStatus == "Refunded")">Refunded</option>
                         </select>
                     </div>
                     <div class="col-sm-2">
@@ -132,17 +113,6 @@
                     <div class="col-sm-2">
                         <label class="form-label fw-semibold">To</label>
                         <input type="date" name="dateTo" class="form-control" value="@selectedDateTo?.ToString("yyyy-MM-dd")" />
-                    </div>
-                    <div class="col-sm-2">
-                        <label class="form-label fw-semibold">Booked By</label>
-                        <select name="bookedBy" class="form-select">
-                            <option value="">Everyone (online + staff)</option>
-                            <option value="online" selected="@(selectedBookedBy == "online")">Online (customer self-booked)</option>
-                            @foreach (var s in staffList)
-                            {
-                                <option value="@s.Id" selected="@(selectedBookedBy == s.Id)">@s.FullName</option>
-                            }
-                        </select>
                     </div>
                     <div class="col-sm-3">
                         <button type="submit" class="btn btn-primary w-100">
@@ -166,7 +136,6 @@
                             {
                                 <option value="@s" selected="@(selectedStatus == s)">@s</option>
                             }
-                            <option value="Refunded" selected="@(selectedStatus == "Refunded")">Refunded</option>
                         </select>
                     </div>
                     <div class="col-sm-3">
@@ -224,7 +193,7 @@
                                                 data-bundle="@b.BundleName"
                                                 data-spot-count="@b.SpotCount"
                                                 data-player-names="@b.PlayerNames"
-                                                data-date-time="@($"{b.BookingDate:MMM d, yyyy} {b.StartTime:h:mm tt}–{b.EndTime:h:mm tt}{(WrapsNextDay(b.StartTime, b.EndTime) ? " (Next Day)" : "")}")"
+                                                data-date-time="@($"{b.BookingDate:MMM d, yyyy} {b.StartTime:h:mm tt}–{b.EndTime:h:mm tt}")"
                                                 data-rental="@((b.TotalPrice - b.AddOnsTotal).ToString("N0"))"
                                                 data-addons-total="@b.AddOnsTotal.ToString("N0")"
                                                 data-addons-summary="@b.AddOnsSummary"
@@ -235,24 +204,13 @@
                                                 data-reference="@b.PaymentReference"
                                                 data-proof="@b.PaymentProofPath"
                                                 data-booked-by="@(b.BookedByStaffName ?? "Online")"
-                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")"
-                                                data-paid="@(b.PaidAt.HasValue ? b.PaidAt.Value.AddHours(8).ToString("MMM d, yyyy h:mm tt") : "")">
-                                            <div class="fw-semibold" style="font-size:.7rem;">
-                                                @b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")
-                                                @if (WrapsNextDay(b.StartTime, b.EndTime))
-                                                {
-                                                    <span class="badge bg-secondary" style="font-size:.6rem;">Next Day</span>
-                                                }
-                                            </div>
+                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")">
+                                            <div class="fw-semibold" style="font-size:.7rem;">@b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")</div>
                                             <div class="text-truncate" style="font-size:.7rem;">@b.CourtName</div>
                                             <div class="text-truncate fw-semibold" style="font-size:.7rem;">@b.CustomerName</div>
                                             @if (b.Status == CourtBooking.Models.BookingStatus.Pending && b.HasPaymentProof)
                                             {
                                                 <div style="font-size:.65rem;"><i class="bi bi-hourglass-split me-1"></i>Awaiting confirmation</div>
-                                            }
-                                            else if (b.Status == CourtBooking.Models.BookingStatus.Cancelled && b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded)
-                                            {
-                                                <div style="font-size:.65rem;"><i class="bi bi-arrow-counterclockwise me-1"></i>Refunded</div>
                                             }
                                         </button>
                                     }
@@ -310,12 +268,6 @@
                                                 <div>
                                                     <span class="fw-bold"><i class="bi bi-box-seam me-1"></i>@groupRows.Count slot@(groupRows.Count != 1 ? "s" : "") Booking</span>
                                                     <span class="badge bg-warning text-dark ms-2">Pending</span>
-                                                    @if (!string.IsNullOrWhiteSpace(groupFirst.VoucherCode))
-                                                    {
-                                                        <span class="badge bg-success-subtle text-success-emphasis ms-1" title="Voucher discount -₱@groupRows.Sum(r => r.DiscountAmount).ToString("N0")">
-                                                            <i class="bi bi-ticket-perforated"></i> @groupFirst.VoucherCode
-                                                        </span>
-                                                    }
                                                 </div>
                                                 <span class="fw-bold text-success">₱@groupTotal.ToString("N0")</span>
                                             </div>
@@ -325,13 +277,7 @@
                                                 </div>
                                                 @foreach (var row in groupRows)
                                                 {
-                                                    <div>
-                                                        <i class="bi bi-calendar me-1 text-muted"></i>@row.Court.Name &bull; @row.BookingDate.ToString("MMM d, yyyy") @row.StartTime.ToString("hh:mm tt")–@row.EndTime.ToString("hh:mm tt")
-                                                        @if (WrapsNextDay(row.StartTime, row.EndTime))
-                                                        {
-                                                            <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Next Day</span>
-                                                        }
-                                                    </div>
+                                                    <div><i class="bi bi-calendar me-1 text-muted"></i>@row.Court.Name &bull; @row.BookingDate.ToString("MMM d, yyyy") @row.StartTime.ToString("hh:mm tt")–@row.EndTime.ToString("hh:mm tt")</div>
                                                 }
                                             </div>
 
@@ -390,12 +336,6 @@
                                             <div>
                                                 <span class="fw-bold">Booking #@b.Id</span>
                                                 <span class="badge bg-warning text-dark ms-2">Pending</span>
-                                                @if (!string.IsNullOrWhiteSpace(b.VoucherCode))
-                                                {
-                                                    <span class="badge bg-success-subtle text-success-emphasis ms-1" title="Voucher discount -₱@b.DiscountAmount.ToString("N0")">
-                                                        <i class="bi bi-ticket-perforated"></i> @b.VoucherCode
-                                                    </span>
-                                                }
                                             </div>
                                             <span class="fw-bold text-success">₱@b.TotalPrice.ToString("N0")</span>
                                         </div>
@@ -404,13 +344,7 @@
                                                 @if (b.User.IsGuest) { <span class="badge bg-secondary ms-1">Guest</span> }
                                             </div>
                                             <div><i class="bi bi-buildings me-1 text-muted"></i>@b.Court.Name — @b.Court.SportType</div>
-                                            <div>
-                                                <i class="bi bi-calendar me-1 text-muted"></i>@b.BookingDate.ToString("MMM d, yyyy") @b.StartTime.ToString("hh:mm tt")–@b.EndTime.ToString("hh:mm tt")
-                                                @if (WrapsNextDay(b.StartTime, b.EndTime))
-                                                {
-                                                    <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Next Day</span>
-                                                }
-                                            </div>
+                                            <div><i class="bi bi-calendar me-1 text-muted"></i>@b.BookingDate.ToString("MMM d, yyyy") @b.StartTime.ToString("hh:mm tt")–@b.EndTime.ToString("hh:mm tt")</div>
                                         </div>
 
                                         @if (!string.IsNullOrWhiteSpace(b.PaymentMethod) || !string.IsNullOrWhiteSpace(b.PaymentReference))
@@ -470,12 +404,6 @@
                                             <div>
                                                 <span class="fw-bold"><i class="bi bi-people me-1"></i>Open Play Sign-up #@s.Id</span>
                                                 <span class="badge bg-warning text-dark ms-2">Pending</span>
-                                                @if (!string.IsNullOrWhiteSpace(s.VoucherCode))
-                                                {
-                                                    <span class="badge bg-success-subtle text-success-emphasis ms-1" title="Voucher discount -₱@s.DiscountAmount.ToString("N0")">
-                                                        <i class="bi bi-ticket-perforated"></i> @s.VoucherCode
-                                                    </span>
-                                                }
                                             </div>
                                             <span class="fw-bold text-success">₱@s.TotalPrice.ToString("N0")</span>
                                         </div>
@@ -484,13 +412,7 @@
                                                 @if (s.User.IsGuest) { <span class="badge bg-secondary ms-1">Guest</span> }
                                             </div>
                                             <div><i class="bi bi-buildings me-1 text-muted"></i>@s.Court.Name — Open Play</div>
-                                            <div>
-                                                <i class="bi bi-calendar me-1 text-muted"></i>@s.BookingDate.ToString("MMM d, yyyy") @TimeDisplay.HourRange(s.StartHour, s.EndHour)
-                                                @if (s.EndHour > 24)
-                                                {
-                                                    <span class="badge bg-secondary ms-1" style="font-size:.65rem;">Next Day</span>
-                                                }
-                                            </div>
+                                            <div><i class="bi bi-calendar me-1 text-muted"></i>@s.BookingDate.ToString("MMM d, yyyy") @TimeDisplay.HourRange(s.StartHour, s.EndHour)</div>
                                             <div><i class="bi bi-person-bounding-box me-1 text-muted"></i>@s.SpotCount spot@(s.SpotCount != 1 ? "s" : "")</div>
                                         </div>
 
@@ -560,7 +482,6 @@
                                 <th>Payment</th>
                                 <th>Status</th>
                                 <th>Booked By</th>
-                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -568,7 +489,6 @@
                             {
                                 // Colors the status <select> itself so it doubles as the status badge — no separate columns needed.
                                 var selectCls = b.Status switch {
-                                    CourtBooking.Models.BookingStatus.Cancelled when b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded => "bg-secondary text-white",
                                     CourtBooking.Models.BookingStatus.Confirmed => "bg-success text-white",
                                     CourtBooking.Models.BookingStatus.Cancelled => "bg-danger text-white",
                                     CourtBooking.Models.BookingStatus.Completed => "bg-secondary text-white",
@@ -603,13 +523,7 @@
                                         }
                                     </td>
                                     <td>@b.BookingDate.ToString("MMM d, yyyy")</td>
-                                    <td>
-                                        @b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")
-                                        @if (WrapsNextDay(b.StartTime, b.EndTime))
-                                        {
-                                            <br /><span class="badge bg-secondary" style="font-size:.65rem;">Next Day</span>
-                                        }
-                                    </td>
+                                    <td>@b.StartTime.ToString("hh:mm tt") – @b.EndTime.ToString("hh:mm tt")</td>
                                     <td>
                                         <div class="fw-semibold">₱@b.TotalPrice.ToString("N0")</div>
                                         @if (b.AddOnsSummary is not null)
@@ -617,12 +531,6 @@
                                             <div class="text-muted text-nowrap" style="font-size:.7rem;" title="@b.AddOnsSummary">
                                                 Court ₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0")) + Add-ons ₱@b.AddOnsTotal.ToString("N0")
                                             </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(b.VoucherCode))
-                                        {
-                                            <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@b.DiscountAmount.ToString("N0")">
-                                                <i class="bi bi-ticket-perforated"></i> @b.VoucherCode
-                                            </span>
                                         }
                                     </td>
                                     <td>
@@ -633,10 +541,6 @@
                                         else if (b.HasPaymentProof)
                                         {
                                             <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Submitted</span>
-                                        }
-                                        else if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.PartiallyRefunded)
-                                        {
-                                            <span class="badge text-dark" style="background-color:#fd7e14;">Partially Refunded</span>
                                         }
                                         else if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded)
                                         {
@@ -649,19 +553,6 @@
                                         @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
                                         {
                                             <div><a href="@b.PaymentProofPath" target="_blank" style="font-size:.7rem;">View proof</a></div>
-                                        }
-                                        @if (b.PaidAt is not null)
-                                        {
-                                            <div class="text-muted text-nowrap" style="font-size:.65rem;" title="The date Analytics counts this sale toward">
-                                                Paid: @b.PaidAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
-                                            </div>
-                                        }
-                                        @if (b.RefundedAt is not null)
-                                        {
-                                            var refundLabel = b.PaymentStatus == CourtBooking.Models.PaymentStatus.PartiallyRefunded ? "Partially refunded" : "Refunded";
-                                            <div class="text-muted text-nowrap" style="font-size:.65rem;" title="@(b.RefundReason ?? "No reason given")">
-                                                @refundLabel ₱@((b.RefundAmount ?? 0).ToString("N0")) of ₱@b.TotalPrice.ToString("N0"): @b.RefundedAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
-                                            </div>
                                         }
                                         @{ var isCashMethod = string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase); }
                                         <form asp-action="UpdateBookingPaymentMethod" method="post" class="mt-1">
@@ -685,9 +576,7 @@
                                                     onchange="if (confirm('Change booking #@b.Id status to ' + this.value + '?')) { this.form.submit(); } else { this.value = this.dataset.current; }">
                                                 @foreach (var s in Enum.GetValues<CourtBooking.Models.BookingStatus>())
                                                 {
-                                                    // Cancelled-via-full-refund reads as "Refunded" so it's easy to spot without adding a new BookingStatus value.
-                                                    var label = s == CourtBooking.Models.BookingStatus.Cancelled && b.PaymentStatus == CourtBooking.Models.PaymentStatus.Refunded ? "Refunded" : s.ToString();
-                                                    <option value="@s" selected="@(b.Status == s)">@label</option>
+                                                    <option value="@s" selected="@(b.Status == s)">@s</option>
                                                 }
                                             </select>
                                         </form>
@@ -704,41 +593,6 @@
                                             <span class="text-muted small">Online</span>
                                         }
                                         <div class="text-muted text-nowrap" style="font-size:.7rem;">@b.CreatedAt.AddHours(8).ToString("MMM d, h:mm tt")</div>
-                                    </td>
-                                    <td>
-                                        @{
-                                            bool activeStatus = b.Status == CourtBooking.Models.BookingStatus.Pending || b.Status == CourtBooking.Models.BookingStatus.Confirmed;
-                                            var canReschedule = !b.IsOpenPlay && b.BundleName is null && activeStatus;
-                                            var canRescheduleGroup = !b.IsOpenPlay && b.BundleName is not null && b.BundleGroupId is not null && activeStatus;
-                                            var canRefund = b.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid || b.PaymentStatus == CourtBooking.Models.PaymentStatus.PartiallyRefunded;
-                                            var refundRemaining = b.TotalPrice - (b.RefundAmount ?? 0);
-                                        }
-                                        @if (canReschedule)
-                                        {
-                                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rescheduleModal"
-                                                    data-id="@b.Id" data-court-id="@b.CourtId" data-court-name="@b.CourtName"
-                                                    data-date="@b.BookingDate.ToString("yyyy-MM-dd")" data-start-hour="@b.StartTime.Hour"
-                                                    data-end-hour="@(b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour)">
-                                                <i class="bi bi-calendar-event me-1"></i>Reschedule
-                                            </button>
-                                        }
-                                        else if (canRescheduleGroup)
-                                        {
-                                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rescheduleGroupModal"
-                                                    data-group-id="@b.BundleGroupId" data-bundle-name="@b.BundleName"
-                                                    data-date="@b.BookingDate.ToString("yyyy-MM-dd")" data-start-hour="@b.StartTime.Hour"
-                                                    data-end-hour="@(b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour)">
-                                                <i class="bi bi-calendar-event me-1"></i>Reschedule Bundle
-                                            </button>
-                                        }
-                                        @if (canRefund)
-                                        {
-                                            <button type="button" class="btn btn-sm btn-outline-danger mt-1" data-bs-toggle="modal" data-bs-target="#refundModal"
-                                                    data-id="@b.Id" data-is-open-play="@b.IsOpenPlay.ToString().ToLowerInvariant()"
-                                                    data-remaining="@refundRemaining.ToString("F2")">
-                                                <i class="bi bi-arrow-counterclockwise me-1"></i>@(b.PaymentStatus == CourtBooking.Models.PaymentStatus.PartiallyRefunded ? "Refund more" : "Refund")
-                                            </button>
-                                        }
                                     </td>
                                 </tr>
                             }
@@ -794,9 +648,6 @@
                     <i class="bi bi-person-badge me-1"></i>Booked by: <span id="bdBookedBy"></span>
                     &bull; <i class="bi bi-clock-history me-1"></i>Booked on: <span id="bdCreated"></span>
                 </div>
-                <div id="bdPaidRow" class="small text-muted d-none" title="This is the date Analytics counts this sale toward">
-                    <i class="bi bi-cash-coin me-1"></i>Paid on: <span id="bdPaid"></span>
-                </div>
             </div>
             <div class="modal-footer">
                 <form id="bdStatusForm" method="post" class="d-flex gap-2 w-100">
@@ -812,149 +663,6 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Close</button>
                 </form>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- Reschedule modal — moves a booking to a different date/time/court -->
-<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <form asp-action="RescheduleBooking" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="id" id="rsId" />
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Reschedule Booking #<span id="rsBookingNo"></span></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Court</label>
-                        <select name="courtId" id="rsCourtId" class="form-select">
-                            @foreach (var c in (IEnumerable<dynamic>)ViewBag.Courts)
-                            {
-                                <option value="@c.Id">@c.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Date</label>
-                        <input type="date" name="newDate" id="rsDate" class="form-control" required />
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label fw-semibold">Start hour</label>
-                            <select name="startHour" id="rsStartHour" class="form-select">
-                                @for (var h = 0; h < 24; h++)
-                                {
-                                    <option value="@h">@TimeDisplay.Hour(h)</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-semibold">End hour</label>
-                            <select name="endHour" id="rsEndHour" class="form-select">
-                                @for (var h = 1; h <= 24; h++)
-                                {
-                                    <option value="@h">@TimeDisplay.Hour(h)</option>
-                                }
-                            </select>
-                        </div>
-                    </div>
-                    <p class="text-muted small mt-3 mb-0">
-                        <i class="bi bi-info-circle me-1"></i>The customer will be emailed about this change. The slot must be free at the new date/time.
-                    </p>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary btn-sm">Move Booking</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Reschedule Bundle modal — moves every court in a bundle group to a new date at once -->
-<div class="modal fade" id="rescheduleGroupModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <form asp-action="RescheduleBundleGroup" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="groupId" id="rsgGroupId" />
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Reschedule Bundle — <span id="rsgBundleName"></span></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">New date</label>
-                        <input type="date" name="newDate" id="rsgDate" class="form-control" required />
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label fw-semibold">Start hour</label>
-                            <select name="startHour" id="rsgStartHour" class="form-select">
-                                @for (var h = 0; h < 24; h++)
-                                {
-                                    <option value="@h">@TimeDisplay.Hour(h)</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-semibold">End hour</label>
-                            <select name="endHour" id="rsgEndHour" class="form-select">
-                                @for (var h = 1; h <= 24; h++)
-                                {
-                                    <option value="@h">@TimeDisplay.Hour(h)</option>
-                                }
-                            </select>
-                        </div>
-                    </div>
-                    <p class="text-muted small mt-3 mb-0">
-                        <i class="bi bi-info-circle me-1"></i>Every court in this bundle package moves to the new date/time together as one window. The customer will be emailed about the change.
-                    </p>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary btn-sm">Move Bundle</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Refund modal — records that a Paid booking/sign-up's money was returned to the customer
-     outside the app (manual GCash/Maya/cash). Marks PaymentStatus = Refunded, which every
-     Analytics revenue breakdown then excludes automatically. -->
-<div class="modal fade" id="refundModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <form id="refundForm" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="id" id="rfId" />
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Refund Booking #<span id="rfBookingNo"></span></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Amount refunded (₱)</label>
-                        <input type="number" name="amount" id="rfAmount" class="form-control" min="0.01" step="0.01" required />
-                        <div class="form-text">Prefilled with the remaining refundable balance — lower it for a partial refund (e.g. one hour of a multi-hour bundle). The booking stays as-is until the full amount has been refunded.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Reason (optional)</label>
-                        <textarea name="reason" id="rfReason" class="form-control" rows="2" maxlength="300" placeholder="e.g. Rained out, court unavailable"></textarea>
-                    </div>
-                    <p class="text-muted small mb-0">
-                        <i class="bi bi-info-circle me-1"></i>This only records that the money was returned outside the app (manual GCash/Maya/cash) — it doesn't trigger an actual refund transaction. A partial refund keeps the reservation and only reduces Analytics revenue by the refunded amount; a full refund cancels the reservation and excludes it entirely.
-                    </p>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-danger btn-sm">Mark as Refunded</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
-                </div>
-            </form>
         </div>
     </div>
 </div>
@@ -1019,11 +727,10 @@
             document.getElementById('bdId').textContent = d.id;
 
             var statusBadge = document.getElementById('bdStatusBadge');
-            var isRefundedCancel = d.status === 'Cancelled' && d.paymentStatus === 'Refunded';
-            statusBadge.textContent = isRefundedCancel ? 'Refunded' : d.status;
-            statusBadge.className = 'badge ' + (isRefundedCancel ? 'bg-secondary' : ({
+            statusBadge.textContent = d.status;
+            statusBadge.className = 'badge ' + ({
                 Confirmed: 'bg-success', Cancelled: 'bg-danger', Completed: 'bg-secondary'
-            }[d.status] || 'bg-warning text-dark'));
+            }[d.status] || 'bg-warning text-dark');
 
             toggle('bdBundleBadge', !!d.bundle);
             if (d.bundle) { document.getElementById('bdBundleName').textContent = d.bundle; }
@@ -1046,7 +753,7 @@
             document.getElementById('bdAddOnsTotal').textContent = d.addonsTotal || '0';
             document.getElementById('bdTotal').textContent = d.total;
 
-            document.getElementById('bdPaymentStatus').textContent = d.paymentStatus === 'PartiallyRefunded' ? 'Partially Refunded' : d.paymentStatus;
+            document.getElementById('bdPaymentStatus').textContent = d.paymentStatus;
             toggle('bdMethodRow', !!d.method);
             document.getElementById('bdMethod').textContent = d.method || '';
             toggle('bdRefRow', !!d.reference);
@@ -1057,8 +764,6 @@
 
             document.getElementById('bdBookedBy').textContent = d.bookedBy;
             document.getElementById('bdCreated').textContent = d.created;
-            toggle('bdPaidRow', !!d.paid);
-            document.getElementById('bdPaid').textContent = d.paid || '';
 
             document.getElementById('bdStatusId').value = d.id;
             document.getElementById('bdStatusSelect').value = d.status;
@@ -1075,69 +780,6 @@
             var id = document.getElementById('bdId').textContent;
             var status = document.getElementById('bdStatusSelect').value;
             if (!confirm('Change booking #' + id + ' status to ' + status + '?')) {
-                e.preventDefault();
-            }
-        });
-    })();
-
-    (function () {
-        var modalEl = document.getElementById('rescheduleModal');
-        if (!modalEl) return;
-
-        modalEl.addEventListener('show.bs.modal', function (e) {
-            var btn = e.relatedTarget;
-            if (!btn) return;
-            var d = btn.dataset;
-
-            document.getElementById('rsId').value = d.id;
-            document.getElementById('rsBookingNo').textContent = d.id;
-            document.getElementById('rsCourtId').value = d.courtId;
-            document.getElementById('rsDate').value = d.date;
-            document.getElementById('rsStartHour').value = d.startHour;
-            document.getElementById('rsEndHour').value = d.endHour;
-        });
-    })();
-
-    (function () {
-        var modalEl = document.getElementById('rescheduleGroupModal');
-        if (!modalEl) return;
-
-        modalEl.addEventListener('show.bs.modal', function (e) {
-            var btn = e.relatedTarget;
-            if (!btn) return;
-            var d = btn.dataset;
-
-            document.getElementById('rsgGroupId').value = d.groupId;
-            document.getElementById('rsgBundleName').textContent = d.bundleName;
-            document.getElementById('rsgDate').value = d.date;
-            document.getElementById('rsgStartHour').value = d.startHour;
-            document.getElementById('rsgEndHour').value = d.endHour;
-        });
-    })();
-
-    (function () {
-        var modalEl = document.getElementById('refundModal');
-        if (!modalEl) return;
-
-        var updateBookingUrl = '@Url.Action("RefundBooking")';
-        var updateSignupUrl  = '@Url.Action("RefundSignup")';
-
-        modalEl.addEventListener('show.bs.modal', function (e) {
-            var btn = e.relatedTarget;
-            if (!btn) return;
-            var d = btn.dataset;
-
-            document.getElementById('rfId').value = d.id;
-            document.getElementById('rfBookingNo').textContent = d.id;
-            document.getElementById('rfAmount').value = d.remaining;
-            document.getElementById('rfReason').value = '';
-            document.getElementById('refundForm').action = d.isOpenPlay === 'true' ? updateSignupUrl : updateBookingUrl;
-        });
-
-        document.getElementById('refundForm').addEventListener('submit', function (e) {
-            var id = document.getElementById('rfId').value;
-            var amount = document.getElementById('rfAmount').value;
-            if (!confirm('Mark booking #' + id + ' as refunded for ₱' + amount + '? This cannot be undone from here.')) {
                 e.preventDefault();
             }
         });
