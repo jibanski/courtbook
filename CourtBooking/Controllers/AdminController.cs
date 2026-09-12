@@ -2899,7 +2899,8 @@ public class AdminController : Controller
             MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null,
             MinSpend = minSpend,
             MaxRedemptions = maxRedemptions,
-            ExpiresAt = expiresOn.Value.ToDateTime(TimeOnly.MaxValue)
+            // PHT end-of-day, converted to the correct UTC instant with Kind=Utc (Postgres timestamptz requires it) — same pattern used elsewhere in this file.
+            ExpiresAt = expiresOn.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc).AddHours(-8)
         });
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Voucher '{code}' created.";
@@ -2947,7 +2948,7 @@ public class AdminController : Controller
         voucher.MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null;
         voucher.MinSpend = minSpend;
         voucher.MaxRedemptions = maxRedemptions;
-        voucher.ExpiresAt = expiresOn.Value.ToDateTime(TimeOnly.MaxValue);
+        voucher.ExpiresAt = expiresOn.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc).AddHours(-8);
         await _db.SaveChangesAsync();
         TempData["Success"] = $"Voucher '{code}' updated.";
         return RedirectToAction(nameof(Vouchers));
