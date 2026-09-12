@@ -125,6 +125,13 @@
                 <div class="small text-muted">paid, selected range</div>
             </div></div>
         </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small text-uppercase">Discounts Given <span id="lbl-rangediscount-range"></span></div>
+                <div class="fs-3 fw-bold text-danger" id="m-rangeDiscountGiven">—</div>
+                <div class="small text-muted">voucher discounts, selected range</div>
+            </div></div>
+        </div>
     </div>
 
 
@@ -170,6 +177,8 @@
                         <dd class="col-5 text-end" id="m-courtRentalRevenue">—</dd>
                         <dt class="col-7 text-muted ps-3">— Add-ons</dt>
                         <dd class="col-5 text-end" id="m-addOnsRevenue">—</dd>
+                        <dt class="col-7 text-muted">Total discounts given</dt>
+                        <dd class="col-5 fw-bold text-end text-danger" id="m-totalDiscountGiven">—</dd>
                         <dt class="col-7 text-muted">Pending (no proof)</dt>
                         <dd class="col-5 fw-bold text-end" id="m-pendingNoProof">—</dd>
                     </dl>
@@ -265,6 +274,28 @@
             </div>
         </div>
     </div>
+
+    <div class="row g-3 mb-5">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-ticket-perforated me-2"></i>Vouchers Used <span id="lbl-vouchers-range">(30d)</span>
+                    <i class="bi bi-info-circle text-muted small ms-1" title="Grouped by payment date, not court booking date."></i>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Code</th><th class="text-end">Uses</th><th class="text-end">Discount Given</th><th class="text-end">Revenue</th></tr>
+                        </thead>
+                        <tbody id="vouchers-table"><tr><td colspan="4" class="text-center text-muted py-3">Loading…</td></tr></tbody>
+                    </table>
+                    <div id="vouchers-empty" class="text-center text-muted py-3 small d-none">
+                        No vouchers redeemed in this range.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -350,9 +381,11 @@
                 document.getElementById('lbl-conversion-range').textContent = rangeLabel;
                 document.getElementById('lbl-rangebookings-range').textContent = rangeLabel;
                 document.getElementById('lbl-rangerevenue-range').textContent  = rangeLabel;
+                document.getElementById('lbl-rangediscount-range').textContent = rangeLabel;
                 document.getElementById('lbl-court-range').textContent   = rangeLabel;
                 document.getElementById('lbl-staff-range').textContent   = rangeLabel;
                 document.getElementById('lbl-addons-range').textContent  = rangeLabel;
+                document.getElementById('lbl-vouchers-range').textContent = rangeLabel;
 
                 document.getElementById('m-todayBookings').textContent  = d.counters.todayBookings;
                 document.getElementById('m-todayRevenue').textContent   = peso(d.counters.todayRevenue);
@@ -362,10 +395,12 @@
                 document.getElementById('m-bookings30').textContent     = d.counters.bookingsInRange;
                 document.getElementById('m-rangeBookings').textContent  = d.counters.bookingsInRange;
                 document.getElementById('m-rangeRevenue').textContent   = peso(d.counters.rangeRevenue);
+                document.getElementById('m-rangeDiscountGiven').textContent = peso(d.counters.rangeDiscountGiven);
                 document.getElementById('m-totalBookings').textContent  = d.counters.totalBookings;
                 document.getElementById('m-totalRevenue').textContent   = peso(d.counters.totalRevenue);
                 document.getElementById('m-courtRentalRevenue').textContent = peso(d.counters.courtRentalRevenue);
                 document.getElementById('m-addOnsRevenue').textContent  = peso(d.counters.addOnsRevenue);
+                document.getElementById('m-totalDiscountGiven').textContent = peso(d.counters.totalDiscountGiven);
                 document.getElementById('m-pendingNoProof').textContent = d.counters.pendingNoProof;
 
                 if (revenueChart) {
@@ -434,6 +469,18 @@
                             <td>${a.name}</td>
                             <td class="text-end">${a.quantity}</td>
                             <td class="text-end">${peso(a.revenue)}</td>
+                        </tr>`).join('');
+
+                const vouchers = d.voucherBreakdown || [];
+                document.getElementById('vouchers-empty').classList.toggle('d-none', vouchers.length > 0);
+                document.getElementById('vouchers-table').innerHTML = vouchers.length === 0
+                    ? '<tr><td colspan="4" class="text-center text-muted py-3">No vouchers redeemed.</td></tr>'
+                    : vouchers.map(v =>
+                        `<tr>
+                            <td><span class="badge bg-dark">${v.code}</span></td>
+                            <td class="text-end">${v.uses}</td>
+                            <td class="text-end text-danger">${peso(v.discount)}</td>
+                            <td class="text-end">${peso(v.revenue)}</td>
                         </tr>`).join('');
 
                 const t = new Date(d.generatedAt);

@@ -55,6 +55,13 @@
                             <label class="form-label small fw-semibold">Max Discount (₱) <span class="text-muted fw-normal">(optional cap for %)</span></label>
                             <input type="number" name="maxDiscountAmount" class="form-control" min="0" step="0.01" />
                         </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Applies To <span class="text-muted fw-normal">(multi-court cart checkouts only)</span></label>
+                            <select name="discountScope" class="form-select">
+                                <option value="0">Per court (full discount on each court booked)</option>
+                                <option value="1">Total order amount (one discount split across all courts)</option>
+                            </select>
+                        </div>
                         <div class="row g-2 mb-2">
                             <div class="col">
                                 <label class="form-label small fw-semibold">Min Spend (₱) <span class="text-muted fw-normal">(optional)</span></label>
@@ -113,6 +120,7 @@
                                             {
                                                 <div class="small text-muted">min ₱@v.MinSpend.Value.ToString("N0")</div>
                                             }
+                                            <div class="small text-muted">@(v.DiscountScope == VoucherDiscountScope.PerCourt ? "per court" : "total order")</div>
                                         </td>
                                         <td>@v.TimesRedeemed@(v.MaxRedemptions.HasValue ? $" / {v.MaxRedemptions}" : "")</td>
                                         <td style="font-size:.82rem;">@v.ExpiresAt.AddHours(8).ToString("MMM d, yyyy")</td>
@@ -134,6 +142,7 @@
                                             <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editVoucherModal"
                                                     data-id="@v.Id" data-code="@v.Code" data-description="@v.Description"
                                                     data-discount-type="@((int)v.DiscountType)" data-discount-value="@v.DiscountValue"
+                                                    data-discount-scope="@((int)v.DiscountScope)"
                                                     data-max-discount="@v.MaxDiscountAmount" data-min-spend="@v.MinSpend"
                                                     data-max-redemptions="@v.MaxRedemptions" data-expires-on="@v.ExpiresAt.ToString("yyyy-MM-dd")">
                                                 <i class="bi bi-pencil"></i>
@@ -200,6 +209,13 @@
                         <label class="form-label small fw-semibold">Max Discount (₱) <span class="text-muted fw-normal">(optional cap for %)</span></label>
                         <input type="number" name="maxDiscountAmount" id="evMaxDiscount" class="form-control" min="0" step="0.01" />
                     </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Applies To <span class="text-muted fw-normal">(multi-court cart checkouts only)</span></label>
+                        <select name="discountScope" id="evDiscountScope" class="form-select">
+                            <option value="0">Per court (full discount on each court booked)</option>
+                            <option value="1">Total order amount (one discount split across all courts)</option>
+                        </select>
+                    </div>
                     <div class="row g-2 mb-2">
                         <div class="col">
                             <label class="form-label small fw-semibold">Min Spend (₱) <span class="text-muted fw-normal">(optional)</span></label>
@@ -251,6 +267,7 @@
             document.getElementById('evDescription').value = d.description || '';
             evTypeSelect.value = d.discountType;
             document.getElementById('evDiscountValue').value = d.discountValue;
+            document.getElementById('evDiscountScope').value = d.discountScope;
             document.getElementById('evMaxDiscount').value = d.maxDiscount || '';
             document.getElementById('evMinSpend').value = d.minSpend || '';
             document.getElementById('evMaxRedemptions').value = d.maxRedemptions || '';
