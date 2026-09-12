@@ -217,7 +217,7 @@ public class AdminController : Controller
     private sealed record AnalyticsRow(
         DateOnly BookingDate, decimal TotalPrice, BookingStatus Status, PaymentStatus PaymentStatus,
         DateTime? PaidAt, bool HasProof, string? PaymentReference, string? PaymentMethod,
-        int? CourtId, string? LoggedByStaffId)
+        int? CourtId, string? LoggedByStaffId, string? VoucherCode, decimal DiscountAmount, string RedemptionKey)
     {
         /// <summary>The date every range filter/breakdown below buckets a row into — when it was
         /// paid (PHT calendar day), falling back to the court's BookingDate for unpaid rows (which
@@ -271,6 +271,9 @@ public class AdminController : Controller
         var totalRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => (decimal?)b.TotalPrice) ?? 0m)
                          + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed)).SumAsync(s => (decimal?)s.TotalPrice) ?? 0m)
                          + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed)).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
+        // AddOnRentals have no voucher support (walk-ins never accept a voucher code), so this total is Bookings + OpenPlaySignups only.
+        var totalDiscountGiven = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => (decimal?)b.DiscountAmount) ?? 0m)
+                               + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed)).SumAsync(s => (decimal?)s.DiscountAmount) ?? 0m);
         var awaitingPayment = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null)
                              + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null)
                              + (courtId.HasValue ? 0 : await _db.AddOnRentals.CountAsync(r => r.OwnerId == CurrentUserId && r.Status == BookingStatus.Pending && r.PaymentProofPath != null));
@@ -296,22 +299,38 @@ public class AdminController : Controller
         // instead of loading a facility's entire booking/signup/rental history into memory —
         // this is what actually keeps this endpoint's egress bounded regardless of how much
         // history has built up, since it's polled every 10s while the dashboard is open.
-        var bookingRows = await _db.Bookings
+        // RedemptionKey construction (string concat over a nullable Guid) is done after the round
+        // trip, not inside the Select sent to the DB, for the same reason DateOnly.FromDateTime()
+        // is deferred below for add-on rentals — Npgsql can fail to translate this kind of
+        // expression into valid SQL even though it works fine against SQLite locally.
+        var bookingRows = (await _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId)
                      && ((b.PaidAt != null && b.PaidAt >= rangeFromUtc && b.PaidAt < rangeToExclusiveUtc)
                          || (b.PaidAt == null && b.BookingDate >= rangeFrom && b.BookingDate <= rangeTo)))
+            .Select(b => new { b.Id, b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
+                b.PaidAt, HasProof = b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod,
+                b.CourtId, b.LoggedByStaffId, b.VoucherCode, b.DiscountAmount, b.BundleGroupId })
+            .ToListAsync())
             .Select(b => new AnalyticsRow(b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
-                b.PaidAt, b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod,
-                b.CourtId, b.LoggedByStaffId))
-            .ToListAsync();
-        var signupRows = await _db.OpenPlaySignups
+                b.PaidAt, b.HasProof, b.PaymentReference, b.PaymentMethod,
+                b.CourtId, b.LoggedByStaffId, b.VoucherCode, b.DiscountAmount,
+                // A cart checkout splits one voucher redemption across several Booking rows (one
+                // per court), all sharing a fresh BundleGroupId - key on that so "uses" below counts
+                // redemptions, not rows. Single-item flows have no BundleGroupId, so fall back to Id.
+                b.BundleGroupId.HasValue ? "grp:" + b.BundleGroupId : "b:" + b.Id))
+            .ToList();
+        var signupRows = (await _db.OpenPlaySignups
             .Where(s => courtIds.Contains(s.CourtId)
                      && ((s.PaidAt != null && s.PaidAt >= rangeFromUtc && s.PaidAt < rangeToExclusiveUtc)
                          || (s.PaidAt == null && s.BookingDate >= rangeFrom && s.BookingDate <= rangeTo)))
+            .Select(s => new { s.Id, s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
+                s.PaidAt, HasProof = s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod,
+                s.CourtId, s.LoggedByStaffId, s.VoucherCode, s.DiscountAmount })
+            .ToListAsync())
             .Select(s => new AnalyticsRow(s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
-                s.PaidAt, s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod,
-                s.CourtId, s.LoggedByStaffId))
-            .ToListAsync();
+                s.PaidAt, s.HasProof, s.PaymentReference, s.PaymentMethod,
+                s.CourtId, s.LoggedByStaffId, s.VoucherCode, s.DiscountAmount, "s:" + s.Id))
+            .ToList();
         // Standalone add-on rentals (e.g. paddle-only counter sales) have no court/slot, so they
         // can't be scoped to a specific court — only fold them in for the "all courts" view.
         // DateOnly.FromDateTime() is computed after the round trip (not inside the Select sent
@@ -323,12 +342,12 @@ public class AdminController : Controller
                 .Where(r => r.OwnerId == CurrentUserId
                          && ((r.PaidAt != null && r.PaidAt >= rangeFromUtc && r.PaidAt < rangeToExclusiveUtc)
                              || (r.PaidAt == null && r.CreatedAt >= rangeFromUtc && r.CreatedAt < rangeToExclusiveUtc)))
-                .Select(r => new { r.CreatedAt, r.TotalPrice, r.Status, r.PaymentStatus,
+                .Select(r => new { r.Id, r.CreatedAt, r.TotalPrice, r.Status, r.PaymentStatus,
                     r.PaidAt, HasProof = r.PaymentProofPath != null, r.PaymentReference, r.PaymentMethod, r.LoggedByStaffId })
                 .ToListAsync())
                 .Select(r => new AnalyticsRow(DateOnly.FromDateTime(r.CreatedAt.AddHours(8)), r.TotalPrice,
                     r.Status, r.PaymentStatus, r.PaidAt, r.HasProof, r.PaymentReference, r.PaymentMethod,
-                    null, r.LoggedByStaffId))
+                    null, r.LoggedByStaffId, null, 0m, "r:" + r.Id))
                 .ToList();
 
         var combined = bookingRows.Concat(signupRows).Concat(addOnRentalRows).ToList();
@@ -449,6 +468,29 @@ public class AdminController : Controller
             .Take(8)
             .ToList();
 
+        // Voucher usage in the selected range: which codes are actually being redeemed and how
+        // much they cost in discounts, so the owner can judge a promo's uptake/cost instead of
+        // only seeing its effect buried inside the range revenue total above.
+        var rangeConfirmedOrCompleted = combined
+            .Where(x => x.EffectiveDate >= rangeFrom && x.EffectiveDate <= rangeTo
+                        && (x.Status == BookingStatus.Confirmed || x.Status == BookingStatus.Completed))
+            .ToList();
+        var rangeDiscountGiven = rangeConfirmedOrCompleted.Sum(x => x.DiscountAmount);
+        var voucherBreakdown = rangeConfirmedOrCompleted
+            .Where(x => x.VoucherCode != null)
+            .GroupBy(x => x.VoucherCode)
+            .Select(g => new
+            {
+                code     = g.Key,
+                // Distinct RedemptionKeys, not row count - a cart checkout across several courts
+                // is one redemption even though it produced one Booking row per court.
+                uses     = g.Select(x => x.RedemptionKey).Distinct().Count(),
+                discount = g.Sum(x => x.DiscountAmount),
+                revenue  = g.Sum(x => x.TotalPrice)
+            })
+            .OrderByDescending(g => g.discount)
+            .ToList();
+
         return Json(new
         {
             generatedAt = DateTime.UtcNow,
@@ -467,7 +509,9 @@ public class AdminController : Controller
                 bookingsInRange,
                 rangeRevenue,
                 courtRentalRevenue,
-                addOnsRevenue
+                addOnsRevenue,
+                totalDiscountGiven,
+                rangeDiscountGiven
             },
             revenueByDay,
             methodBreakdown = methodRows.Select(r => new
@@ -479,7 +523,8 @@ public class AdminController : Controller
             statusBreakdown,
             courtBreakdown,
             staffBreakdown,
-            topAddOnItems
+            topAddOnItems,
+            voucherBreakdown
         });
     }
 
@@ -2861,7 +2906,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateVoucher(
         string code, string? description, VoucherDiscountType discountType, decimal discountValue,
-        decimal? maxDiscountAmount, decimal? minSpend, int? maxRedemptions, DateOnly? expiresOn)
+        decimal? maxDiscountAmount, decimal? minSpend, int? maxRedemptions, DateOnly? expiresOn,
+        VoucherDiscountScope discountScope = VoucherDiscountScope.PerCourt)
     {
         code = (code ?? string.Empty).Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(code))
@@ -2895,6 +2941,7 @@ public class AdminController : Controller
             Code = code,
             Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
             DiscountType = discountType,
+            DiscountScope = discountScope,
             DiscountValue = discountValue,
             MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null,
             MinSpend = minSpend,
@@ -2910,7 +2957,8 @@ public class AdminController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> EditVoucher(
         int id, string code, string? description, VoucherDiscountType discountType, decimal discountValue,
-        decimal? maxDiscountAmount, decimal? minSpend, int? maxRedemptions, DateOnly? expiresOn)
+        decimal? maxDiscountAmount, decimal? minSpend, int? maxRedemptions, DateOnly? expiresOn,
+        VoucherDiscountScope discountScope = VoucherDiscountScope.PerCourt)
     {
         var voucher = await _db.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == CurrentUserId);
         if (voucher is null) return NotFound();
@@ -2944,6 +2992,7 @@ public class AdminController : Controller
         voucher.Code = code;
         voucher.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         voucher.DiscountType = discountType;
+        voucher.DiscountScope = discountScope;
         voucher.DiscountValue = discountValue;
         voucher.MaxDiscountAmount = discountType == VoucherDiscountType.Percentage ? maxDiscountAmount : null;
         voucher.MinSpend = minSpend;

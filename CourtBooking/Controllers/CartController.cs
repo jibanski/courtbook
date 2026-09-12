@@ -259,6 +259,7 @@ public class CartController : Controller
         var cartSubtotal = rowSubtotals.Sum();
 
         Voucher? appliedVoucher = null;
+        decimal totalVoucherDiscount = 0m;
         if (!string.IsNullOrWhiteSpace(voucherCode) && settings.OwnerId != null)
         {
             var voucherResult = await _voucherService.ValidateAsync(voucherCode, settings.OwnerId, cartSubtotal);
@@ -268,6 +269,40 @@ public class CartController : Controller
                 return RedirectToAction(nameof(Checkout), new { slug });
             }
             appliedVoucher = voucherResult.Voucher;
+            // Already computed against the whole cart subtotal - reused as-is for TotalOrder scope.
+            totalVoucherDiscount = voucherResult.DiscountAmount;
+        }
+
+        // PerCourt: each row gets the voucher applied independently, in full, against its own
+        // price. TotalOrder: one combined discount is split proportionally across rows, with the
+        // last row absorbing any rounding remainder so the parts sum exactly to the whole.
+        var rowDiscounts = new List<decimal>(new decimal[resolved.Count]);
+        if (appliedVoucher is not null)
+        {
+            if (appliedVoucher.DiscountScope == VoucherDiscountScope.PerCourt)
+            {
+                for (int i = 0; i < rowSubtotals.Count; i++)
+                    rowDiscounts[i] = VoucherService.ComputeDiscount(appliedVoucher, rowSubtotals[i]);
+            }
+            else
+            {
+                decimal allocated = 0m;
+                for (int i = 0; i < rowSubtotals.Count; i++)
+                {
+                    if (i == rowSubtotals.Count - 1)
+                    {
+                        rowDiscounts[i] = totalVoucherDiscount - allocated;
+                    }
+                    else
+                    {
+                        var share = cartSubtotal > 0
+                            ? Math.Round(totalVoucherDiscount * (rowSubtotals[i] / cartSubtotal), 2)
+                            : 0m;
+                        rowDiscounts[i] = share;
+                        allocated += share;
+                    }
+                }
+            }
         }
 
         for (int i = 0; i < resolved.Count; i++)
@@ -275,11 +310,7 @@ public class CartController : Controller
             var (item, court, bookingDate, start, end, slotPrice, bundle) = resolved[i];
             var (addOns, addOnsTotal) = itemAddOns[i];
 
-            // Applied per row against that row's own price — a fixed-amount voucher discounts
-            // EVERY court by its full value, it isn't split thin across however many are booked.
-            decimal rowDiscount = appliedVoucher is not null
-                ? VoucherService.ComputeDiscount(appliedVoucher, rowSubtotals[i])
-                : 0m;
+            var rowDiscount = rowDiscounts[i];
 
             bookings.Add(new Booking
             {
