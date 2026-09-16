@@ -312,21 +312,32 @@
                     </div>
                     <div class="col-md-8 d-flex align-items-center gap-2 flex-wrap">
                         <span class="badge @(f.IsCommissionModel ? "bg-success" : "bg-primary")">
-                            @(f.IsCommissionModel ? $"Commission {f.CommissionRate}%" : "Subscription")
+                            @(f.IsCommissionModel
+                                ? $"Commission {f.CommissionRate}%"
+                                : $"Subscription ({(string.Equals(f.SubscriptionPlan, "annual", StringComparison.OrdinalIgnoreCase) ? "Annual" : "Monthly")})")
                         </span>
                         <form asp-action="ChangeBillingModel" method="post" class="d-flex gap-1 flex-wrap align-items-center">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="password" value="@password" />
                             <input type="hidden" name="id"       value="@f.Id" />
-                            <select name="billingModel" class="form-select form-select-sm" style="width:auto;background:#0d1117;color:#e6edf3;border-color:#30363d;">
+                            <select name="billingModel" class="form-select form-select-sm"
+                                    style="width:auto;background:#0d1117;color:#e6edf3;border-color:#30363d;"
+                                    onchange="this.form.querySelector('.commission-rate-select').style.display = this.value === 'Commission' ? '' : 'none';
+                                              this.form.querySelector('.subscription-plan-select').style.display = this.value === 'Subscription' ? '' : 'none';">
                                 <option value="Subscription" selected="@(!f.IsCommissionModel)">Subscription</option>
                                 <option value="Commission"   selected="@f.IsCommissionModel">Commission</option>
                             </select>
-                            <select name="commissionRate" class="form-select form-select-sm" style="width:auto;background:#0d1117;color:#e6edf3;border-color:#30363d;">
+                            <select name="commissionRate" class="form-select form-select-sm commission-rate-select"
+                                    style="width:auto;background:#0d1117;color:#e6edf3;border-color:#30363d;@(f.IsCommissionModel ? "" : "display:none;")">
                                 @for (var rate = 1; rate <= 5; rate++)
                                 {
                                     <option value="@rate" selected="@(f.CommissionRate == rate)">@rate%</option>
                                 }
+                            </select>
+                            <select name="subscriptionPlan" class="form-select form-select-sm subscription-plan-select"
+                                    style="width:auto;background:#0d1117;color:#e6edf3;border-color:#30363d;@(f.IsCommissionModel ? "display:none;" : "")">
+                                <option value="monthly" selected="@(!string.Equals(f.SubscriptionPlan, "annual", StringComparison.OrdinalIgnoreCase))">Monthly</option>
+                                <option value="annual"  selected="@(string.Equals(f.SubscriptionPlan, "annual", StringComparison.OrdinalIgnoreCase))">Annual</option>
                             </select>
                             <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap">
                                 Switch / Update
