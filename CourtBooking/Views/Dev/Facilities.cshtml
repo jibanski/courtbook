@@ -314,16 +314,22 @@
                         <span class="badge @(f.IsCommissionModel ? "bg-success" : "bg-primary")">
                             @(f.IsCommissionModel ? $"Commission {f.CommissionRate}%" : "Subscription")
                         </span>
-                        <form asp-action="ChangeBillingModel" method="post" class="d-flex gap-1">
+                        <form asp-action="ChangeBillingModel" method="post" class="d-flex gap-1 flex-wrap align-items-center">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="password" value="@password" />
                             <input type="hidden" name="id"       value="@f.Id" />
                             <select name="billingModel" class="form-select form-select-sm" style="width:auto;background:#0d1117;color:#e6edf3;border-color:#30363d;">
                                 <option value="Subscription" selected="@(!f.IsCommissionModel)">Subscription</option>
-                                <option value="Commission"   selected="@f.IsCommissionModel">Commission (2%)</option>
+                                <option value="Commission"   selected="@f.IsCommissionModel">Commission</option>
+                            </select>
+                            <select name="commissionRate" class="form-select form-select-sm" style="width:auto;background:#0d1117;color:#e6edf3;border-color:#30363d;">
+                                @for (var rate = 1; rate <= 5; rate++)
+                                {
+                                    <option value="@rate" selected="@(f.CommissionRate == rate)">@rate%</option>
+                                }
                             </select>
                             <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap">
-                                Switch
+                                Switch / Update
                             </button>
                         </form>
                     </div>
