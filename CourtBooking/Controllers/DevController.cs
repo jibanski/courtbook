@@ -318,7 +318,7 @@ public class DevController : Controller
 
     // POST /Dev/ChangeBillingModel
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ChangeBillingModel(string password, int id, string billingModel, decimal commissionRate = 2.0m)
+    public async Task<IActionResult> ChangeBillingModel(string password, int id, string billingModel, decimal commissionRate = 2.0m, string subscriptionPlan = "monthly")
     {
         if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
 
@@ -327,10 +327,13 @@ public class DevController : Controller
 
         f.BillingModel = billingModel == "Commission" ? "Commission" : "Subscription";
         f.CommissionRate = Math.Clamp(commissionRate, 1.0m, 5.0m);
+        if (f.BillingModel == "Subscription")
+            f.SubscriptionPlan = subscriptionPlan == "annual" ? "annual" : "monthly";
         await _db.SaveChangesAsync();
 
-        TempData["Success"] = $"\"{f.FacilityName}\" switched to {f.BillingModel} model" +
-            (f.BillingModel == "Commission" ? $" at {f.CommissionRate}% commission." : ".");
+        TempData["Success"] = f.BillingModel == "Commission"
+            ? $"\"{f.FacilityName}\" switched to Commission model at {f.CommissionRate}% commission."
+            : $"\"{f.FacilityName}\" switched to Subscription model ({f.SubscriptionPlan}).";
         return RedirectToActionFacilities(password);
     }
 
