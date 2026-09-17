@@ -351,6 +351,47 @@
                 </div>
             </form>
 
+            @if (Model.IsCommissionModel)
+            {
+                <!-- ── Commission Payable ──────────────────────────────── -->
+                <div class="card shadow-sm mt-4 border-success-subtle">
+                    <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-percent me-2 text-success"></i>Commission Payable</span>
+                        <span class="badge bg-success-subtle text-success">@Model.CommissionRate% per booking</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                            <div>
+                                <div class="text-muted small mb-1">Current balance owed</div>
+                                <div class="fs-3 fw-bold @(Model.CommissionBalanceOwed > 0 ? "text-warning" : "text-success")">
+                                    &#8369;@Model.CommissionBalanceOwed.ToString("N2")
+                                </div>
+                                @if (Model.CommissionTotalPaid > 0)
+                                {
+                                    <div class="text-muted small">Total paid historically: &#8369;@Model.CommissionTotalPaid.ToString("N2")</div>
+                                }
+                            </div>
+                            @if (Model.CommissionBalanceOwed > 0)
+                            {
+                                <a asp-controller="Subscription" asp-action="Commission" class="btn btn-success fw-semibold">
+                                    <i class="bi bi-cash-coin me-1"></i>Pay Now
+                                </a>
+                            }
+                        </div>
+                        <p class="text-muted small mt-3 mb-0">
+                            Accrues automatically from your confirmed bookings and clears once your payment is verified.
+                        </p>
+                        @if (Model.IsCommissionPaymentPending)
+                        {
+                            <div class="alert alert-info py-2 mt-3 mb-0 small">
+                                <i class="bi bi-hourglass-split me-1"></i>
+                                Payment submitted on @Model.CommissionPaymentSubmittedAt!.Value.AddHours(8).ToString("MMM d, yyyy h:mm tt") PHT — awaiting verification.
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
             <!-- ── Holidays ────────────────────────────────────────────── -->
             <div class="card shadow-sm mt-4">
                 <div class="card-header bg-white fw-bold">
