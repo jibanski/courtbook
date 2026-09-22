@@ -172,7 +172,13 @@ public class AdminController : Controller
             DiscountAmount = b.DiscountAmount,
             RefundedAt = b.RefundedAt,
             RefundAmount = b.RefundAmount,
-            RefundReason = b.RefundReason
+            RefundReason = b.RefundReason,
+            RescheduledAt = b.RescheduledAt,
+            RescheduledByName = b.RescheduledByName,
+            RescheduledFromCourtName = b.RescheduledFromCourtName,
+            RescheduledFromDate = b.RescheduledFromDate,
+            RescheduledFromStartTime = b.RescheduledFromStartTime,
+            RescheduledFromEndTime = b.RescheduledFromEndTime
         }).ToList();
 
         rows.AddRange(signups.Select(sg => new AdminBookingRow
@@ -2974,6 +2980,7 @@ public class AdminController : Controller
         var oldDate      = booking.BookingDate;
         var oldStart     = booking.StartTime;
         var oldEnd       = booking.EndTime;
+        var admin        = await _userManager.FindByIdAsync(CurrentUserId);
 
         booking.CourtId     = courtId;
         booking.CourtName   = targetCourt.Name;
@@ -2990,6 +2997,16 @@ public class AdminController : Controller
             var addOnsTotal = booking.AddOns.Sum(a => a.Quantity * a.UnitPrice);
             booking.TotalPrice = rentalTotal + addOnsTotal;
         }
+
+        // Audit trail: who moved this booking, when, and what it looked like before — shown on the
+        // All Bookings row so a facility admin can see this without digging through server logs.
+        // Only the most recent reschedule is kept, not full history.
+        booking.RescheduledAt             = DateTime.UtcNow;
+        booking.RescheduledByName         = admin?.FullName ?? User.Identity?.Name ?? "Facility Admin";
+        booking.RescheduledFromCourtName  = oldCourtName;
+        booking.RescheduledFromDate       = oldDate;
+        booking.RescheduledFromStartTime  = oldStart;
+        booking.RescheduledFromEndTime    = oldEnd;
 
         await _db.SaveChangesAsync();
 
@@ -3072,9 +3089,16 @@ public class AdminController : Controller
         }
 
         var moves = eligible.Select(b => (b.Court.Name, OldDate: b.BookingDate, b.StartTime, b.EndTime)).ToList();
+        var admin = await _userManager.FindByIdAsync(CurrentUserId);
+        var adminName = admin?.FullName ?? User.Identity?.Name ?? "Facility Admin";
 
         foreach (var b in eligible)
         {
+            var oldCourtName = b.CourtName ?? b.Court.Name;
+            var oldDate      = b.BookingDate;
+            var oldStart     = b.StartTime;
+            var oldEnd       = b.EndTime;
+
             b.BookingDate = newBookingDate;
             b.StartTime   = newStart;
             b.EndTime     = newEnd;
@@ -3087,6 +3111,14 @@ public class AdminController : Controller
                 var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
                 b.TotalPrice = newPrices[b.Id] + addOnsTotal;
             }
+
+            // Audit trail — see RescheduleBooking for why this is snapshotted rather than looked up live.
+            b.RescheduledAt            = DateTime.UtcNow;
+            b.RescheduledByName        = adminName;
+            b.RescheduledFromCourtName = oldCourtName;
+            b.RescheduledFromDate      = oldDate;
+            b.RescheduledFromStartTime = oldStart;
+            b.RescheduledFromEndTime   = oldEnd;
         }
 
         await _db.SaveChangesAsync();

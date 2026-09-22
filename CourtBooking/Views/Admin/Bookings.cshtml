@@ -663,6 +663,15 @@
                                                 @refundLabel ₱@((b.RefundAmount ?? 0).ToString("N0")) of ₱@b.TotalPrice.ToString("N0"): @b.RefundedAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
                                             </div>
                                         }
+                                        @if (b.RescheduledAt is not null)
+                                        {
+                                            var fromWhen = b.RescheduledFromDate.HasValue
+                                                ? $"{b.RescheduledFromDate.Value:MMM d} {TimeDisplay.HourRange(b.RescheduledFromStartTime!.Value.Hour, b.RescheduledFromEndTime!.Value.Hour == 0 ? 24 : b.RescheduledFromEndTime.Value.Hour)}"
+                                                : "an earlier slot";
+                                            <div class="text-muted text-nowrap" style="font-size:.65rem;" title="Was @(b.RescheduledFromCourtName ?? "a different court"), @fromWhen">
+                                                <i class="bi bi-calendar-event me-1"></i>Rescheduled by @b.RescheduledByName: @b.RescheduledAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
+                                            </div>
+                                        }
                                         @{ var isCashMethod = string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase); }
                                         <form asp-action="UpdateBookingPaymentMethod" method="post" class="mt-1">
                                             @Html.AntiForgeryToken()
