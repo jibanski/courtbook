@@ -24,6 +24,7 @@ public class StaffController : Controller
     private readonly BookingService _bookingService;
     private readonly GuestCheckoutService _guestCheckout;
     private readonly EmailService _email;
+    private readonly IConfiguration _config;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<StaffController> _logger;
     private readonly ImageCompressionService _imageCompression;
@@ -34,6 +35,7 @@ public class StaffController : Controller
         BookingService bookingService,
         GuestCheckoutService guestCheckout,
         EmailService email,
+        IConfiguration config,
         UserManager<ApplicationUser> userManager,
         ILogger<StaffController> logger,
         ImageCompressionService imageCompression,
@@ -43,6 +45,7 @@ public class StaffController : Controller
         _bookingService = bookingService;
         _guestCheckout  = guestCheckout;
         _email          = email;
+        _config         = config;
         _logger         = logger;
         _userManager    = userManager;
         _imageCompression = imageCompression;
@@ -168,7 +171,210 @@ public class StaffController : Controller
         ViewBag.SelectedDateFrom = dateFrom;
         ViewBag.SelectedDateTo   = dateTo;
         ViewBag.Search           = search;
+        // For the Reschedule modal's "move to court" dropdown.
+        ViewBag.Courts = await (await MyCourtsAsync()).Where(c => c.IsActive).OrderBy(c => c.Name)
+            .Select(c => new { c.Id, c.Name }).ToListAsync();
         return View();
+    }
+
+    /// <summary>
+    /// Staff counterpart to <see cref="AdminController.RescheduleBooking"/> — same rules (only
+    /// Pending/Confirmed, non-bundle, non-cancelled/completed bookings on the employer's own
+    /// courts), just scoped to the employer's courts instead of an owner's. Recorded the same way
+    /// (RescheduledBy/At/From* on the booking) so a facility admin can see which staff account
+    /// made the move.
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RescheduleBooking(int id, int courtId, DateOnly newDate, int startHour, int endHour)
+    {
+        var courtIds = await GetMyCourtIdsAsync();
+        var booking = await _db.Bookings
+            .Include(b => b.Court).Include(b => b.User).Include(b => b.AddOns)
+            .FirstOrDefaultAsync(b => b.Id == id && courtIds.Contains(b.CourtId));
+        if (booking is null) return NotFound();
+
+        if (booking.Status is BookingStatus.Cancelled or BookingStatus.Completed)
+        {
+            TempData["Error"] = $"Booking #{id} is {booking.Status} and can't be rescheduled.";
+            return RedirectToAction(nameof(Bookings));
+        }
+        if (booking.CourtBundleId != null)
+        {
+            TempData["Error"] = $"Booking #{id} is part of a bundled multi-court booking and can't be rescheduled individually.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var targetCourt = await (await MyCourtsAsync()).FirstOrDefaultAsync(c => c.Id == courtId);
+        if (targetCourt is null) return NotFound();
+
+        if (endHour <= startHour || startHour < 0 || endHour > 48)
+        {
+            TempData["Error"] = "Invalid time range.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var newStart = new TimeOnly(startHour % 24, 0);
+        var newEnd   = new TimeOnly(endHour % 24, 0);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+        // slot is entirely after midnight — the real BookingDate is the next calendar day.
+        var newBookingDate = TimeDisplay.ResolveBookingDate(newDate, startHour);
+
+        var available = await _bookingService.IsSlotAvailableAsync(courtId, newBookingDate, newStart, newEnd, excludeBookingId: id);
+        if (!available)
+        {
+            TempData["Error"] = $"Booking #{id} can't be moved to {targetCourt.Name} on {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — that slot isn't available.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var oldCourtName = booking.CourtName ?? booking.Court.Name;
+        var oldDate      = booking.BookingDate;
+        var oldStart     = booking.StartTime;
+        var oldEnd       = booking.EndTime;
+        var staffName    = await CurrentStaffNameAsync();
+
+        booking.CourtId     = courtId;
+        booking.CourtName   = targetCourt.Name;
+        booking.BookingDate = newBookingDate;
+        booking.StartTime   = newStart;
+        booking.EndTime     = newEnd;
+
+        // Paid bookings keep their originally-charged price; only an unpaid/refunded reservation's
+        // price is re-resolved against the new court/date/time.
+        if (booking.PaymentStatus != PaymentStatus.Paid)
+        {
+            var rentalTotal = await _bookingService.GetTotalPriceAsync(targetCourt, newDate, newStart, newEnd);
+            var addOnsTotal = booking.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+            booking.TotalPrice = rentalTotal + addOnsTotal;
+        }
+
+        // Audit trail — same fields AdminController.RescheduleBooking writes, so a facility admin
+        // can see this was done by a staff account without digging through server logs.
+        booking.RescheduledAt             = DateTime.UtcNow;
+        booking.RescheduledByName         = staffName ?? "Staff";
+        booking.RescheduledFromCourtName  = oldCourtName;
+        booking.RescheduledFromDate       = oldDate;
+        booking.RescheduledFromStartTime  = oldStart;
+        booking.RescheduledFromEndTime    = oldEnd;
+
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "[StaffBookings] Booking #{Id} rescheduled: {OldCourt} {OldDate:yyyy-MM-dd} {OldStart}-{OldEnd} -> {NewCourt} {NewDate:yyyy-MM-dd} {NewStart}-{NewEnd} by {Email} (Id={UserId}) at {Time:o}",
+            id, oldCourtName, oldDate, oldStart, oldEnd, targetCourt.Name, newDate, newStart, newEnd, User.Identity?.Name, CurrentStaffId, DateTime.UtcNow);
+
+        if (!string.IsNullOrWhiteSpace(booking.User?.Email))
+        {
+            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            _ = _email.SendBookingRescheduledToCustomerAsync(
+                booking.User.Email!, booking.User.FirstName, id,
+                oldCourtName, oldDate, oldStart, oldEnd,
+                targetCourt.Name, newDate, newStart, newEnd,
+                baseUrl, booking.User.IsGuest);
+        }
+
+        TempData["Success"] = $"Booking #{id} rescheduled to {targetCourt.Name} on {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)}.";
+        return RedirectToAction(nameof(Bookings));
+    }
+
+    /// <summary>Staff counterpart to <see cref="AdminController.RescheduleBundleGroup"/> — see that
+    /// method for the full rationale. Scoped to the employer's courts instead of an owner's.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RescheduleBundleGroup(Guid groupId, DateOnly newDate, int startHour, int endHour)
+    {
+        if (endHour <= startHour || startHour < 0 || endHour > 48)
+        {
+            TempData["Error"] = "Invalid time range.";
+            return RedirectToAction(nameof(Bookings));
+        }
+        var newStart = new TimeOnly(startHour % 24, 0);
+        var newEnd   = new TimeOnly(endHour % 24, 0);
+        // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the
+        // slot is entirely after midnight — the real BookingDate is the next calendar day.
+        var newBookingDate = TimeDisplay.ResolveBookingDate(newDate, startHour);
+
+        var courtIds = await GetMyCourtIdsAsync();
+        var rows = await _db.Bookings
+            .Include(b => b.Court).Include(b => b.User).Include(b => b.AddOns)
+            .Where(b => b.BundleGroupId == groupId && b.CourtBundleId != null && courtIds.Contains(b.CourtId))
+            .ToListAsync();
+        if (rows.Count == 0) return NotFound();
+
+        var eligible = rows.Where(b => b.Status is BookingStatus.Pending or BookingStatus.Confirmed).ToList();
+        if (eligible.Count == 0)
+        {
+            TempData["Error"] = "This bundle booking has no Pending/Confirmed courts left to reschedule.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        // Check every eligible court is free AND still has a matching bundle rate block for the
+        // new date/time (day-of-week/holiday schedule) before moving any of them — all-or-nothing
+        // so a conflict/no-schedule on one court can't leave the group half-moved.
+        var newPrices = new Dictionary<int, decimal>();
+        foreach (var b in eligible)
+        {
+            var available = await _bookingService.IsSlotAvailableAsync(b.CourtId, newBookingDate, newStart, newEnd, excludeBookingId: b.Id);
+            if (!available)
+            {
+                TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — {b.CourtName ?? b.Court.Name} isn't free then.";
+                return RedirectToAction(nameof(Bookings));
+            }
+
+            var match = await _bookingService.ResolveBundleWindowForBookingAsync(b.Court, b.CourtBundleId!.Value, newDate, startHour, endHour);
+            if (match is null)
+            {
+                TempData["Error"] = $"Can't move this bundle to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} — {b.CourtName ?? b.Court.Name}'s bundle window doesn't run then.";
+                return RedirectToAction(nameof(Bookings));
+            }
+            newPrices[b.Id] = match.Value.Price;
+        }
+
+        var moves = eligible.Select(b => (b.Court.Name, OldDate: b.BookingDate, b.StartTime, b.EndTime)).ToList();
+        var staffName = await CurrentStaffNameAsync();
+
+        foreach (var b in eligible)
+        {
+            var oldCourtName = b.CourtName ?? b.Court.Name;
+            var oldDate      = b.BookingDate;
+            var oldStart     = b.StartTime;
+            var oldEnd       = b.EndTime;
+
+            b.BookingDate = newBookingDate;
+            b.StartTime   = newStart;
+            b.EndTime     = newEnd;
+
+            // Paid rows keep their originally-charged price; only unpaid/refunded rows are
+            // re-resolved against the new date/time — using the bundle's flat price (from the
+            // schedule check above), never GetTotalPriceAsync's regular hourly rate.
+            if (b.PaymentStatus != PaymentStatus.Paid)
+            {
+                var addOnsTotal = b.AddOns.Sum(a => a.Quantity * a.UnitPrice);
+                b.TotalPrice = newPrices[b.Id] + addOnsTotal;
+            }
+
+            b.RescheduledAt            = DateTime.UtcNow;
+            b.RescheduledByName        = staffName ?? "Staff";
+            b.RescheduledFromCourtName = oldCourtName;
+            b.RescheduledFromDate      = oldDate;
+            b.RescheduledFromStartTime = oldStart;
+            b.RescheduledFromEndTime   = oldEnd;
+        }
+
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "[StaffBookings] Bundle group {GroupId} ({Count} courts) rescheduled to {NewDate:yyyy-MM-dd} {NewStart}-{NewEnd} by {Email} (Id={UserId}) at {Time:o}",
+            groupId, eligible.Count, newDate, newStart, newEnd, User.Identity?.Name, CurrentStaffId, DateTime.UtcNow);
+
+        var first = eligible[0];
+        if (!string.IsNullOrWhiteSpace(first.User?.Email))
+        {
+            var baseUrl = _config["App:BaseUrl"]?.TrimEnd('/') ?? $"{Request.Scheme}://{Request.Host}";
+            _ = _email.SendBundleGroupRescheduledToCustomerAsync(
+                first.User.Email!, first.User.FirstName, moves, newDate, newStart, newEnd, baseUrl, first.User.IsGuest);
+        }
+
+        TempData["Success"] = $"Bundle booking moved to {newDate:MMM d, yyyy} {TimeDisplay.HourRange(startHour, endHour)} across {eligible.Count} court(s).";
+        return RedirectToAction(nameof(Bookings));
     }
 
     /// <summary>Merges regular court <see cref="Booking"/>s and <see cref="OpenPlaySignup"/>s for these
@@ -180,7 +386,8 @@ public class StaffController : Controller
     {
         var query = _db.Bookings
             .Where(b => courtIds.Contains(b.CourtId))
-            .Include(b => b.Court).Include(b => b.User).Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
+            .Include(b => b.Court).Include(b => b.User).Include(b => b.CourtBundle)
+            .Include(b => b.AddOns).ThenInclude(a => a.AddOnItem)
             .AsQueryable();
         var signupQuery = _db.OpenPlaySignups
             .Where(sg => courtIds.Contains(sg.CourtId))
@@ -228,7 +435,10 @@ public class StaffController : Controller
             CustomerName = b.CustomerNameSnapshot ?? b.User.FullName,
             CustomerPhone = b.User.PhoneNumber,
             IsGuest = b.User.IsGuest,
+            CourtId = b.CourtId,
             CourtName = b.Court.Name,
+            BundleName = b.CourtBundle?.Name,
+            BundleGroupId = b.CourtBundleId != null ? b.BundleGroupId : null,
             BookingDate = b.BookingDate,
             StartTime = b.StartTime,
             EndTime = b.EndTime,
@@ -244,7 +454,13 @@ public class StaffController : Controller
             AddOnsSummary = b.AddOns.Any() ? string.Join(", ", b.AddOns.Select(a => $"{a.Quantity}x {a.AddOnItem.Name}")) : null,
             VoucherCode = b.VoucherCode,
             DiscountAmount = b.DiscountAmount,
-            PaymentProofPath = b.PaymentProofPath
+            PaymentProofPath = b.PaymentProofPath,
+            RescheduledAt = b.RescheduledAt,
+            RescheduledByName = b.RescheduledByName,
+            RescheduledFromCourtName = b.RescheduledFromCourtName,
+            RescheduledFromDate = b.RescheduledFromDate,
+            RescheduledFromStartTime = b.RescheduledFromStartTime,
+            RescheduledFromEndTime = b.RescheduledFromEndTime
         }).ToList();
 
         rows.AddRange(signups.Select(sg => new AdminBookingRow
