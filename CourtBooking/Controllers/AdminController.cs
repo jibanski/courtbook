@@ -2884,6 +2884,27 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditAddOn(int id, string name, decimal price, AddOnPricingType pricingType, int stockQuantity)
+    {
+        var item = await _db.AddOnItems.FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == CurrentUserId);
+        if (item is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(name) || price < 0 || stockQuantity < 0)
+        {
+            TempData["Error"] = "Name is required, and price/stock can't be negative.";
+            return RedirectToAction(nameof(AddOns));
+        }
+
+        item.Name = name.Trim();
+        item.Price = price;
+        item.PricingType = pricingType;
+        item.StockQuantity = stockQuantity;
+        await _db.SaveChangesAsync();
+        TempData["Success"] = $"Add-on '{item.Name}' updated.";
+        return RedirectToAction(nameof(AddOns));
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleAddOn(int id)
     {
         var item = await _db.AddOnItems.FirstOrDefaultAsync(a => a.Id == id && a.OwnerId == CurrentUserId);
