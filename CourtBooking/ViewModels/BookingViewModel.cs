@@ -25,12 +25,13 @@ public class BookingViewModel
 
     public string? Notes { get; set; }
 
+    /// <summary>Optional discount code typed at checkout, validated server-side against the court owner's <see cref="CourtBooking.Models.Voucher"/> list.</summary>
+    public string? VoucherCode { get; set; }
+
     // Contact info — required for guests; pre-filled from account for authenticated users.
     public string? GuestName { get; set; }
     public string? GuestEmail { get; set; }
     public string? GuestPhone { get; set; }
-
-    public string? VoucherCode { get; set; }
 
     // When set (from the GET action), this is the tier-aware total for a fixed-slot booking
     // and takes precedence over the flat Court.PricePerHour * duration fallback below.

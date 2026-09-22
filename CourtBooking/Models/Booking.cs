@@ -106,6 +106,25 @@ public class Booking
     [MaxLength(300)]
     public string? RefundReason { get; set; }
 
+    /// <summary>When this booking was last moved to a different date/time/court by
+    /// <c>AdminController.RescheduleBooking</c>/<c>RescheduleBundleGroup</c> (UTC). Null if it's
+    /// never been rescheduled. Only tracks the most recent move, not full history.</summary>
+    public DateTime? RescheduledAt { get; set; }
+
+    /// <summary>Snapshot of the admin's display name who performed the most recent reschedule —
+    /// snapshotted (not looked up live) so it stays accurate even if the account is later renamed
+    /// or removed, same reasoning as <see cref="CustomerNameSnapshot"/>.</summary>
+    [MaxLength(200)]
+    public string? RescheduledByName { get; set; }
+
+    /// <summary>Court/date/time this booking was moved FROM on its most recent reschedule — lets
+    /// the All Bookings row show "was Court A, Sep 20 3-4pm" alongside the current slot.</summary>
+    [MaxLength(100)]
+    public string? RescheduledFromCourtName { get; set; }
+    public DateOnly? RescheduledFromDate { get; set; }
+    public TimeOnly? RescheduledFromStartTime { get; set; }
+    public TimeOnly? RescheduledFromEndTime { get; set; }
+
     /// <summary>PayMongo checkout session ID when the customer chose to pay by card.</summary>
     public string? CheckoutSessionId { get; set; }
 

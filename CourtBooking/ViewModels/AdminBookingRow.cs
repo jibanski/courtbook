@@ -76,4 +76,16 @@ public class AdminBookingRow
 
     /// <summary>Admin-entered note explaining the refund, if any.</summary>
     public string? RefundReason { get; set; }
+
+    /// <summary>When this booking was last moved by a reschedule (UTC), null if never rescheduled.</summary>
+    public DateTime? RescheduledAt { get; set; }
+
+    /// <summary>Snapshot of the admin's name who performed the most recent reschedule.</summary>
+    public string? RescheduledByName { get; set; }
+
+    /// <summary>Court/date/time this booking was moved FROM on its most recent reschedule.</summary>
+    public string? RescheduledFromCourtName { get; set; }
+    public DateOnly? RescheduledFromDate { get; set; }
+    public TimeOnly? RescheduledFromStartTime { get; set; }
+    public TimeOnly? RescheduledFromEndTime { get; set; }
 }

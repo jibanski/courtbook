@@ -29,7 +29,7 @@
     <div class="container">
         <h1 class="mb-1" style="font-size:1.75rem;">All Bookings</h1>
         <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
-            Read-only view of every booking on your facility's courts — including Open Play sign-ups — use this to confirm a booking went through.
+            View every booking on your facility's courts — including Open Play sign-ups — confirm a booking went through, or reschedule a court booking.
         </p>
     </div>
 </div>
@@ -62,7 +62,15 @@
                                 <td>@TimeDisplay.HourRange(b.StartTime.Hour, b.EndTime.Hour)</td>
                                 <td>@b.CourtName</td>
                                 <td>@b.CustomerName</td>
-                                <td>₱@b.TotalPrice.ToString("N0")</td>
+                                <td>
+                                    ₱@b.TotalPrice.ToString("N0")
+                                    @if (!string.IsNullOrWhiteSpace(b.VoucherCode))
+                                    {
+                                        <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@b.DiscountAmount.ToString("N0")">
+                                            <i class="bi bi-ticket-perforated"></i> @b.VoucherCode
+                                        </span>
+                                    }
+                                </td>
                                 <td>@(b.PaymentMethod ?? "—")</td>
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(b.PaymentProofPath))
@@ -122,7 +130,7 @@
         <div class="card mb-4">
             <div class="card-body">
                 <p class="text-muted small mb-3">
-                    <i class="bi bi-info-circle me-1"></i>Showing the last 30 days by default — clear the date fields to see full history.
+                    <i class="bi bi-info-circle me-1"></i>Showing 30 days back through 30 days ahead by default — clear the date fields to see full history.
                 </p>
                 <form method="get" class="row g-3 align-items-end">
                     <div class="col-sm-3">
@@ -170,12 +178,13 @@
                             <th>Payment</th>
                             <th>Status</th>
                             <th>Booked By</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (!rows.Any())
                         {
-                            <tr><td colspan="9" class="text-center py-5" style="color:var(--cb-text-3);">No bookings found.</td></tr>
+                            <tr><td colspan="10" class="text-center py-5" style="color:var(--cb-text-3);">No bookings found.</td></tr>
                         }
                         else
                         {
@@ -228,6 +237,12 @@
                                                 Court ₱@((b.TotalPrice - b.AddOnsTotal).ToString("N0")) + Add-ons ₱@b.AddOnsTotal.ToString("N0")
                                             </div>
                                         }
+                                        @if (!string.IsNullOrWhiteSpace(b.VoucherCode))
+                                        {
+                                            <span class="badge bg-success-subtle text-success-emphasis" title="Voucher discount -₱@b.DiscountAmount.ToString("N0")">
+                                                <i class="bi bi-ticket-perforated"></i> @b.VoucherCode
+                                            </span>
+                                        }
                                     </td>
                                     <td>
                                         @if (b.PaymentStatus == CourtBooking.Models.PaymentStatus.Paid)
@@ -251,6 +266,21 @@
                                             <div><a href="@b.PaymentProofPath" target="_blank" style="font-size:.7rem;">View proof</a></div>
                                         }
                                         <div class="text-muted" style="font-size:.7rem;">@(b.PaymentMethod ?? "Cash")</div>
+                                        @if (b.PaidAt is not null)
+                                        {
+                                            <div class="text-muted text-nowrap" style="font-size:.65rem;" title="The date Analytics counts this sale toward">
+                                                Paid: @b.PaidAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
+                                            </div>
+                                        }
+                                        @if (b.RescheduledAt is not null)
+                                        {
+                                            var fromWhen = b.RescheduledFromDate.HasValue
+                                                ? $"{b.RescheduledFromDate.Value:MMM d} {TimeDisplay.HourRange(b.RescheduledFromStartTime!.Value.Hour, b.RescheduledFromEndTime!.Value.Hour == 0 ? 24 : b.RescheduledFromEndTime.Value.Hour)}"
+                                                : "an earlier slot";
+                                            <div class="text-muted text-nowrap" style="font-size:.65rem;" title="Was @(b.RescheduledFromCourtName ?? "a different court"), @fromWhen">
+                                                <i class="bi bi-calendar-event me-1"></i>Rescheduled by @b.RescheduledByName: @b.RescheduledAt.Value.AddHours(8).ToString("MMM d, h:mm tt")
+                                            </div>
+                                        }
                                     </td>
                                     <td>
                                         <span class="badge @badgeClass">@(isAwaitingConfirmation ? "Awaiting confirmation" : b.Status.ToString())</span>
@@ -267,6 +297,31 @@
                                             <span class="text-muted small">Online</span>
                                         }
                                         <div class="text-muted text-nowrap" style="font-size:.7rem;">@b.CreatedAt.AddHours(8).ToString("MMM d, h:mm tt")</div>
+                                    </td>
+                                    <td>
+                                        @{
+                                            bool activeStatus = b.Status == CourtBooking.Models.BookingStatus.Pending || b.Status == CourtBooking.Models.BookingStatus.Confirmed;
+                                            var canReschedule = !b.IsOpenPlay && b.BundleName is null && activeStatus;
+                                            var canRescheduleGroup = !b.IsOpenPlay && b.BundleName is not null && b.BundleGroupId is not null && activeStatus;
+                                        }
+                                        @if (canReschedule)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rescheduleModal"
+                                                    data-id="@b.Id" data-court-id="@b.CourtId" data-court-name="@b.CourtName"
+                                                    data-date="@b.BookingDate.ToString("yyyy-MM-dd")" data-start-hour="@b.StartTime.Hour"
+                                                    data-end-hour="@(b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour)">
+                                                <i class="bi bi-calendar-event me-1"></i>Reschedule
+                                            </button>
+                                        }
+                                        else if (canRescheduleGroup)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rescheduleGroupModal"
+                                                    data-group-id="@b.BundleGroupId" data-bundle-name="@b.BundleName"
+                                                    data-date="@b.BookingDate.ToString("yyyy-MM-dd")" data-start-hour="@b.StartTime.Hour"
+                                                    data-end-hour="@(b.EndTime == TimeOnly.MinValue ? 24 : b.EndTime.Hour)">
+                                                <i class="bi bi-calendar-event me-1"></i>Reschedule Bundle
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -324,7 +379,8 @@
                                                 data-reference="@b.PaymentReference"
                                                 data-proof="@b.PaymentProofPath"
                                                 data-booked-by="@(b.BookedByStaffName ?? "Online")"
-                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")">
+                                                data-created="@b.CreatedAt.AddHours(8).ToString("MMM d, yyyy h:mm tt")"
+                                                data-paid="@(b.PaidAt.HasValue ? b.PaidAt.Value.AddHours(8).ToString("MMM d, yyyy h:mm tt") : "")">
                                             <div class="fw-semibold" style="font-size:.7rem;">@b.StartTime.ToString("h:mmtt")–@b.EndTime.ToString("h:mmtt")</div>
                                             <div class="text-truncate" style="font-size:.7rem;">@b.CourtName</div>
                                             <div class="text-truncate fw-semibold" style="font-size:.7rem;">@b.CustomerName</div>
@@ -342,6 +398,113 @@
             </div>
         </div>
     }
+</div>
+
+<!-- Reschedule modal — moves a booking to a different date/time/court -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form asp-action="RescheduleBooking" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="rsId" />
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Reschedule Booking #<span id="rsBookingNo"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Court</label>
+                        <select name="courtId" id="rsCourtId" class="form-select">
+                            @foreach (var c in (IEnumerable<dynamic>)ViewBag.Courts)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Date</label>
+                        <input type="date" name="newDate" id="rsDate" class="form-control" required />
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Start hour</label>
+                            <select name="startHour" id="rsStartHour" class="form-select">
+                                @for (var h = 0; h < 24; h++)
+                                {
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">End hour</label>
+                            <select name="endHour" id="rsEndHour" class="form-select">
+                                @for (var h = 1; h <= 24; h++)
+                                {
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>The customer will be emailed about this change. The slot must be free at the new date/time.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary btn-sm">Move Booking</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reschedule Bundle modal — moves every court in a bundle group to a new date at once -->
+<div class="modal fade" id="rescheduleGroupModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form asp-action="RescheduleBundleGroup" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="groupId" id="rsgGroupId" />
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Reschedule Bundle — <span id="rsgBundleName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">New date</label>
+                        <input type="date" name="newDate" id="rsgDate" class="form-control" required />
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Start hour</label>
+                            <select name="startHour" id="rsgStartHour" class="form-select">
+                                @for (var h = 0; h < 24; h++)
+                                {
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">End hour</label>
+                            <select name="endHour" id="rsgEndHour" class="form-select">
+                                @for (var h = 1; h <= 24; h++)
+                                {
+                                    <option value="@h">@TimeDisplay.Hour(h)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>Every court in this bundle package moves to the new date/time together as one window. The customer will be emailed about the change.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary btn-sm">Move Bundle</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <!-- Read-only booking detail modal (used by the Calendar View's clickable events) -->
@@ -385,6 +548,9 @@
                 <div class="small text-muted">
                     <i class="bi bi-person-badge me-1"></i>Booked by: <span id="bdBookedBy"></span>
                     &bull; <i class="bi bi-clock-history me-1"></i>Booked on: <span id="bdCreated"></span>
+                </div>
+                <div id="bdPaidRow" class="small text-muted d-none">
+                    <i class="bi bi-cash-coin me-1"></i>Paid on: <span id="bdPaid"></span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -495,6 +661,43 @@
 
             document.getElementById('bdBookedBy').textContent = d.bookedBy;
             document.getElementById('bdCreated').textContent = d.created;
+            toggle('bdPaidRow', !!d.paid);
+            document.getElementById('bdPaid').textContent = d.paid || '';
+        });
+    })();
+
+    (function () {
+        var modalEl = document.getElementById('rescheduleModal');
+        if (!modalEl) return;
+
+        modalEl.addEventListener('show.bs.modal', function (e) {
+            var btn = e.relatedTarget;
+            if (!btn) return;
+            var d = btn.dataset;
+
+            document.getElementById('rsId').value = d.id;
+            document.getElementById('rsBookingNo').textContent = d.id;
+            document.getElementById('rsCourtId').value = d.courtId;
+            document.getElementById('rsDate').value = d.date;
+            document.getElementById('rsStartHour').value = d.startHour;
+            document.getElementById('rsEndHour').value = d.endHour;
+        });
+    })();
+
+    (function () {
+        var modalEl = document.getElementById('rescheduleGroupModal');
+        if (!modalEl) return;
+
+        modalEl.addEventListener('show.bs.modal', function (e) {
+            var btn = e.relatedTarget;
+            if (!btn) return;
+            var d = btn.dataset;
+
+            document.getElementById('rsgGroupId').value = d.groupId;
+            document.getElementById('rsgBundleName').textContent = d.bundleName;
+            document.getElementById('rsgDate').value = d.date;
+            document.getElementById('rsgStartHour').value = d.startHour;
+            document.getElementById('rsgEndHour').value = d.endHour;
         });
     })();
 </script>

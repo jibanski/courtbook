@@ -249,7 +249,7 @@ public class BookingsController : Controller
             try
             {
                 (addOns, addOnsTotal) = await _bookingService.ResolveSelectedAddOnsAsync(
-                    court.OwnerId, Request.Form, vm.DurationHours);
+                    court.OwnerId, Request.Form, vm.DurationHours, bookingDate, vm.StartTime, vm.EndTime);
             }
             catch (InvalidOperationException ex)
             {
