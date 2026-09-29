@@ -23,6 +23,7 @@ public class BookingsController : Controller
     private readonly ILogger<BookingsController> _logger;
     private readonly ImageCompressionService      _imageCompression;
     private readonly VoucherService                _voucherService;
+    private readonly AdminFeeService               _adminFee;
 
     public BookingsController(
         ApplicationDbContext db,
@@ -34,7 +35,8 @@ public class BookingsController : Controller
         GuestCheckoutService guestCheckout,
         ILogger<BookingsController> logger,
         ImageCompressionService imageCompression,
-        VoucherService voucherService)
+        VoucherService voucherService,
+        AdminFeeService adminFee)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -46,6 +48,7 @@ public class BookingsController : Controller
         _logger         = logger;
         _imageCompression = imageCompression;
         _voucherService = voucherService;
+        _adminFee       = adminFee;
     }
 
     public async Task<IActionResult> My()
@@ -273,6 +276,12 @@ public class BookingsController : Controller
             discountAmount = voucherResult.DiscountAmount;
         }
 
+        var netBeforeFee = subtotal - discountAmount;
+        var facilitySettings = court.OwnerId != null
+            ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == court.OwnerId)
+            : null;
+        var adminFeeAmount = _adminFee.PreviewFee(netBeforeFee, facilitySettings);
+
         var booking = new Booking
         {
             CourtId = vm.CourtId,
@@ -283,10 +292,11 @@ public class BookingsController : Controller
             BookingDate = bookingDate,
             StartTime = vm.StartTime,
             EndTime = vm.EndTime,
-            TotalPrice = subtotal - discountAmount,
+            TotalPrice = netBeforeFee + adminFeeAmount,
             VoucherId = appliedVoucher?.Id,
             VoucherCode = appliedVoucher?.Code,
             DiscountAmount = discountAmount,
+            AdminFeeAmount = adminFeeAmount,
             Notes = vm.Notes,
             Status = BookingStatus.Pending,
             PaymentStatus = PaymentStatus.Unpaid,

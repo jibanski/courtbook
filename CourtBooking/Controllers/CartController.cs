@@ -36,6 +36,7 @@ public class CartController : Controller
     private readonly GuestCheckoutService          _guestCheckout;
     private readonly ILogger<CartController>       _logger;
     private readonly VoucherService                 _voucherService;
+    private readonly AdminFeeService                 _adminFee;
 
     public CartController(
         ApplicationDbContext db,
@@ -45,7 +46,8 @@ public class CartController : Controller
         EmailService email,
         GuestCheckoutService guestCheckout,
         ILogger<CartController> logger,
-        VoucherService voucherService)
+        VoucherService voucherService,
+        AdminFeeService adminFee)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -55,6 +57,7 @@ public class CartController : Controller
         _guestCheckout  = guestCheckout;
         _logger         = logger;
         _voucherService = voucherService;
+        _adminFee       = adminFee;
     }
 
     // GET /Cart/Checkout?slug={facilitySlug}
@@ -305,12 +308,19 @@ public class CartController : Controller
             }
         }
 
+        // Computed once for the whole cart (not per row) so a Fixed fee isn't multiplied by the
+        // number of items, then folded entirely into the last row — same "last row absorbs the
+        // remainder" convention as the TotalOrder voucher split above; the Pay page's breakdown
+        // just sums AdminFeeAmount across rows, so where exactly it lands doesn't matter.
+        var cartAdminFee = _adminFee.PreviewFee(cartSubtotal - totalVoucherDiscount, settings);
+
         for (int i = 0; i < resolved.Count; i++)
         {
             var (item, court, bookingDate, start, end, slotPrice, bundle) = resolved[i];
             var (addOns, addOnsTotal) = itemAddOns[i];
 
             var rowDiscount = rowDiscounts[i];
+            var rowAdminFee = i == resolved.Count - 1 ? cartAdminFee : 0m;
 
             bookings.Add(new Booking
             {
@@ -322,10 +332,11 @@ public class CartController : Controller
                 BookingDate      = bookingDate,
                 StartTime        = start,
                 EndTime          = end,
-                TotalPrice       = rowSubtotals[i] - rowDiscount,
+                TotalPrice       = rowSubtotals[i] - rowDiscount + rowAdminFee,
                 VoucherId        = appliedVoucher?.Id,
                 VoucherCode      = appliedVoucher?.Code,
                 DiscountAmount   = rowDiscount,
+                AdminFeeAmount   = rowAdminFee,
                 Status           = BookingStatus.Pending,
                 PaymentStatus    = PaymentStatus.Unpaid,
                 BundleGroupId    = groupId,

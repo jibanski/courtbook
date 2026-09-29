@@ -20,6 +20,7 @@ public class DevController : Controller
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly EmailService _email;
     private readonly ILogger<DevController> _logger;
+    private readonly AdminFeeService _adminFee;
     private readonly string _devPassword;
 
     /// <summary>Claim stamped onto the auth cookie by <see cref="Impersonate(string, string)"/> so
@@ -33,7 +34,8 @@ public class DevController : Controller
         SignInManager<ApplicationUser> signInManager,
         EmailService email,
         ILogger<DevController> logger,
-        IConfiguration config)
+        IConfiguration config,
+        AdminFeeService adminFee)
     {
         _keyGen        = keyGen;
         _db            = db;
@@ -41,6 +43,7 @@ public class DevController : Controller
         _signInManager = signInManager;
         _email         = email;
         _logger        = logger;
+        _adminFee      = adminFee;
         // Empty string means /Dev routes are locked out (password gate always rejects).
         // Set Dev:Password via appsettings.Development.local.json locally,
         // or the Dev__Password environment variable on Railway.
@@ -318,7 +321,9 @@ public class DevController : Controller
 
     // POST /Dev/ChangeBillingModel
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ChangeBillingModel(string password, int id, string billingModel, decimal commissionRate = 2.0m, string subscriptionPlan = "monthly")
+    public async Task<IActionResult> ChangeBillingModel(string password, int id, string billingModel,
+        string adminFeeType = "Percentage", decimal commissionRate = 2.0m, decimal adminFeeFixedAmount = 0m,
+        string subscriptionPlan = "monthly")
     {
         if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
 
@@ -326,36 +331,115 @@ public class DevController : Controller
         if (f is null) return NotFound();
 
         f.BillingModel = billingModel == "Commission" ? "Commission" : "Subscription";
-        f.CommissionRate = Math.Clamp(commissionRate, 1.0m, 5.0m);
+        f.AdminFeeType = string.Equals(adminFeeType, "Fixed", StringComparison.OrdinalIgnoreCase)
+            ? AdminFeeType.Fixed : AdminFeeType.Percentage;
+        f.AdminFeeRate = Math.Clamp(commissionRate, 1.0m, 5.0m);
+        f.AdminFeeFixedAmount = Math.Max(0m, adminFeeFixedAmount);
         if (f.BillingModel == "Subscription")
             f.SubscriptionPlan = subscriptionPlan == "annual" ? "annual" : "monthly";
         await _db.SaveChangesAsync();
 
+        var feeDescription = f.AdminFeeType == AdminFeeType.Fixed
+            ? $"₱{f.AdminFeeFixedAmount:N2} per booking"
+            : $"{f.AdminFeeRate}% per booking";
         TempData["Success"] = f.BillingModel == "Commission"
-            ? $"\"{f.FacilityName}\" switched to Commission model at {f.CommissionRate}% commission."
+            ? $"\"{f.FacilityName}\" switched to Admin Fee model at {feeDescription}."
             : $"\"{f.FacilityName}\" switched to Subscription model ({f.SubscriptionPlan}).";
         return RedirectToActionFacilities(password);
     }
 
-    // POST /Dev/ClearCommission
+    // POST /Dev/VerifyAdminFeeSettlement
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ClearCommission(string password, int id)
+    public async Task<IActionResult> VerifyAdminFeeSettlement(string password, int settlementId, string verifiedByName)
     {
         if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+        if (string.IsNullOrWhiteSpace(verifiedByName))
+        {
+            TempData["Error"] = "Please enter your name to verify this payment.";
+            return RedirectToActionAdminFees(password);
+        }
 
-        var f = await _db.FacilitySettings.FindAsync(id);
-        if (f is null) return NotFound();
-
-        f.CommissionTotalPaid             += f.CommissionBalanceOwed;
-        f.CommissionBalanceOwed            = 0m;
-        f.CommissionPaymentRef             = null;
-        f.CommissionPaymentProofPath       = null;
-        f.CommissionPaymentSubmittedAt     = null;
-        await _db.SaveChangesAsync();
-
-        TempData["Success"] = $"Commission balance cleared for \"{f.FacilityName}\".";
-        return RedirectToActionFacilities(password);
+        try
+        {
+            await _adminFee.VerifySettlementAsync(settlementId, verifiedByName.Trim());
+            TempData["Success"] = "Admin fee payment verified and balance cleared.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+        return RedirectToActionAdminFees(password);
     }
+
+    // POST /Dev/RejectAdminFeeSettlement
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RejectAdminFeeSettlement(string password, int settlementId, string verifiedByName, string? reason)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+        if (string.IsNullOrWhiteSpace(verifiedByName))
+        {
+            TempData["Error"] = "Please enter your name to reject this payment.";
+            return RedirectToActionAdminFees(password);
+        }
+
+        try
+        {
+            await _adminFee.RejectSettlementAsync(settlementId, verifiedByName.Trim(), reason);
+            TempData["Success"] = "Payment rejected — the balance is outstanding again.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+        return RedirectToActionAdminFees(password);
+    }
+
+    // GET /Dev/AdminFees
+    public async Task<IActionResult> AdminFees()
+    {
+        var stashedPwd = TempData["DevPassword"] as string;
+        if (IsValidPassword(stashedPwd))
+            return await AdminFees(stashedPwd!, null, null, null);
+
+        return View(new DevAdminFeeViewModel([], []));
+    }
+
+    // POST /Dev/AdminFees — password gate, then list all facilities' admin fee status
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AdminFees(string password, int? facilityId, int? year, int? month)
+    {
+        if (!IsValidPassword(password))
+        {
+            ViewBag.Error = "Incorrect developer password.";
+            return View(new DevAdminFeeViewModel([], []));
+        }
+
+        var rows = await _adminFee.GetPlatformOverviewAsync(facilityId, year, month);
+        var pending = await _adminFee.GetPendingSettlementsAsync(facilityId.HasValue
+            ? (await _db.FacilitySettings.FindAsync(facilityId.Value))?.OwnerId
+            : null);
+
+        var facilityNamesByOwner = await _db.FacilitySettings
+            .Where(f => f.BillingModel == "Commission")
+            .ToDictionaryAsync(f => f.OwnerId!, f => f.FacilityName);
+
+        ViewBag.Password        = password;
+        ViewBag.FacilityId      = facilityId;
+        ViewBag.Year            = year;
+        ViewBag.Month           = month;
+        ViewBag.FacilityOptions = await _db.FacilitySettings
+            .Where(f => f.BillingModel == "Commission")
+            .OrderBy(f => f.FacilityName)
+            .Select(f => new { f.Id, f.FacilityName })
+            .ToListAsync();
+        ViewBag.FacilityNamesByOwner = facilityNamesByOwner;
+
+        return View(new DevAdminFeeViewModel(rows, pending));
+    }
+
+    public record DevAdminFeeViewModel(
+        List<AdminFeePlatformRow> Rows,
+        List<AdminFeeSettlement> PendingSettlements);
 
     // After a suspend/lock POST we need to land back on the unlocked list. We
     // stash the dev password in TempData (single-use, server-side) and then
@@ -364,6 +448,15 @@ public class DevController : Controller
     {
         TempData["DevPassword"] = password;
         return RedirectToAction(nameof(Facilities));
+    }
+
+    /// <summary>Same stash-and-redirect trick as <see cref="RedirectToActionFacilities"/>, landing
+    /// back on the Admin Fee dashboard instead — used after verify/reject so the operator isn't
+    /// bounced back to the Facilities list.</summary>
+    private IActionResult RedirectToActionAdminFees(string password)
+    {
+        TempData["DevPassword"] = password;
+        return RedirectToAction(nameof(AdminFees));
     }
 
     public record FacilityAdminRow(

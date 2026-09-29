@@ -93,6 +93,11 @@ public class OpenPlaySignup
     /// <summary>Peso amount deducted from <see cref="TotalPrice"/> by <see cref="VoucherCode"/> — display only, TotalPrice already nets it out.</summary>
     public decimal DiscountAmount { get; set; } = 0;
 
+    /// <summary>Peso amount added to <see cref="TotalPrice"/> for the facility's admin fee, charged
+    /// to the customer at sign-up time — display only, TotalPrice already includes it. Same pattern
+    /// as <see cref="Booking.AdminFeeAmount"/>.</summary>
+    public decimal AdminFeeAmount { get; set; } = 0;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
@@ -101,8 +106,6 @@ public class OpenPlaySignup
     /// Staff-logged cash sign-ups skip this timer (they're created as Confirmed immediately).
     /// </summary>
     public DateTime? ReservedUntil { get; set; }
-
-    public decimal? CommissionAmount { get; set; }
 
     /// <summary>Set only for a guest checkout (no login) — the unguessable capability token emailed to
     /// the guest so they can reach this sign-up without an account.</summary>

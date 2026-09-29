@@ -126,37 +126,27 @@ public class FacilitySettings
     [NotMapped]
     public bool IsPubliclyHidden => IsSuspended || IsDeactivated;
 
-    // ── Billing Model ─────────────────────────────────────────────────────────
-    /// <summary>"Subscription" (default) or "Commission" (2% per confirmed booking).</summary>
+    // ── Billing Model / Admin Fee ─────────────────────────────────────────────
+    /// <summary>"Subscription" (default) or "Commission" (the Admin Fee model — a per-booking
+    /// fee, fixed or percentage, accrues to <see cref="AdminFeeCharge"/> ledger rows). Internal
+    /// value kept as "Commission" for backward compatibility with existing data.</summary>
     [MaxLength(20)]
     public string BillingModel { get; set; } = "Subscription";
 
-    /// <summary>Commission rate in percent, e.g. 2.0 means 2%. Set by platform admin.</summary>
+    /// <summary>Whether each qualifying booking charges a flat peso amount or a percentage of its total.
+    /// Set by platform admin (Dev tool) — not owner self-service.</summary>
+    public AdminFeeType AdminFeeType { get; set; } = AdminFeeType.Percentage;
+
+    /// <summary>Admin fee rate in percent, e.g. 2.0 means 2%. Used when <see cref="AdminFeeType"/> is Percentage.</summary>
     [Column(TypeName = "numeric(5,2)")]
-    public decimal CommissionRate { get; set; } = 2.0m;
+    public decimal AdminFeeRate { get; set; } = 2.0m;
 
-    /// <summary>Accumulated unpaid commission balance (increases on each confirmed booking).</summary>
+    /// <summary>Flat peso admin fee per qualifying booking. Used when <see cref="AdminFeeType"/> is Fixed.</summary>
     [Column(TypeName = "numeric(18,2)")]
-    public decimal CommissionBalanceOwed { get; set; } = 0m;
+    public decimal AdminFeeFixedAmount { get; set; } = 0m;
 
-    /// <summary>Total commission paid historically.</summary>
-    [Column(TypeName = "numeric(18,2)")]
-    public decimal CommissionTotalPaid { get; set; } = 0m;
-
-    /// <summary>GCash/Maya reference submitted by owner to pay off commission balance.</summary>
-    [MaxLength(100)]
-    public string? CommissionPaymentRef { get; set; }
-
-    [MaxLength(500)]
-    public string? CommissionPaymentProofPath { get; set; }
-
-    public DateTime? CommissionPaymentSubmittedAt { get; set; }
-
-    [NotMapped] public bool IsCommissionModel =>
+    [NotMapped] public bool IsAdminFeeEnabled =>
         string.Equals(BillingModel, "Commission", StringComparison.OrdinalIgnoreCase);
-
-    [NotMapped] public bool IsCommissionPaymentPending =>
-        CommissionPaymentSubmittedAt.HasValue && CommissionBalanceOwed > 0;
 
     // ── Trial ─────────────────────────────────────────────────────────────────
     /// <summary>Length of the free trial in days. Change here to retune.</summary>

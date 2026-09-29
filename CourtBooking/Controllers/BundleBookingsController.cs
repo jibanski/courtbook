@@ -28,6 +28,7 @@ public class BundleBookingsController : Controller
     private readonly ILogger<BundleBookingsController> _logger;
     private readonly ImageCompressionService      _imageCompression;
     private readonly VoucherService                _voucherService;
+    private readonly AdminFeeService               _adminFee;
 
     public BundleBookingsController(
         ApplicationDbContext db,
@@ -38,7 +39,8 @@ public class BundleBookingsController : Controller
         GuestCheckoutService guestCheckout,
         ILogger<BundleBookingsController> logger,
         ImageCompressionService imageCompression,
-        VoucherService voucherService)
+        VoucherService voucherService,
+        AdminFeeService adminFee)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -49,6 +51,7 @@ public class BundleBookingsController : Controller
         _logger         = logger;
         _imageCompression = imageCompression;
         _voucherService = voucherService;
+        _adminFee       = adminFee;
     }
 
     [AllowAnonymous]
@@ -191,10 +194,9 @@ public class BundleBookingsController : Controller
 
         var groupId      = Guid.NewGuid();
         var guestToken   = isGuest ? Guid.NewGuid() : (Guid?)null;
-        var facilityName = await _db.FacilitySettings
-            .Where(s => s.OwnerId == bundle.OwnerId)
-            .Select(s => s.FacilityName)
-            .FirstOrDefaultAsync();
+        var facilitySettings = await _db.FacilitySettings
+            .FirstOrDefaultAsync(s => s.OwnerId == bundle.OwnerId);
+        var facilityName = facilitySettings?.FacilityName;
 
         decimal discountAmount = 0m;
         Voucher? appliedVoucher = null;
@@ -210,6 +212,9 @@ public class BundleBookingsController : Controller
             discountAmount = voucherResult.DiscountAmount;
         }
 
+        var netBeforeFee = price - discountAmount;
+        var adminFeeAmount = _adminFee.PreviewFee(netBeforeFee, facilitySettings);
+
         var bookings = new List<Booking>
         {
             new Booking
@@ -222,10 +227,11 @@ public class BundleBookingsController : Controller
                 BookingDate   = bookingDate,
                 StartTime     = start,
                 EndTime       = end,
-                TotalPrice    = price - discountAmount,
+                TotalPrice    = netBeforeFee + adminFeeAmount,
                 VoucherId     = appliedVoucher?.Id,
                 VoucherCode   = appliedVoucher?.Code,
                 DiscountAmount = discountAmount,
+                AdminFeeAmount = adminFeeAmount,
                 Notes         = notes,
                 Status        = BookingStatus.Pending,
                 PaymentStatus = PaymentStatus.Unpaid,

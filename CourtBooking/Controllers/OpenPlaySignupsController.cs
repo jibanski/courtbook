@@ -29,6 +29,7 @@ public class OpenPlaySignupsController : Controller
     private readonly ILogger<OpenPlaySignupsController> _logger;
     private readonly ImageCompressionService      _imageCompression;
     private readonly VoucherService                _voucherService;
+    private readonly AdminFeeService                _adminFee;
 
     public OpenPlaySignupsController(
         ApplicationDbContext db,
@@ -39,7 +40,8 @@ public class OpenPlaySignupsController : Controller
         GuestCheckoutService guestCheckout,
         ILogger<OpenPlaySignupsController> logger,
         ImageCompressionService imageCompression,
-        VoucherService voucherService)
+        VoucherService voucherService,
+        AdminFeeService adminFee)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -50,6 +52,7 @@ public class OpenPlaySignupsController : Controller
         _logger         = logger;
         _imageCompression = imageCompression;
         _voucherService = voucherService;
+        _adminFee       = adminFee;
     }
 
     [AllowAnonymous]
@@ -137,9 +140,10 @@ public class OpenPlaySignupsController : Controller
         }
 
         var pricePerHead = block.PricePerHead ?? 0;
-        var facilityName = court.OwnerId != null
-            ? await _db.FacilitySettings.Where(s => s.OwnerId == court.OwnerId).Select(s => s.FacilityName).FirstOrDefaultAsync()
+        var facilitySettings = court.OwnerId != null
+            ? await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == court.OwnerId)
             : null;
+        var facilityName = facilitySettings?.FacilityName;
         var subtotal = pricePerHead * spotCount;
 
         decimal discountAmount = 0m;
@@ -156,6 +160,9 @@ public class OpenPlaySignupsController : Controller
             discountAmount = voucherResult.DiscountAmount;
         }
 
+        var netBeforeFee = subtotal - discountAmount;
+        var adminFeeAmount = _adminFee.PreviewFee(netBeforeFee, facilitySettings);
+
         var signup = new OpenPlaySignup
         {
             CourtId              = courtId,
@@ -168,10 +175,11 @@ public class OpenPlaySignupsController : Controller
             EndHour              = endHour,
             SpotCount            = spotCount,
             PricePerHeadSnapshot = pricePerHead,
-            TotalPrice           = subtotal - discountAmount,
+            TotalPrice           = netBeforeFee + adminFeeAmount,
             VoucherId            = appliedVoucher?.Id,
             VoucherCode          = appliedVoucher?.Code,
             DiscountAmount       = discountAmount,
+            AdminFeeAmount       = adminFeeAmount,
             Notes                = notes,
             PlayerNames          = spotCount > 1 && !string.IsNullOrWhiteSpace(playerNames) ? playerNames.Trim() : null,
             Status               = BookingStatus.Pending,

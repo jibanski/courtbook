@@ -165,11 +165,12 @@ public class Booking
     /// already has this subtracted — this field is for itemized display only.</summary>
     public decimal DiscountAmount { get; set; } = 0;
 
-    /// <summary>Platform commission charged when this booking is confirmed (commission-model facilities only).</summary>
-    public decimal? CommissionAmount { get; set; }
-
-    /// <summary>True once the owner has paid off this booking's commission.</summary>
-    public bool CommissionPaid { get; set; } = false;
+    /// <summary>Peso amount added to this row's price for the facility's admin fee, when charged
+    /// to the customer at checkout (online self-checkout only — walk-in/cash bookings never set
+    /// this, and absorb the fee out of the owner's proceeds instead, computed later at confirm
+    /// time). <see cref="TotalPrice"/> already has this added — this field is for itemized display
+    /// only, same pattern as <see cref="DiscountAmount"/>.</summary>
+    public decimal AdminFeeAmount { get; set; } = 0;
 
     /// <summary>
     /// Set when this row is one court's share of a bundled multi-court booking. <see cref="TotalPrice"/>

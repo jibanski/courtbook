@@ -23,19 +23,22 @@ public class WebhookController : ControllerBase
     private readonly IConfiguration            _config;
     private readonly EmailService              _email;
     private readonly ILogger<WebhookController> _logger;
+    private readonly AdminFeeService           _adminFee;
 
     public WebhookController(
         ApplicationDbContext db,
         PayMongoService payMongo,
         IConfiguration config,
         EmailService email,
-        ILogger<WebhookController> logger)
+        ILogger<WebhookController> logger,
+        AdminFeeService adminFee)
     {
         _db       = db;
         _payMongo = payMongo;
         _config   = config;
         _email    = email;
         _logger   = logger;
+        _adminFee = adminFee;
     }
 
     // POST /webhook/paymongo
@@ -117,6 +120,7 @@ public class WebhookController : ControllerBase
                             booking.PaymentMethod    = FormatMethod(methodUsed);
                             booking.PaymentReference = sessionId;
                             booking.PaidAt           = DateTime.UtcNow;
+                            await _adminFee.AccrueForBookingsAsync(new[] { booking }, facilitySettings);
                             await _db.SaveChangesAsync();
                             _logger.LogInformation(
                                 "Booking #{BookingId} confirmed via PayMongo webhook ({Method}).",

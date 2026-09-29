@@ -29,6 +29,7 @@ public class StaffController : Controller
     private readonly ILogger<StaffController> _logger;
     private readonly ImageCompressionService _imageCompression;
     private readonly VoucherService _voucherService;
+    private readonly AdminFeeService _adminFee;
 
     public StaffController(
         ApplicationDbContext db,
@@ -39,7 +40,8 @@ public class StaffController : Controller
         UserManager<ApplicationUser> userManager,
         ILogger<StaffController> logger,
         ImageCompressionService imageCompression,
-        VoucherService voucherService)
+        VoucherService voucherService,
+        AdminFeeService adminFee)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -50,6 +52,7 @@ public class StaffController : Controller
         _userManager    = userManager;
         _imageCompression = imageCompression;
         _voucherService = voucherService;
+        _adminFee       = adminFee;
     }
 
     // ── Employer scoping ─────────────────────────────────────────────────────
@@ -857,6 +860,13 @@ public class StaffController : Controller
         if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         await _bookingService.CreateBookingAsync(booking);
 
+        if (isCash)
+        {
+            var employerSettings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == employerOwnerId);
+            await _adminFee.AccrueForBookingsAsync(new[] { booking }, employerSettings);
+            await _db.SaveChangesAsync();
+        }
+
         var customerEmailToNotify = customerEmail.Trim();
         if (isCash)
         {
@@ -1208,6 +1218,12 @@ public class StaffController : Controller
 
         if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         _db.Bookings.AddRange(bookings);
+        if (isCash)
+        {
+            // One admin fee for the whole cart (one checkout), not one per court/row.
+            var employerSettings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == employerOwnerId);
+            await _adminFee.AccrueForBookingsAsync(bookings, employerSettings);
+        }
         await _db.SaveChangesAsync();
 
         var customerEmailToNotify = customerEmail.Trim();
@@ -1539,6 +1555,13 @@ public class StaffController : Controller
         if (appliedVoucher is not null) appliedVoucher.TimesRedeemed++;
         await _bookingService.CreateBookingAsync(booking);
 
+        if (isCash)
+        {
+            var employerSettings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == employerOwnerId);
+            await _adminFee.AccrueForBookingsAsync(new[] { booking }, employerSettings);
+            await _db.SaveChangesAsync();
+        }
+
         var customerEmailToNotify = customerEmail.Trim();
         if (isCash)
         {
@@ -1685,6 +1708,9 @@ public class StaffController : Controller
             CustomerNameSnapshot = customerName
         };
         _db.OpenPlaySignups.Add(signup);
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        var employerSettings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == employerOwnerId);
+        await _adminFee.AccrueForSignupAsync(signup, employerSettings);
         await _db.SaveChangesAsync();
 
         var customerEmailToNotify = customerEmail.Trim();

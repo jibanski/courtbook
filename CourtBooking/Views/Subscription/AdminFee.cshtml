@@ -1,0 +1,175 @@
+@using CourtBooking.Models
+@using CourtBooking.Services
+@{
+    ViewData["Title"] = "Pay Admin Fee Balance";
+    var settings    = ViewBag.Settings as FacilitySettings;
+    var summary     = ViewBag.Summary as AdminFeeOwnerSummary;
+    var gcashNum    = ViewBag.GCashNumber as string;
+    var gcashName   = ViewBag.GCashName   as string;
+    var mayaNum     = ViewBag.MayaNumber  as string;
+    var mayaName    = ViewBag.MayaName    as string;
+    var contact     = ViewBag.ContactEmail as string;
+    var feeLabel    = settings?.AdminFeeType == AdminFeeType.Fixed
+        ? $"₱{settings.AdminFeeFixedAmount:N2} per booking"
+        : $"{settings?.AdminFeeRate}% per booking";
+}
+
+<div class="container py-5" style="max-width:620px;">
+
+    <a asp-controller="Admin" asp-action="Index" class="text-muted small text-decoration-none d-inline-block mb-4">
+        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+    </a>
+
+    <h3 class="fw-bold mb-1"><i class="bi bi-receipt me-2 text-success"></i>Pay Admin Fee Balance</h3>
+    <p class="text-muted mb-4">Send your accumulated admin fee (@feeLabel) via GCash or Maya.</p>
+
+    @if (TempData["Success"] is string s)
+    {
+        <div class="alert alert-success">@s</div>
+    }
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger small">
+            <ul class="mb-0 ps-3">
+                @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                {
+                    <li>@err.ErrorMessage</li>
+                }
+            </ul>
+        </div>
+    }
+
+    <!-- Balance summary -->
+    <div class="card border-0 shadow-sm mb-4" style="background:#f0fff4;">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col">
+                    <div class="text-muted small">Current Balance Owed</div>
+                    <div class="fs-2 fw-bold text-success">₱@((summary?.Outstanding ?? 0m).ToString("N2"))</div>
+                    <div class="text-muted small">@feeLabel</div>
+                </div>
+                <div class="col-auto">
+                    <i class="bi bi-receipt fs-1 text-success opacity-25"></i>
+                </div>
+            </div>
+            <hr class="my-2" />
+            <div class="row g-2 small text-muted">
+                <div class="col-6">This month generated: <strong>₱@((summary?.ThisMonthGenerated ?? 0m).ToString("N2"))</strong> (@(summary?.ThisMonthChargeCount ?? 0) booking@((summary?.ThisMonthChargeCount ?? 0) == 1 ? "" : "s"))</div>
+                <div class="col-6">Total paid historically: <strong>₱@((summary?.TotalPaid ?? 0m).ToString("N2"))</strong></div>
+            </div>
+        </div>
+    </div>
+
+    @if (summary?.PendingVerification > 0)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-clock me-1"></i>
+            <strong>Payment submitted</strong> — ₱@summary.PendingVerification.ToString("N2") is awaiting verification.
+            Balance will be cleared within 24 hours once confirmed.
+        </div>
+    }
+    else
+    {
+        <!-- Payment instructions -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header fw-semibold bg-white"><i class="bi bi-send me-1 text-primary"></i>Send Payment To</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    @if (!string.IsNullOrWhiteSpace(gcashNum))
+                    {
+                        <div class="col-md-6">
+                            <div class="p-3 rounded border text-center">
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/GCash_Logo.svg/240px-GCash_Logo.svg.png"
+                                     alt="GCash" height="28" class="mb-2" />
+                                <div class="fw-bold">@gcashNum</div>
+                                <div class="text-muted small">@gcashName</div>
+                            </div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(mayaNum))
+                    {
+                        <div class="col-md-6">
+                            <div class="p-3 rounded border text-center">
+                                <div class="fw-bold text-primary mb-2" style="font-size:1.1rem;">Maya</div>
+                                <div class="fw-bold">@mayaNum</div>
+                                <div class="text-muted small">@mayaName</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <p class="text-muted small mt-3 mb-0">
+                    Send <strong>₱@((summary?.Outstanding ?? 0m).ToString("N2"))</strong> and include your facility name in the payment notes.
+                </p>
+            </div>
+        </div>
+
+        @if (summary?.Outstanding > 0)
+        {
+            <!-- Submit proof -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold bg-white"><i class="bi bi-upload me-1 text-primary"></i>Submit Payment Proof</div>
+                <div class="card-body">
+                    <form method="post" asp-action="AdminFee" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">GCash / Maya Reference Number</label>
+                            <input type="text" name="referenceNumber" class="form-control"
+                                   placeholder="e.g. 2024051900123456" required />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Payment Screenshot</label>
+                            <input type="file" name="proof" class="form-control" accept="image/*,.pdf" required />
+                            <div class="form-text">Upload a screenshot of your completed GCash or Maya payment.</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100 fw-semibold">
+                            <i class="bi bi-check-circle me-1"></i>Submit Payment
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+    }
+
+    @if (summary?.RecentSettlements is { Count: > 0 })
+    {
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold bg-white"><i class="bi bi-clock-history me-1 text-primary"></i>Payment History</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Submitted</th>
+                            <th>Amount</th>
+                            <th>Reference</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var settlement in summary.RecentSettlements)
+                        {
+                            var badge = settlement.Status switch
+                            {
+                                AdminFeeSettlementStatus.Verified => "bg-success",
+                                AdminFeeSettlementStatus.Rejected => "bg-danger",
+                                _ => "bg-warning text-dark"
+                            };
+                            <tr>
+                                <td class="small">@settlement.SubmittedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td>
+                                <td class="small">₱@settlement.Amount.ToString("N2")</td>
+                                <td class="small">@(settlement.PaymentReference ?? "—")</td>
+                                <td><span class="badge @badge small">@settlement.Status</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <p class="text-muted small text-center mt-4">
+        Questions? Contact us at <a href="mailto:@contact">@contact</a>
+    </p>
+</div>
