@@ -1,0 +1,212 @@
+@using CourtBooking.Models
+@model CourtBooking.Controllers.DevController.DevAdminFeeViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "CourtBook — Admin Fee Management";
+
+    var password    = ViewBag.Password as string ?? "";
+    var errorMsg     = ViewBag.Error as string;
+    var isUnlocked   = !string.IsNullOrEmpty(password);
+    var facilityId   = ViewBag.FacilityId as int?;
+    var year         = ViewBag.Year as int?;
+    var month        = ViewBag.Month as int?;
+    var facilityOptions = ViewBag.FacilityOptions as IEnumerable<dynamic>;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+          crossorigin="anonymous" />
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <style>
+        body          { background: #0d1117; color: #e6edf3; }
+        .dev-card     { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
+        .form-control, .form-select {
+            background: #0d1117; border-color: #30363d; color: #e6edf3;
+        }
+        .form-control:focus, .form-select:focus { background: #0d1117; border-color: #58a6ff;
+                              color: #e6edf3; box-shadow: none; }
+        .form-control::placeholder { color: #6e7681; }
+        .nav-link { color: #58a6ff !important; font-size: .85rem; }
+        table { color: #e6edf3; }
+        .table > :not(caption) > * > * { background: transparent; color: #e6edf3; }
+    </style>
+</head>
+<body>
+<div class="container py-5" style="max-width: 1100px;">
+
+    <div class="text-center mb-4">
+        <div class="d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10
+                    rounded-circle mb-3" style="width:64px;height:64px;">
+            <i class="bi bi-receipt-cutoff text-success fs-2"></i>
+        </div>
+        <h3 class="fw-bold mb-1">Admin Fee Management</h3>
+        <p class="text-secondary small mb-0">Monitor accumulated admin fees and verify payments across facilities</p>
+        <div class="mt-1">
+            <a href="/Dev/Facilities" class="nav-link d-inline-block">Facilities</a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] is string successMsg)
+    {
+        <div class="alert alert-success d-flex align-items-center gap-2 mb-4"><i class="bi bi-check-circle-fill"></i> @successMsg</div>
+    }
+    @if (TempData["Error"] is string errMsg)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2 mb-4"><i class="bi bi-x-circle-fill"></i> @errMsg</div>
+    }
+
+    @if (!isUnlocked)
+    {
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="alert alert-danger d-flex align-items-center gap-2 mb-4"><i class="bi bi-exclamation-triangle-fill"></i> @errorMsg</div>
+        }
+        <div class="dev-card p-4">
+            <form method="post" asp-action="AdminFees" asp-controller="Dev">
+                @Html.AntiForgeryToken()
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small text-secondary"><i class="bi bi-shield-lock me-1"></i>Developer Password</label>
+                    <input type="password" name="password" class="form-control" placeholder="Enter developer password" autofocus required />
+                </div>
+                <button type="submit" class="btn btn-warning w-100 fw-semibold text-dark"><i class="bi bi-unlock me-2"></i>Unlock</button>
+            </form>
+        </div>
+    }
+    else
+    {
+        <!-- Filters -->
+        <div class="dev-card p-3 mb-4">
+            <form method="post" asp-action="AdminFees" class="row g-2 align-items-end">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="password" value="@password" />
+                <div class="col-md-4">
+                    <label class="form-label small text-secondary mb-1">Facility</label>
+                    <select name="facilityId" class="form-select form-select-sm">
+                        <option value="">All facilities</option>
+                        @if (facilityOptions != null)
+                        {
+                            foreach (var opt in facilityOptions)
+                            {
+                                <option value="@opt.Id" selected="@(facilityId == (int)opt.Id)">@opt.FacilityName</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-secondary mb-1">Year</label>
+                    <input type="number" name="year" class="form-control form-control-sm" value="@year" placeholder="e.g. 2026" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-secondary mb-1">Month</label>
+                    <input type="number" name="month" min="1" max="12" class="form-control form-control-sm" value="@month" placeholder="1-12" />
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Platform totals -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3"><div class="dev-card p-3 text-center"><div class="text-secondary small">Generated</div><div class="fs-5 fw-bold">&#8369;@Model.Rows.Sum(r => r.Generated).ToString("N2")</div></div></div>
+            <div class="col-md-3"><div class="dev-card p-3 text-center"><div class="text-secondary small">Paid</div><div class="fs-5 fw-bold text-success">&#8369;@Model.Rows.Sum(r => r.Paid).ToString("N2")</div></div></div>
+            <div class="col-md-3"><div class="dev-card p-3 text-center"><div class="text-secondary small">Outstanding</div><div class="fs-5 fw-bold text-warning">&#8369;@Model.Rows.Sum(r => r.Outstanding).ToString("N2")</div></div></div>
+            <div class="col-md-3"><div class="dev-card p-3 text-center"><div class="text-secondary small">Pending Verification</div><div class="fs-5 fw-bold text-info">&#8369;@Model.Rows.Sum(r => r.PendingVerification).ToString("N2")</div></div></div>
+        </div>
+
+        <!-- Pending settlements -->
+        @if (Model.PendingSettlements.Any())
+        {
+            <div class="dev-card p-4 mb-4">
+                <h6 class="fw-bold mb-3"><i class="bi bi-hourglass-split me-1 text-warning"></i>Pending Verification (@Model.PendingSettlements.Count)</h6>
+                @foreach (var s in Model.PendingSettlements)
+                {
+                    <div class="border-bottom border-secondary pb-3 mb-3">
+                        <div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
+                            <div>
+                                <div class="fw-semibold">&#8369;@s.Amount.ToString("N2")</div>
+                                <div class="text-secondary small">
+                                    Submitted @s.SubmittedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
+                                    @if (!string.IsNullOrWhiteSpace(s.PaymentReference)) { <text> &middot; Ref: @s.PaymentReference</text> }
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(s.ProofPath))
+                            {
+                                <a href="@s.ProofPath" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-image me-1"></i>View Proof
+                                </a>
+                            }
+                        </div>
+                        <form asp-action="VerifyAdminFeeSettlement" method="post" class="d-inline-flex gap-2 flex-wrap align-items-center me-2">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="password" value="@password" />
+                            <input type="hidden" name="settlementId" value="@s.Id" />
+                            <input type="text" name="verifiedByName" class="form-control form-control-sm" placeholder="Your name" required style="width:140px;" />
+                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Verify this payment of ₱@s.Amount.ToString("N2") and clear the balance?')">
+                                <i class="bi bi-check-circle me-1"></i>Verify
+                            </button>
+                        </form>
+                        <form asp-action="RejectAdminFeeSettlement" method="post" class="d-inline-flex gap-2 flex-wrap align-items-center">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="password" value="@password" />
+                            <input type="hidden" name="settlementId" value="@s.Id" />
+                            <input type="text" name="verifiedByName" class="form-control form-control-sm" placeholder="Your name" required style="width:140px;" />
+                            <input type="text" name="reason" class="form-control form-control-sm" placeholder="Reason (optional)" style="width:160px;" />
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Reject this payment? The balance will return to outstanding.')">
+                                <i class="bi bi-x-circle me-1"></i>Reject
+                            </button>
+                        </form>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Per-facility table -->
+        <div class="dev-card p-3">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr class="text-secondary small">
+                            <th>Facility</th>
+                            <th>Owner</th>
+                            <th class="text-end">Generated</th>
+                            <th class="text-end">Paid</th>
+                            <th class="text-end">Outstanding</th>
+                            <th class="text-end">Pending</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Rows)
+                        {
+                            var status = row.Outstanding > 0 ? "Pending" : row.PendingVerification > 0 ? "Awaiting Verification" : "Paid";
+                            var badge  = row.Outstanding > 0 ? "bg-warning text-dark" : row.PendingVerification > 0 ? "bg-info text-dark" : "bg-success";
+                            <tr>
+                                <td class="fw-semibold">@row.FacilityName</td>
+                                <td class="small text-secondary">@row.OwnerEmail</td>
+                                <td class="text-end">&#8369;@row.Generated.ToString("N2")</td>
+                                <td class="text-end">&#8369;@row.Paid.ToString("N2")</td>
+                                <td class="text-end">&#8369;@row.Outstanding.ToString("N2")</td>
+                                <td class="text-end">&#8369;@row.PendingVerification.ToString("N2")</td>
+                                <td><span class="badge @badge">@status</span></td>
+                            </tr>
+                        }
+                        @if (!Model.Rows.Any())
+                        {
+                            <tr><td colspan="7" class="text-center text-secondary py-3">No admin-fee-enabled facilities found.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+</body>
+</html>

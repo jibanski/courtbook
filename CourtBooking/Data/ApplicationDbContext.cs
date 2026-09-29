@@ -28,6 +28,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AddOnRental> AddOnRentals { get; set; }
     public DbSet<AddOnRentalItem> AddOnRentalItems { get; set; }
     public DbSet<Voucher> Vouchers { get; set; }
+    public DbSet<AdminFeeCharge> AdminFeeCharges { get; set; }
+    public DbSet<AdminFeeSettlement> AdminFeeSettlements { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -181,5 +183,31 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // Facility settings (looked up on most pages)
         builder.Entity<FacilitySettings>().HasIndex(s => s.OwnerId).IsUnique();
         builder.Entity<FacilitySettings>().HasIndex(s => s.Slug).IsUnique();
+
+        // Admin Fee ledger — a charge points at one representative Booking/OpenPlaySignup (plain
+        // many-to-one, no inverse nav: a charge can cover a whole BundleGroupId of bookings, so it
+        // is not truly 1:1 from the Booking side).
+        builder.Entity<AdminFeeCharge>()
+            .HasOne(c => c.Booking)
+            .WithMany()
+            .HasForeignKey(c => c.BookingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<AdminFeeCharge>()
+            .HasOne(c => c.OpenPlaySignup)
+            .WithMany()
+            .HasForeignKey(c => c.OpenPlaySignupId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<AdminFeeCharge>()
+            .HasOne(c => c.Settlement)
+            .WithMany(s => s.Charges)
+            .HasForeignKey(c => c.SettlementId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<AdminFeeCharge>().HasIndex(c => new { c.OwnerId, c.AccruedAt });
+        builder.Entity<AdminFeeCharge>().HasIndex(c => new { c.OwnerId, c.SettlementId });
+        builder.Entity<AdminFeeCharge>().HasIndex(c => c.BundleGroupId);
+        builder.Entity<AdminFeeSettlement>().HasIndex(s => new { s.OwnerId, s.Status });
     }
 }

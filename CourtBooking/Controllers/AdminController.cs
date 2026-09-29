@@ -29,6 +29,7 @@ public class AdminController : Controller
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<AdminController> _logger;
     private readonly ImageCompressionService _imageCompression;
+    private readonly AdminFeeService _adminFee;
 
     public AdminController(
         ApplicationDbContext db,
@@ -38,7 +39,8 @@ public class AdminController : Controller
         IConfiguration config,
         UserManager<ApplicationUser> userManager,
         ILogger<AdminController> logger,
-        ImageCompressionService imageCompression)
+        ImageCompressionService imageCompression,
+        AdminFeeService adminFee)
     {
         _db             = db;
         _bookingService = bookingService;
@@ -48,6 +50,7 @@ public class AdminController : Controller
         _userManager    = userManager;
         _logger         = logger;
         _imageCompression = imageCompression;
+        _adminFee       = adminFee;
     }
 
     // ── Current-owner helpers ─────────────────────────────────────────────────
@@ -220,11 +223,14 @@ public class AdminController : Controller
     /// <summary>Analytics dashboard. Charts are populated by AnalyticsData() via polling.</summary>
     public async Task<IActionResult> Analytics()
     {
-        ViewBag.FacilitySettings = await GetMySettingsAsync();
+        var settings = await GetMySettingsAsync();
+        ViewBag.FacilitySettings = settings;
         ViewBag.Courts    = await MyCourts.OrderBy(c => c.Name).ToListAsync();
         var today = PhtClock.Today;
         ViewBag.DefaultFrom = today.AddDays(-29).ToString("yyyy-MM-dd");
         ViewBag.DefaultTo   = today.ToString("yyyy-MM-dd");
+        if (settings?.IsAdminFeeEnabled == true)
+            ViewBag.AdminFeeSummary = await _adminFee.GetOwnerSummaryAsync(CurrentUserId);
         return View();
     }
 
@@ -777,14 +783,9 @@ public class AdminController : Controller
         booking.PaymentStatus = PaymentStatus.Paid;
         booking.PaidAt        = DateTime.UtcNow;
 
-        // Accrue platform commission for commission-model facilities
+        // Accrue platform admin fee for admin-fee-enabled facilities
         var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
-        if (settings?.IsCommissionModel == true && booking.TotalPrice > 0)
-        {
-            var commission = Math.Round(booking.TotalPrice * settings.CommissionRate / 100m, 2);
-            booking.CommissionAmount          = commission;
-            settings.CommissionBalanceOwed   += commission;
-        }
+        await _adminFee.AccrueForBookingsAsync(new[] { booking }, settings);
 
         await _db.SaveChangesAsync();
 
@@ -1876,14 +1877,9 @@ public class AdminController : Controller
             booking.Status        = BookingStatus.Confirmed;
             booking.PaymentStatus  = PaymentStatus.Paid;
             booking.PaidAt         = DateTime.UtcNow;
-
-            if (settings?.IsCommissionModel == true && booking.TotalPrice > 0)
-            {
-                var commission = Math.Round(booking.TotalPrice * settings.CommissionRate / 100m, 2);
-                booking.CommissionAmount        = commission;
-                settings.CommissionBalanceOwed += commission;
-            }
         }
+        // One admin fee for the whole group (one checkout), not one per court/row.
+        await _adminFee.AccrueForBookingsAsync(rows, settings);
         await _db.SaveChangesAsync();
 
         var first = rows[0];
@@ -2084,12 +2080,7 @@ public class AdminController : Controller
         signup.PaidAt         = DateTime.UtcNow;
 
         var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
-        if (settings?.IsCommissionModel == true && signup.TotalPrice > 0)
-        {
-            var commission = Math.Round(signup.TotalPrice * settings.CommissionRate / 100m, 2);
-            signup.CommissionAmount        = commission;
-            settings.CommissionBalanceOwed += commission;
-        }
+        await _adminFee.AccrueForSignupAsync(signup, settings);
 
         await _db.SaveChangesAsync();
 
@@ -2205,6 +2196,8 @@ public class AdminController : Controller
             .Where(h => h.OwnerId == CurrentUserId)
             .OrderBy(h => h.Date)
             .ToListAsync();
+        if (settings.IsAdminFeeEnabled)
+            ViewBag.AdminFeeSummary = await _adminFee.GetOwnerSummaryAsync(CurrentUserId);
         return View(settings);
     }
 
@@ -2212,14 +2205,15 @@ public class AdminController : Controller
     public async Task<IActionResult> Settings(FacilitySettings model, IFormFile? logo,
         IFormFile? gcashQr, IFormFile? mayaQr, IFormFile? gotymeQr, string[]? paymentMethods)
     {
-        // These properties are not part of the settings form — remove any binding
-        // errors caused by nullable-reference-type implicit [Required] checks.
+        // These properties are not part of the settings form (fee config is Dev-Admin-only,
+        // set via /Dev) — remove any binding errors caused by nullable-reference-type implicit
+        // [Required] checks.
         foreach (var key in new[] {
             nameof(FacilitySettings.BillingModel),
             nameof(FacilitySettings.OwnerId),
-            nameof(FacilitySettings.CommissionRate),
-            nameof(FacilitySettings.CommissionBalanceOwed),
-            nameof(FacilitySettings.CommissionTotalPaid),
+            nameof(FacilitySettings.AdminFeeType),
+            nameof(FacilitySettings.AdminFeeRate),
+            nameof(FacilitySettings.AdminFeeFixedAmount),
             nameof(FacilitySettings.BrandLogoUrl),
         })
             ModelState.Remove(key);
@@ -2900,20 +2894,9 @@ public class AdminController : Controller
             booking.Status = BookingStatus.Cancelled;
         }
 
-        // Reverse commission proportional to this refund so a refund doesn't leave the owner
-        // owing platform commission on money that was given back to the customer. Since
-        // CommissionAmount and `remaining` always shrink in lockstep across successive partial
-        // refunds, CommissionAmount/remaining stays equal to the original commission rate.
-        if (booking.CommissionAmount is > 0 && remaining > 0)
-        {
-            var commissionShare = isFullRefund ? booking.CommissionAmount.Value : booking.CommissionAmount.Value * (amount / remaining);
-            var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
-            if (settings is not null)
-            {
-                settings.CommissionBalanceOwed = Math.Max(0, settings.CommissionBalanceOwed - commissionShare);
-            }
-            booking.CommissionAmount = Math.Max(0, booking.CommissionAmount.Value - commissionShare);
-        }
+        // Reverse the admin fee proportional to this refund so a refund doesn't leave the owner
+        // owing a platform fee on money that was given back to the customer.
+        await _adminFee.ReverseForRefundAsync(booking: booking, signup: null, refundedAmount: amount, remainingBeforeRefund: remaining);
 
         await _db.SaveChangesAsync();
 
@@ -3195,16 +3178,7 @@ public class AdminController : Controller
             signup.Status = BookingStatus.Cancelled;
         }
 
-        if (signup.CommissionAmount is > 0 && remaining > 0)
-        {
-            var commissionShare = isFullRefund ? signup.CommissionAmount.Value : signup.CommissionAmount.Value * (amount / remaining);
-            var settings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == CurrentUserId);
-            if (settings is not null)
-            {
-                settings.CommissionBalanceOwed = Math.Max(0, settings.CommissionBalanceOwed - commissionShare);
-            }
-            signup.CommissionAmount = Math.Max(0, signup.CommissionAmount.Value - commissionShare);
-        }
+        await _adminFee.ReverseForRefundAsync(booking: null, signup: signup, refundedAmount: amount, remainingBeforeRefund: remaining);
 
         await _db.SaveChangesAsync();
 
@@ -3833,6 +3807,12 @@ public class AdminController : Controller
         };
         await _bookingService.CreateBookingAsync(booking);
 
+        if (isCash)
+        {
+            await _adminFee.AccrueForBookingsAsync(new[] { booking }, await GetMySettingsAsync());
+            await _db.SaveChangesAsync();
+        }
+
         var customerEmailToNotify = customerEmail.Trim();
         if (isCash && !string.IsNullOrWhiteSpace(customerEmailToNotify))
         {
@@ -4052,6 +4032,11 @@ public class AdminController : Controller
         }
 
         _db.Bookings.AddRange(bookings);
+        if (isCash)
+        {
+            // One admin fee for the whole cart (one checkout), not one per court/row.
+            await _adminFee.AccrueForBookingsAsync(bookings, await GetMySettingsAsync());
+        }
         await _db.SaveChangesAsync();
 
         var customerEmailToNotify = customerEmail.Trim();
@@ -4206,6 +4191,12 @@ public class AdminController : Controller
         };
         await _bookingService.CreateBookingAsync(booking);
 
+        if (isCash)
+        {
+            await _adminFee.AccrueForBookingsAsync(new[] { booking }, await GetMySettingsAsync());
+            await _db.SaveChangesAsync();
+        }
+
         var customerEmailToNotify = customerEmail.Trim();
         if (isCash && !string.IsNullOrWhiteSpace(customerEmailToNotify))
         {
@@ -4342,6 +4333,7 @@ public class AdminController : Controller
             CustomerNameSnapshot = customerName
         };
         _db.OpenPlaySignups.Add(signup);
+        await _adminFee.AccrueForSignupAsync(signup, await GetMySettingsAsync());
         await _db.SaveChangesAsync();
 
         var customerEmailToNotify = customerEmail.Trim();

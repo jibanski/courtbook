@@ -111,6 +111,7 @@ builder.Services.AddScoped<PayMongoService>();
 builder.Services.AddScoped<KeyGeneratorService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<GuestCheckoutService>();
+builder.Services.AddScoped<AdminFeeService>();
 builder.Services.AddSingleton<ImageCompressionService>();
 builder.Services.AddHttpClient();                                 // for EmailService (Brevo HTTP API)
 builder.Services.AddHostedService<SubscriptionReminderHostedService>();
@@ -572,7 +573,6 @@ using (var scope = app.Services.CreateScope())
                     ""PaymentProofSubmittedAt"" timestamp with time zone NULL,
                     ""PaidAt""                  timestamp with time zone NULL,
                     ""CreatedAt""               timestamp with time zone NOT NULL DEFAULT NOW(),
-                    ""CommissionAmount""        numeric(18,2)            NULL,
                     CONSTRAINT ""FK_OpenPlaySignups_Courts_CourtId""
                         FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE,
                     CONSTRAINT ""FK_OpenPlaySignups_AspNetUsers_UserId""
@@ -606,7 +606,6 @@ using (var scope = app.Services.CreateScope())
                     ""PaymentProofSubmittedAt"" TEXT     NULL,
                     ""PaidAt""                  TEXT     NULL,
                     ""CreatedAt""               TEXT     NOT NULL DEFAULT (datetime('now')),
-                    ""CommissionAmount""        TEXT     NULL,
                     FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE,
                     FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
                 )

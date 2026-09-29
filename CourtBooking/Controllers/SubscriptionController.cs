@@ -17,17 +17,20 @@ public class SubscriptionController : Controller
     private readonly IConfiguration _config;
     private readonly KeyGeneratorService _keyGen;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly AdminFeeService _adminFee;
 
     public SubscriptionController(
         ApplicationDbContext db,
         IConfiguration config,
         KeyGeneratorService keyGen,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        AdminFeeService adminFee)
     {
         _db          = db;
         _config      = config;
         _keyGen      = keyGen;
         _userManager = userManager;
+        _adminFee    = adminFee;
     }
 
     private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -158,14 +161,15 @@ public class SubscriptionController : Controller
 
     // ── Commission payment ────────────────────────────────────────────────────
 
-    // GET /Subscription/Commission
-    public async Task<IActionResult> Commission()
+    // GET /Subscription/AdminFee
+    public async Task<IActionResult> AdminFee()
     {
         var settings = await GetMySettingsAsync();
-        if (settings?.IsCommissionModel != true)
+        if (settings?.IsAdminFeeEnabled != true)
             return RedirectToAction("Index", "Admin");
 
         ViewBag.Settings     = settings;
+        ViewBag.Summary      = await _adminFee.GetOwnerSummaryAsync(CurrentUserId);
         ViewBag.GCashNumber  = _config["Subscription:GCashNumber"] ?? "";
         ViewBag.GCashName    = _config["Subscription:GCashName"]   ?? "";
         ViewBag.MayaNumber   = _config["Subscription:MayaNumber"]  ?? "";
@@ -174,12 +178,12 @@ public class SubscriptionController : Controller
         return View();
     }
 
-    // POST /Subscription/Commission
+    // POST /Subscription/AdminFee
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Commission(string referenceNumber, IFormFile? proof)
+    public async Task<IActionResult> AdminFee(string referenceNumber, IFormFile? proof)
     {
         var settings = await GetMySettingsAsync();
-        if (settings?.IsCommissionModel != true)
+        if (settings?.IsAdminFeeEnabled != true)
             return RedirectToAction("Index", "Admin");
 
         if (string.IsNullOrWhiteSpace(referenceNumber))
@@ -187,25 +191,29 @@ public class SubscriptionController : Controller
         if (proof is not { Length: > 0 })
             ModelState.AddModelError(nameof(proof), "Please upload your payment screenshot.");
 
-        if (!ModelState.IsValid)
+        if (ModelState.IsValid)
         {
-            ViewBag.Settings     = settings;
-            ViewBag.GCashNumber  = _config["Subscription:GCashNumber"] ?? "";
-            ViewBag.GCashName    = _config["Subscription:GCashName"]   ?? "";
-            ViewBag.MayaNumber   = _config["Subscription:MayaNumber"]  ?? "";
-            ViewBag.MayaName     = _config["Subscription:MayaName"]    ?? "";
-            ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
-            return View();
+            var proofPath = await SaveProofAsync(proof!);
+            try
+            {
+                await _adminFee.SubmitSettlementAsync(CurrentUserId, referenceNumber, proofPath);
+                TempData["Success"] = "Admin fee payment submitted! We'll verify and clear your balance within 24 hours.";
+                return RedirectToAction("Settings", "Admin");
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
         }
 
-        var proofPath = await SaveProofAsync(proof!);
-        settings.CommissionPaymentRef             = referenceNumber.Trim();
-        settings.CommissionPaymentProofPath       = proofPath;
-        settings.CommissionPaymentSubmittedAt     = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-
-        TempData["Success"] = "Commission payment submitted! We'll verify and clear your balance within 24 hours.";
-        return RedirectToAction("Settings", "Admin");
+        ViewBag.Settings     = settings;
+        ViewBag.Summary      = await _adminFee.GetOwnerSummaryAsync(CurrentUserId);
+        ViewBag.GCashNumber  = _config["Subscription:GCashNumber"] ?? "";
+        ViewBag.GCashName    = _config["Subscription:GCashName"]   ?? "";
+        ViewBag.MayaNumber   = _config["Subscription:MayaNumber"]  ?? "";
+        ViewBag.MayaName     = _config["Subscription:MayaName"]    ?? "";
+        ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        return View();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
