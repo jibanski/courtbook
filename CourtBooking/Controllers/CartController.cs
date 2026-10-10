@@ -279,34 +279,9 @@ public class CartController : Controller
         // PerCourt: each row gets the voucher applied independently, in full, against its own
         // price. TotalOrder: one combined discount is split proportionally across rows, with the
         // last row absorbing any rounding remainder so the parts sum exactly to the whole.
-        var rowDiscounts = new List<decimal>(new decimal[resolved.Count]);
-        if (appliedVoucher is not null)
-        {
-            if (appliedVoucher.DiscountScope == VoucherDiscountScope.PerCourt)
-            {
-                for (int i = 0; i < rowSubtotals.Count; i++)
-                    rowDiscounts[i] = VoucherService.ComputeDiscount(appliedVoucher, rowSubtotals[i]);
-            }
-            else
-            {
-                decimal allocated = 0m;
-                for (int i = 0; i < rowSubtotals.Count; i++)
-                {
-                    if (i == rowSubtotals.Count - 1)
-                    {
-                        rowDiscounts[i] = totalVoucherDiscount - allocated;
-                    }
-                    else
-                    {
-                        var share = cartSubtotal > 0
-                            ? Math.Round(totalVoucherDiscount * (rowSubtotals[i] / cartSubtotal), 2)
-                            : 0m;
-                        rowDiscounts[i] = share;
-                        allocated += share;
-                    }
-                }
-            }
-        }
+        var rowDiscounts = appliedVoucher is not null
+            ? VoucherService.AllocateDiscounts(appliedVoucher, rowSubtotals)
+            : new List<decimal>(new decimal[resolved.Count]);
 
         // Computed once for the whole cart (not per row) so a Fixed fee isn't multiplied by the
         // number of items, then folded entirely into the last row — same "last row absorbs the

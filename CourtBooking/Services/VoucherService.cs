@@ -66,4 +66,43 @@ public class VoucherService
 
         return Math.Clamp(discount, 0m, subtotal);
     }
+
+    /// <summary>
+    /// Splits <paramref name="voucher"/>'s discount across the rows of a multi-court cart according
+    /// to its <see cref="Voucher.DiscountScope"/>. PerCourt: the voucher is applied independently,
+    /// in full, against each row's own price. TotalOrder: one discount is computed against the whole
+    /// cart and split proportionally, with the last row absorbing any rounding remainder so the
+    /// parts sum exactly to the whole.
+    /// </summary>
+    public static List<decimal> AllocateDiscounts(Voucher voucher, IReadOnlyList<decimal> rowSubtotals)
+    {
+        var rowDiscounts = new List<decimal>(new decimal[rowSubtotals.Count]);
+
+        if (voucher.DiscountScope == VoucherDiscountScope.PerCourt)
+        {
+            for (int i = 0; i < rowSubtotals.Count; i++)
+                rowDiscounts[i] = ComputeDiscount(voucher, rowSubtotals[i]);
+            return rowDiscounts;
+        }
+
+        var cartSubtotal = rowSubtotals.Sum();
+        var totalDiscount = ComputeDiscount(voucher, cartSubtotal);
+        decimal allocated = 0m;
+        for (int i = 0; i < rowSubtotals.Count; i++)
+        {
+            if (i == rowSubtotals.Count - 1)
+            {
+                rowDiscounts[i] = totalDiscount - allocated;
+            }
+            else
+            {
+                var share = cartSubtotal > 0
+                    ? Math.Round(totalDiscount * (rowSubtotals[i] / cartSubtotal), 2)
+                    : 0m;
+                rowDiscounts[i] = share;
+                allocated += share;
+            }
+        }
+        return rowDiscounts;
+    }
 }
