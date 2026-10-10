@@ -1174,16 +1174,17 @@ public class StaffController : Controller
             appliedVoucher = voucherResult.Voucher;
         }
 
+        // PerCourt vs TotalOrder scope is honoured the same way as CartController.Checkout.
+        var rowDiscounts = appliedVoucher is not null
+            ? VoucherService.AllocateDiscounts(appliedVoucher, rowSubtotals)
+            : new List<decimal>(new decimal[resolved.Count]);
+
         for (int i = 0; i < resolved.Count; i++)
         {
             var (item, court, bookingDate, start, end, slotPrice, bundle) = resolved[i];
             var (addOns, addOnsTotal) = itemAddOns[i];
 
-            // Applied per row against that row's own price — a fixed-amount voucher discounts
-            // EVERY court by its full value, it isn't split thin across however many are booked.
-            decimal rowDiscount = appliedVoucher is not null
-                ? VoucherService.ComputeDiscount(appliedVoucher, rowSubtotals[i])
-                : 0m;
+            decimal rowDiscount = rowDiscounts[i];
 
             bookings.Add(new Booking
             {
