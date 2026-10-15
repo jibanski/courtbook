@@ -26,7 +26,7 @@ namespace CourtBooking.Controllers;
 [AllowAnonymous]
 public class CartController : Controller
 {
-    private const int MaxCartItems = 20;
+    private const int MaxCartItems = 30;
 
     private readonly ApplicationDbContext         _db;
     private readonly BookingService                _bookingService;
@@ -113,7 +113,7 @@ public class CartController : Controller
         }
         if (items.Count > MaxCartItems)
         {
-            TempData["Error"] = $"A cart can hold at most {MaxCartItems} slots. Please check out in smaller batches.";
+            TempData["Error"] = $"You have {items.Count} slots in your cart, but the maximum is {MaxCartItems} per checkout. Please check out in smaller batches.";
             return RedirectToAction(nameof(Checkout), new { slug });
         }
 
