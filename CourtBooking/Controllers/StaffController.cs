@@ -1770,6 +1770,14 @@ public class StaffController : Controller
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public async Task<IActionResult> MyCashLog(DateOnly? from, DateOnly? to)
     {
+        // Staff only need recent sales for shift-end reconciliation, not full history. Clamp
+        // server-side (not just in the date pickers) so editing the URL can't widen the window.
+        var today    = PhtClock.Today;
+        var earliest = today.AddDays(-(MyCashLogWindowDays - 1));
+        from = from.HasValue ? (from.Value < earliest ? earliest : from.Value) : earliest;
+        to   = to.HasValue   ? (to.Value   > today    ? today    : to.Value)   : today;
+        if (from > to) from = to;
+
         var courtIds = await GetMyCourtIdsAsync();
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         var bookings = await _bookingService.GetCashLogAsync(courtIds, CurrentStaffId, from, to, employerOwnerId);
@@ -1782,6 +1790,9 @@ public class StaffController : Controller
 
         ViewBag.From = from;
         ViewBag.To   = to;
+        ViewBag.MinDate = earliest;
+        ViewBag.MaxDate = today;
+        ViewBag.WindowDays = MyCashLogWindowDays;
         var confirmed = bookings.Where(b => b.Status != BookingStatus.Pending).ToList();
         ViewBag.GrandTotal   = confirmed.Sum(b => b.TotalPrice);
         ViewBag.CashTotal    = confirmed.Where(b => string.Equals(b.PaymentMethod, "Cash", StringComparison.OrdinalIgnoreCase)).Sum(b => b.TotalPrice);
@@ -1790,6 +1801,9 @@ public class StaffController : Controller
         ViewBag.PendingCount = bookings.Count(b => b.Status == BookingStatus.Pending);
         return View(bookings);
     }
+
+    /// <summary>How many days back (including today) staff can view in My Sales Log.</summary>
+    private const int MyCashLogWindowDays = 3;
 
     /// <summary>Root folder for file uploads — mirrors <c>BookingsController.UploadsRoot</c> so
     /// staff-uploaded payment proofs land in the same persistent-volume-aware location.</summary>
