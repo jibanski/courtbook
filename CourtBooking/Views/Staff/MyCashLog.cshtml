@@ -11,7 +11,10 @@
     int pendingCount = ViewBag.PendingCount;
     string? currentStaffName = ViewBag.CurrentStaffName;
     string? currentStaffEmail = ViewBag.CurrentStaffEmail;
-    var byDay = Model.GroupBy(b => b.LoggedDate).OrderByDescending(g => g.Key);
+    DateOnly minDate = ViewBag.MinDate;
+    DateOnly maxDate = ViewBag.MaxDate;
+    int windowDays = ViewBag.WindowDays;
+    var byDay =Model.GroupBy(b => b.LoggedDate).OrderByDescending(g => g.Key);
 }
 
 <div class="cb-page-header">
@@ -20,6 +23,7 @@
         <p style="color:var(--cb-text-2);font-size:.9rem;margin:0;">
             Bookings, sign-ups, and add-on rentals you've logged &mdash; any payment method &mdash; for reconciliation.
             Signed in as <strong>@currentStaffName</strong> (@currentStaffEmail) &mdash; only sales logged under this account appear below.
+            Showing the last @windowDays days only.
         </p>
     </div>
 </div>
@@ -30,11 +34,11 @@
             <form method="get" class="row g-2 align-items-end">
                 <div class="col-sm-4">
                     <label class="form-label small fw-semibold">From</label>
-                    <input type="date" name="from" class="form-control" value="@from?.ToString("yyyy-MM-dd")" />
+                    <input type="date" name="from" class="form-control" min="@minDate.ToString("yyyy-MM-dd")" max="@maxDate.ToString("yyyy-MM-dd")" value="@from?.ToString("yyyy-MM-dd")" />
                 </div>
                 <div class="col-sm-4">
                     <label class="form-label small fw-semibold">To</label>
-                    <input type="date" name="to" class="form-control" value="@to?.ToString("yyyy-MM-dd")" />
+                    <input type="date" name="to" class="form-control" min="@minDate.ToString("yyyy-MM-dd")" max="@maxDate.ToString("yyyy-MM-dd")" value="@to?.ToString("yyyy-MM-dd")" />
                 </div>
                 <div class="col-sm-4">
                     <button type="submit" class="btn btn-primary w-100"><i class="bi bi-filter me-1"></i>Filter</button>
