@@ -8,6 +8,7 @@
     var slug                = ViewBag.Slug              as string;
     var showBackToDirectory = ViewBag.ShowBackToDirectory is true;
     var rateTiers           = ViewBag.CourtRateTiers    as List<CourtRateTier> ?? new List<CourtRateTier>();
+    var bundleRows          = ViewBag.CourtBundleRows   as List<CourtBooking.Services.BookingService.BundleScheduleRow> ?? new();
 
     ViewData["Title"] = fs?.DisplayName ?? "Courts";
 
@@ -198,6 +199,22 @@
                                                     </td>
                                                 </tr>
                                             }
+                                        }
+                                        @foreach (var b in bundleRows.Where(r => r.CourtId == court.Id))
+                                        {
+                                            var bundleDays = b.IncludeHolidays && string.IsNullOrWhiteSpace(b.DaysOfWeek)
+                                                ? "Holidays"
+                                                : (b.DaysOfWeek.Replace(",", " · ") + (b.IncludeHolidays ? " · Holidays" : ""));
+                                            <tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+                                                <td style="padding:.45rem .5rem .45rem 0;color:var(--cb-text-2);">
+                                                    @TimeDisplay.HourRange(b.StartHour, b.EndHour)
+                                                    <span class="badge ms-1" style="background:var(--cb-lime);color:#000;font-size:.62rem;">Bundle</span>
+                                                </td>
+                                                <td style="padding:.45rem 0;color:var(--cb-text-3);font-size:.78rem;">@bundleDays</td>
+                                                <td style="padding:.45rem 0 .45rem .5rem;text-align:right;font-weight:700;color:var(--cb-lime);" title="Bundle flat price ₱@b.FlatPrice.ToString("N0") for the whole window">
+                                                    ₱@b.HourlyRate.ToString("N0")
+                                                </td>
+                                            </tr>
                                         }
                                     </tbody>
                                 </table>

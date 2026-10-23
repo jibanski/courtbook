@@ -514,6 +514,7 @@ public class StaffController : Controller
             .Where(t => myCourtIds.Contains(t.CourtId))
             .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
             .ToListAsync();
+        ViewBag.CourtBundleRows = await _bookingService.GetBundleScheduleRowsAsync(myCourtIds);
 
         // "Today" must resolve to Philippine time regardless of the server's own OS timezone
         // (e.g. a UTC-hosted server) — otherwise, during PH midnight-8am, defaulting to the

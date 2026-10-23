@@ -84,6 +84,7 @@ public class FacilityController : Controller
             .Where(t => courtIds.Contains(t.CourtId))
             .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
             .ToListAsync();
+        ViewBag.CourtBundleRows = await _bookingService.GetBundleScheduleRowsAsync(courtIds);
 
         return View(courts);
     }

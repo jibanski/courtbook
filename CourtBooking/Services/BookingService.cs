@@ -505,12 +505,45 @@ public class BookingService
     /// <summary>One requested add-on line from a non-form source (e.g. a cart-checkout JSON payload).</summary>
     public record AddOnSelection(int AddOnItemId, int Quantity, int? Hours);
 
-    /// <summary>The min and max hourly rate a court can charge across its base rate and any rate tiers —
-    /// a display-only range for customer-facing pages; actual charging still resolves a single rate per hour.</summary>
+    /// <summary>Effective per-hour price of a bundle rate block (flat price spread over its window).</summary>
+    private static decimal BundleBlockHourlyRate(CourtBundleRateBlock block)
+    {
+        int hours = block.EndHour - block.StartHour;
+        if (hours <= 0) hours += 24;
+        return block.FlatPrice / hours;
+    }
+
+    /// <summary>One active bundle window as shown in a court's Schedule &amp; Pricing card.</summary>
+    public record BundleScheduleRow(int CourtId, string DaysOfWeek, bool IncludeHolidays,
+        int StartHour, int EndHour, decimal FlatPrice, decimal HourlyRate);
+
+    /// <summary>Active bundle rate blocks for the given courts (one row per member court), in one query —
+    /// so pricing cards can list bundle windows alongside rate tiers.</summary>
+    public async Task<List<BundleScheduleRow>> GetBundleScheduleRowsAsync(IEnumerable<int> courtIds)
+    {
+        var ids = courtIds.ToList();
+        var blocks = await _db.CourtBundleRateBlocks.AsNoTracking()
+            .Where(b => b.IsActive && b.CourtBundle.IsActive && b.CourtBundle.Courts.Any(c => ids.Contains(c.CourtId)))
+            .Select(b => new { Block = b, MemberCourtIds = b.CourtBundle.Courts.Select(c => c.CourtId).ToList() })
+            .ToListAsync();
+        return blocks
+            .SelectMany(x => x.MemberCourtIds.Where(ids.Contains).Select(id => new BundleScheduleRow(
+                id, x.Block.DaysOfWeek, x.Block.IncludeHolidays, x.Block.StartHour, x.Block.EndHour,
+                x.Block.FlatPrice, BundleBlockHourlyRate(x.Block))))
+            .OrderBy(r => r.StartHour)
+            .ToList();
+    }
+
+    /// <summary>The min and max hourly rate a court can charge across its base rate, any rate tiers and
+    /// any active bundle windows (flat price ÷ hours) — a display-only range for customer-facing pages;
+    /// actual charging still resolves a single rate per hour.</summary>
     public async Task<(decimal Min, decimal Max)> GetRateRangeAsync(Court court)
     {
         var tiers = await GetRateTiersAsync(court.Id);
         var prices = tiers.Select(t => t.PricePerHour).Append(court.PricePerHour).ToList();
+        foreach (var bundle in await GetBundlesForCourtAsync(court.Id))
+            foreach (var block in (await GetBundleRateBlocksAsync(bundle.Id)).Where(b => b.IsActive))
+                prices.Add(BundleBlockHourlyRate(block));
         return (prices.Min(), prices.Max());
     }
 
@@ -524,11 +557,16 @@ public class BookingService
             .GroupBy(t => t.CourtId)
             .ToDictionary(g => g.Key, g => g.Select(t => t.PricePerHour).ToList());
 
+        var bundleRatesByCourtId = (await GetBundleScheduleRowsAsync(courtIds))
+            .GroupBy(r => r.CourtId)
+            .ToDictionary(g => g.Key, g => g.Select(r => r.HourlyRate).ToList());
+
         var result = new Dictionary<int, (decimal Min, decimal Max)>();
         foreach (var court in courtList)
         {
             var prices = tiersByCourtId.TryGetValue(court.Id, out var tierPrices) ? tierPrices : new List<decimal>();
             prices.Add(court.PricePerHour);
+            if (bundleRatesByCourtId.TryGetValue(court.Id, out var bundleRates)) prices.AddRange(bundleRates);
             result[court.Id] = (prices.Min(), prices.Max());
         }
         return result;
