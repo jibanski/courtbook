@@ -3546,6 +3546,7 @@ public class AdminController : Controller
             .Where(t => myCourtIds.Contains(t.CourtId))
             .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
             .ToListAsync();
+        ViewBag.CourtBundleRows = await _bookingService.GetBundleScheduleRowsAsync(myCourtIds);
 
         var todayPht = PhtClock.Today;
         var selectedDate = date.HasValue ? DateOnly.FromDateTime(date.Value) : todayPht;
