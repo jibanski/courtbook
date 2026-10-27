@@ -52,11 +52,6 @@
                     <i class="bi bi-receipt fs-1 text-success opacity-25"></i>
                 </div>
             </div>
-            <hr class="my-2" />
-            <div class="row g-2 small text-muted">
-                <div class="col-6">This month generated: <strong>₱@((summary?.ThisMonthGenerated ?? 0m).ToString("N2"))</strong> (@(summary?.ThisMonthChargeCount ?? 0) booking@((summary?.ThisMonthChargeCount ?? 0) == 1 ? "" : "s"))</div>
-                <div class="col-6">Total paid historically: <strong>₱@((summary?.TotalPaid ?? 0m).ToString("N2"))</strong></div>
-            </div>
         </div>
     </div>
 
