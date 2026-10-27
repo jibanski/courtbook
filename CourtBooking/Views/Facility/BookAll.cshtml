@@ -66,7 +66,7 @@
                         }
                     </form>
                     <!-- Inline Flatpickr calendar renders here -->
-                    <div id="calendarInline" class="cb-calendar-wrap"></div>
+                    <div class="cb-calendar-wrap"><div id="calendarInline"></div></div>
                     <div class="mt-3 p-2 rounded-2 text-center" style="background:var(--cb-surface-2);font-size:.8rem;color:var(--cb-text-2);">
                         <i class="bi bi-calendar-event me-1" style="color:var(--cb-lime);"></i>
                         <strong id="selectedDateLabel">@selectedDate.ToString("dddd, MMMM d, yyyy")</strong>
@@ -458,22 +458,22 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
 <style>
     .cb-calendar-wrap .flatpickr-calendar {
-        background: var(--cb-surface-2) !important;
+        background: transparent !important;
         box-shadow: none !important;
         border: none !important;
         width: 100% !important;
     }
     .cb-calendar-wrap .flatpickr-months {
-        background: var(--cb-surface-2) !important;
+        background: transparent !important;
         border-radius: 8px 8px 0 0;
     }
     .cb-calendar-wrap .flatpickr-innerContainer {
-        background: var(--cb-surface-2) !important;
+        background: transparent !important;
         border-radius: 0 0 8px 8px;
     }
     .cb-calendar-wrap .flatpickr-weekdays,
     .cb-calendar-wrap span.flatpickr-weekday {
-        background: var(--cb-surface-2) !important;
+        background: transparent !important;
         color: var(--cb-text-3) !important;
         font-size: .72rem;
         letter-spacing: .04em;
@@ -518,7 +518,14 @@
     .cb-calendar-wrap .flatpickr-current-month span.cur-month {
         color: var(--cb-text-1) !important;
     }
+    .cb-calendar-wrap .flatpickr-month,
+    .cb-calendar-wrap .flatpickr-current-month,
+    .cb-calendar-wrap .flatpickr-current-month input.cur-year,
+    .cb-calendar-wrap .numInputWrapper,
     .cb-calendar-wrap .flatpickr-monthDropdown-months {
+        background: transparent !important;
+    }
+    .cb-calendar-wrap .flatpickr-monthDropdown-months .flatpickr-monthDropdown-month {
         background: var(--cb-surface-2) !important;
     }
     .cb-calendar-wrap .flatpickr-prev-month svg,
