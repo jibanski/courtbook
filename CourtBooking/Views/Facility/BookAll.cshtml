@@ -479,11 +479,20 @@
         letter-spacing: .04em;
     }
     .cb-calendar-wrap .flatpickr-days   { width: 100% !important; border: none !important; }
-    .cb-calendar-wrap .dayContainer     { width: 100% !important; min-width: unset !important; max-width: unset !important; }
+    .cb-calendar-wrap .dayContainer {
+        width: 100% !important; min-width: unset !important; max-width: unset !important;
+        display: grid !important;
+        grid-template-columns: repeat(7, 1fr);
+        justify-items: center;
+        row-gap: 2px;
+    }
     .cb-calendar-wrap .flatpickr-day {
         border-radius: 8px !important;
         color: var(--cb-text-2) !important;
+        width: 36px;
         max-width: 36px;
+        flex: none;
+        margin: 0;
         height: 36px;
         line-height: 34px;
     }
