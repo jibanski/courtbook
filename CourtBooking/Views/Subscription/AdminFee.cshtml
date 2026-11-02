@@ -9,6 +9,8 @@
     var mayaNum     = ViewBag.MayaNumber  as string;
     var mayaName    = ViewBag.MayaName    as string;
     var contact     = ViewBag.ContactEmail as string;
+    var gcashQrSrc  = ViewBag.GCashQrSrc as string;
+    var mayaQrSrc   = ViewBag.MayaQrSrc  as string;
     var feeLabel    = settings?.AdminFeeType == AdminFeeType.Fixed
         ? $"₱{settings.AdminFeeFixedAmount:N2} per booking"
         : $"{settings?.AdminFeeRate}% per booking";
@@ -74,10 +76,14 @@
                     {
                         <div class="col-md-6">
                             <div class="p-3 rounded border text-center">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/GCash_Logo.svg/240px-GCash_Logo.svg.png"
-                                     alt="GCash" height="28" class="mb-2" />
+                                <div class="fw-bold mb-2" style="font-size:1.1rem;color:#007cff;">GCash</div>
                                 <div class="fw-bold">@gcashNum</div>
                                 <div class="text-muted small">@gcashName</div>
+                                @if (gcashQrSrc != null)
+                                {
+                                    <img src="@gcashQrSrc" alt="GCash QR Code" class="d-block mx-auto mt-3"
+                                         style="max-width:200px;width:100%;border-radius:8px;" />
+                                }
                             </div>
                         </div>
                     }
@@ -88,6 +94,11 @@
                                 <div class="fw-bold text-primary mb-2" style="font-size:1.1rem;">Maya</div>
                                 <div class="fw-bold">@mayaNum</div>
                                 <div class="text-muted small">@mayaName</div>
+                                @if (mayaQrSrc != null)
+                                {
+                                    <img src="@mayaQrSrc" alt="Maya QR Code" class="d-block mx-auto mt-3"
+                                         style="max-width:200px;width:100%;border-radius:8px;" />
+                                }
                             </div>
                         </div>
                     }

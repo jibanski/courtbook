@@ -175,6 +175,7 @@ public class SubscriptionController : Controller
         ViewBag.MayaNumber   = _config["Subscription:MayaNumber"]  ?? "";
         ViewBag.MayaName     = _config["Subscription:MayaName"]    ?? "";
         ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        await LoadPlatformQrAsync();
         return View();
     }
 
@@ -213,6 +214,7 @@ public class SubscriptionController : Controller
         ViewBag.MayaNumber   = _config["Subscription:MayaNumber"]  ?? "";
         ViewBag.MayaName     = _config["Subscription:MayaName"]    ?? "";
         ViewBag.ContactEmail = _config["Subscription:ContactEmail"] ?? "courtbooksolutions@gmail.com";
+        await LoadPlatformQrAsync();
         return View();
     }
 
@@ -227,6 +229,16 @@ public class SubscriptionController : Controller
         MayaNumber   = _config["Subscription:MayaNumber"]  ?? "",
         MayaName     = _config["Subscription:MayaName"]    ?? "",
     };
+
+    private async Task LoadPlatformQrAsync()
+    {
+        var cfg = await _db.PlatformConfig.AsNoTracking()
+            .Where(p => p.Id == 1)
+            .Select(p => new { p.GCashQrData, p.GCashQrContentType, p.MayaQrData, p.MayaQrContentType })
+            .FirstOrDefaultAsync();
+        ViewBag.GCashQrSrc = cfg?.GCashQrData is { Length: > 0 } ? $"data:{cfg.GCashQrContentType};base64,{Convert.ToBase64String(cfg.GCashQrData)}" : null;
+        ViewBag.MayaQrSrc  = cfg?.MayaQrData  is { Length: > 0 } ? $"data:{cfg.MayaQrContentType};base64,{Convert.ToBase64String(cfg.MayaQrData)}"   : null;
+    }
 
     private async Task<string> SaveProofAsync(IFormFile file)
     {
