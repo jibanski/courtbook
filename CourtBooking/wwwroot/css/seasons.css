@@ -1,0 +1,257 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   CourtBook — Seasonal looks
+   Loaded by _Layout only while a season is active (Dev > Season).
+   Applied via <html data-season="...">. Pure CSS: recolors the theme.css
+   variables and adds one lightweight, non-interactive decoration layer.
+   No images or scripts are downloaded.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Halloween ───────────────────────────────────────────────────────── */
+:root[data-season="halloween"] {
+  --cb-bg:          #120a1c;
+  --cb-surface:     #1a0f26;
+  --cb-surface-2:   #24153a;
+  --cb-surface-3:   #301d4a;
+  --cb-lime:        #FF8A1F;
+  --cb-lime-dim:    rgba(255,138,31,0.14);
+  --cb-lime-glow:   0 0 20px rgba(255,138,31,0.4);
+  --cb-blue:        #FF8A1F;
+  --cb-blue-dim:    rgba(255,138,31,0.14);
+  --cb-blue-glow:   0 0 20px rgba(255,138,31,0.4);
+}
+:root[data-season="halloween"][data-theme="light"] {
+  --cb-bg:          #FFF4E8;
+  --cb-surface:     #FFFFFF;
+  --cb-surface-2:   #FFEBD6;
+  --cb-surface-3:   #FFDDB8;
+  --cb-lime:        #C2540A;
+  --cb-lime-dim:    rgba(194,84,10,0.10);
+  --cb-blue:        #C2540A;
+  --cb-blue-dim:    rgba(194,84,10,0.10);
+}
+
+/* ── Christmas ───────────────────────────────────────────────────────── */
+:root[data-season="christmas"] {
+  --cb-bg:          #08201a;
+  --cb-surface:     #0d2b23;
+  --cb-surface-2:   #12382d;
+  --cb-surface-3:   #1a4a3b;
+  --cb-lime:        #FF5A5F;
+  --cb-lime-dim:    rgba(255,90,95,0.14);
+  --cb-lime-glow:   0 0 20px rgba(255,90,95,0.4);
+  --cb-blue:        #FF5A5F;
+  --cb-blue-dim:    rgba(255,90,95,0.14);
+  --cb-blue-glow:   0 0 20px rgba(255,90,95,0.4);
+}
+:root[data-season="christmas"][data-theme="light"] {
+  --cb-bg:          #F3FAF6;
+  --cb-surface:     #FFFFFF;
+  --cb-surface-2:   #E6F4EC;
+  --cb-surface-3:   #D3EBDD;
+  --cb-lime:        #C21F2B;
+  --cb-lime-dim:    rgba(194,31,43,0.10);
+  --cb-blue:        #C21F2B;
+  --cb-blue-dim:    rgba(194,31,43,0.10);
+}
+
+/* Several sections (navbar, hero, headers) hardcode a dark navy instead of a variable;
+   tint them with the season background so the look is consistent. */
+:root[data-season="halloween"]:not([data-theme="light"]) .cb-navbar,
+:root[data-season="halloween"]:not([data-theme="light"]) .cb-page-header,
+:root[data-season="halloween"]:not([data-theme="light"]) .cb-facility-hero { background: #0d0716 !important; }
+:root[data-season="christmas"]:not([data-theme="light"]) .cb-navbar,
+:root[data-season="christmas"]:not([data-theme="light"]) .cb-page-header,
+:root[data-season="christmas"]:not([data-theme="light"]) .cb-facility-hero { background: #051611 !important; }
+
+/* ── Decoration layer ────────────────────────────────────────────────── */
+/* One fixed, click-through overlay above page content but below navbars/modals. */
+:root[data-season] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Halloween: faint pumpkins / bats / webs tiled as a tiny inline SVG (emoji glyphs, ~400 bytes). */
+:root[data-season="halloween"] body::after {
+  opacity: .10;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Ctext x='20' y='60' font-size='34'%3E%26%23127875%3B%3C/text%3E%3Ctext x='150' y='150' font-size='30'%3E%26%23129415%3B%3C/text%3E%3Ctext x='60' y='220' font-size='28'%3E%26%23128376%3B%3C/text%3E%3C/svg%3E");
+  background-size: 260px 260px;
+}
+
+/* Christmas: ❄ snowflakes falling straight down. Two tiled layers (big + small flakes)
+   fall at different speeds; each moves a whole number of tiles so the loop is seamless. */
+:root[data-season="christmas"] body::after {
+  opacity: .6;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' fill='white'%3E%3Ctext x='30' y='60' font-size='26'%3E%26%2310052%3B%26%2365038%3B%3C/text%3E%3Ctext x='200' y='130' font-size='20'%3E%26%2310052%3B%26%2365038%3B%3C/text%3E%3Ctext x='110' y='220' font-size='30'%3E%26%2310052%3B%26%2365038%3B%3C/text%3E%3Ctext x='250' y='280' font-size='18'%3E%26%2310052%3B%26%2365038%3B%3C/text%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' fill='white'%3E%3Ctext x='20' y='40' font-size='14'%3E%26%2310052%3B%26%2365038%3B%3C/text%3E%3Ctext x='130' y='90' font-size='12'%3E%26%2310052%3B%26%2365038%3B%3C/text%3E%3Ctext x='70' y='170' font-size='16'%3E%26%2310052%3B%26%2365038%3B%3C/text%3E%3C/svg%3E");
+  background-size: 300px 300px, 200px 200px;
+  animation: cb-snow 20s linear infinite;
+}
+/* Christmas trees and Filipino parol lanterns, drawn as SVG shapes. Static layer under the snow. */
+:root[data-season="christmas"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: .3;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cdefs%3E%3Cg id='t'%3E%3Cpolygon points='0,-36 -14,-12 14,-12' fill='forestgreen'/%3E%3Cpolygon points='0,-26 -19,2 19,2' fill='forestgreen'/%3E%3Cpolygon points='0,-14 -24,18 24,18' fill='forestgreen'/%3E%3Crect x='-4' y='18' width='8' height='10' fill='saddlebrown'/%3E%3Ccircle cy='-38' r='4' fill='gold'/%3E%3Ccircle cx='-8' cy='8' r='3' fill='crimson'/%3E%3Ccircle cx='9' cy='12' r='3' fill='gold'/%3E%3Ccircle cx='2' cy='-6' r='2.5' fill='hotpink'/%3E%3C/g%3E%3Cg id='p'%3E%3Cpath d='M-6 18L-10 38M0 12V40M6 18L10 38' stroke='gold' stroke-width='2' stroke-linecap='round'/%3E%3Cpolygon points='0,-22 5.3,-7.3 20.9,-6.8 8.6,2.8 12.9,17.8 0,9 -12.9,17.8 -8.6,2.8 -20.9,-6.8 -5.3,-7.3' fill='crimson' stroke='gold' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle r='4' fill='gold'/%3E%3C/g%3E%3C/defs%3E%3Cuse href='%23t' transform='translate(70 100)'/%3E%3Cuse href='%23t' transform='translate(270 270) scale(1.2)'/%3E%3Cuse href='%23p' transform='translate(240 70)'/%3E%3Cuse href='%23p' transform='translate(100 280) scale(1.1)'/%3E%3Cuse href='%23p' transform='translate(320 175) scale(.8)'/%3E%3C/svg%3E");
+  background-size: 360px 360px;
+}
+
+@keyframes cb-snow {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 0 300px, 0 400px; }
+}
+
+/* ── New Year ────────────────────────────────────────────────────────── */
+:root[data-season="newyear"] {
+  --cb-bg:          #0b0a14;
+  --cb-surface:     #131222;
+  --cb-surface-2:   #1c1a33;
+  --cb-surface-3:   #28254a;
+  --cb-lime:        #F5C542;
+  --cb-lime-dim:    rgba(245,197,66,0.14);
+  --cb-lime-glow:   0 0 20px rgba(245,197,66,0.4);
+  --cb-blue:        #F5C542;
+  --cb-blue-dim:    rgba(245,197,66,0.14);
+  --cb-blue-glow:   0 0 20px rgba(245,197,66,0.4);
+}
+:root[data-season="newyear"][data-theme="light"] {
+  --cb-bg:          #FBF8EE;
+  --cb-surface:     #FFFFFF;
+  --cb-surface-2:   #F6EFD6;
+  --cb-surface-3:   #EDE1B5;
+  --cb-lime:        #8A6A00;
+  --cb-lime-dim:    rgba(138,106,0,0.10);
+  --cb-blue:        #8A6A00;
+  --cb-blue-dim:    rgba(138,106,0,0.10);
+}
+:root[data-season="newyear"]:not([data-theme="light"]) .cb-navbar,
+:root[data-season="newyear"]:not([data-theme="light"]) .cb-page-header,
+:root[data-season="newyear"]:not([data-theme="light"]) .cb-facility-hero { background: #07060f !important; }
+/* Fireworks: three drawn bursts (rays + dotted ring) in gold / pink / cyan, tiled as a
+   tiny inline SVG and pulsing softly. */
+:root[data-season="newyear"] body::after {
+  opacity: .3;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320' fill='none' stroke-linecap='round'%3E%3Cdefs%3E%3Cg id='f'%3E%3Cpath d='M-26 0H-12M12 0H26M0 -26V-12M0 12V26M-18 -18L-9 -9M9 9L18 18M18 -18L9 -9M-9 9L-18 18' stroke-width='2'/%3E%3Ccircle r='36' stroke-width='3' stroke-dasharray='1 7'/%3E%3C/g%3E%3C/defs%3E%3Cg transform='translate(80 85)' stroke='gold'%3E%3Cuse href='%23f'/%3E%3C/g%3E%3Cg transform='translate(240 130) scale(.8)' stroke='hotpink'%3E%3Cuse href='%23f'/%3E%3C/g%3E%3Cg transform='translate(150 255) scale(1.1)' stroke='cyan'%3E%3Cuse href='%23f'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 320px 320px;
+  animation: cb-twinkle 3s ease-in-out infinite alternate;
+}
+@keyframes cb-twinkle {
+  from { opacity: .15; }
+  to   { opacity: .35; }
+}
+
+/* ── Valentine's ─────────────────────────────────────────────────────── */
+:root[data-season="valentines"] {
+  --cb-bg:          #1d0a14;
+  --cb-surface:     #29101d;
+  --cb-surface-2:   #391729;
+  --cb-surface-3:   #4c1f37;
+  --cb-lime:        #FF5C97;
+  --cb-lime-dim:    rgba(255,92,151,0.14);
+  --cb-lime-glow:   0 0 20px rgba(255,92,151,0.4);
+  --cb-blue:        #FF5C97;
+  --cb-blue-dim:    rgba(255,92,151,0.14);
+  --cb-blue-glow:   0 0 20px rgba(255,92,151,0.4);
+}
+:root[data-season="valentines"][data-theme="light"] {
+  --cb-bg:          #FFF2F6;
+  --cb-surface:     #FFFFFF;
+  --cb-surface-2:   #FFE3EC;
+  --cb-surface-3:   #FFCEDD;
+  --cb-lime:        #C2185B;
+  --cb-lime-dim:    rgba(194,24,91,0.10);
+  --cb-blue:        #C2185B;
+  --cb-blue-dim:    rgba(194,24,91,0.10);
+}
+:root[data-season="valentines"]:not([data-theme="light"]) .cb-navbar,
+:root[data-season="valentines"]:not([data-theme="light"]) .cb-page-header,
+:root[data-season="valentines"]:not([data-theme="light"]) .cb-facility-hero { background: #14070e !important; }
+/* Drawn hearts plus cupid motifs (💘 heart-with-arrow, 👼 cupid, 🏹 bow) drifting upward. */
+:root[data-season="valentines"] body::after {
+  opacity: .16;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cdefs%3E%3Cpath id='h' d='M0 -6C-10 -18 -26 -4 0 16C26 -4 10 -18 0 -6Z'/%3E%3C/defs%3E%3Cuse href='%23h' transform='translate(50 60)' fill='hotpink'/%3E%3Cuse href='%23h' transform='translate(250 40) scale(.7)' fill='crimson'/%3E%3Cuse href='%23h' transform='translate(160 150) scale(1.3)' fill='hotpink'/%3E%3Cuse href='%23h' transform='translate(40 270) scale(.8)' fill='pink'/%3E%3Cuse href='%23h' transform='translate(270 250) scale(1.1)' fill='crimson'/%3E%3Ctext x='95' y='60' font-size='30'%3E%26%23128124%3B%3C/text%3E%3Ctext x='215' y='130' font-size='28'%3E%26%23128152%3B%3C/text%3E%3Ctext x='85' y='215' font-size='28'%3E%26%23127993%3B%3C/text%3E%3Ctext x='185' y='290' font-size='26'%3E%26%23128157%3B%3C/text%3E%3C/svg%3E");
+  background-size: 320px 320px;
+  animation: cb-drift-up 40s linear infinite;
+}
+@keyframes cb-drift-up {
+  from { background-position: 0 0; }
+  to   { background-position: 0 -320px; }
+}
+
+/* ── Summer ──────────────────────────────────────────────────────────── */
+:root[data-season="summer"] {
+  --cb-bg:          #06222b;
+  --cb-surface:     #0a303b;
+  --cb-surface-2:   #0f4050;
+  --cb-surface-3:   #165366;
+  --cb-lime:        #FF7A59;
+  --cb-lime-dim:    rgba(255,122,89,0.15);
+  --cb-lime-glow:   0 0 20px rgba(255,122,89,0.4);
+  --cb-blue:        #FF7A59;
+  --cb-blue-dim:    rgba(255,122,89,0.15);
+  --cb-blue-glow:   0 0 20px rgba(255,122,89,0.4);
+}
+:root[data-season="summer"][data-theme="light"] {
+  --cb-bg:          #FFFBEA;
+  --cb-surface:     #FFFFFF;
+  --cb-surface-2:   #FFF1C2;
+  --cb-surface-3:   #FFE38F;
+  --cb-lime:        #C2410C;
+  --cb-lime-dim:    rgba(194,65,12,0.10);
+  --cb-blue:        #C2410C;
+  --cb-blue-dim:    rgba(194,65,12,0.10);
+}
+:root[data-season="summer"]:not([data-theme="light"]) .cb-navbar,
+:root[data-season="summer"]:not([data-theme="light"]) .cb-page-header,
+:root[data-season="summer"]:not([data-theme="light"]) .cb-facility-hero { background: #041a21 !important; }
+/* Beach scene: drawn surfboards and waves plus 🌴 🏖 🏄 🐚. Static, no animation. */
+:root[data-season="summer"] body::after {
+  opacity: .18;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='340' height='340'%3E%3Cg transform='translate(60 80) rotate(25)'%3E%3Cellipse rx='9' ry='36' fill='coral'/%3E%3Cline y1='-36' y2='36' stroke='white' stroke-width='2'/%3E%3C/g%3E%3Cg transform='translate(250 190) rotate(-20)'%3E%3Cellipse rx='9' ry='34' fill='gold'/%3E%3Cline y1='-34' y2='34' stroke='white' stroke-width='2'/%3E%3C/g%3E%3Cg fill='none' stroke='aqua' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M110 320q10 -10 20 0t20 0t20 0t20 0'/%3E%3Cpath d='M20 215q10 -10 20 0t20 0t20 0'/%3E%3Cpath d='M240 60q10 -10 20 0t20 0t20 0'/%3E%3C/g%3E%3Ctext x='140' y='70' font-size='32'%3E%26%23127796%3B%3C/text%3E%3Ctext x='30' y='290' font-size='30'%3E%26%23127958%3B%3C/text%3E%3Ctext x='270' y='310' font-size='30'%3E%26%23127940%3B%3C/text%3E%3Ctext x='150' y='180' font-size='24'%3E%26%23128026%3B%3C/text%3E%3C/svg%3E");
+  background-size: 340px 340px;
+}
+
+/* ── Independence Day (PH) ───────────────────────────────────────────── */
+:root[data-season="independence"] {
+  --cb-bg:          #0a1530;
+  --cb-surface:     #0f1d3f;
+  --cb-surface-2:   #16285a;
+  --cb-surface-3:   #1f3573;
+  --cb-lime:        #FCD116;
+  --cb-lime-dim:    rgba(252,209,22,0.14);
+  --cb-lime-glow:   0 0 20px rgba(252,209,22,0.4);
+  --cb-blue:        #FCD116;
+  --cb-blue-dim:    rgba(252,209,22,0.14);
+  --cb-blue-glow:   0 0 20px rgba(252,209,22,0.4);
+}
+:root[data-season="independence"][data-theme="light"] {
+  --cb-bg:          #F2F6FF;
+  --cb-surface:     #FFFFFF;
+  --cb-surface-2:   #E3ECFF;
+  --cb-surface-3:   #CCDAFB;
+  --cb-lime:        #0038A8;
+  --cb-lime-dim:    rgba(0,56,168,0.10);
+  --cb-blue:        #0038A8;
+  --cb-blue-dim:    rgba(0,56,168,0.10);
+}
+:root[data-season="independence"]:not([data-theme="light"]) .cb-navbar,
+:root[data-season="independence"]:not([data-theme="light"]) .cb-page-header,
+:root[data-season="independence"]:not([data-theme="light"]) .cb-facility-hero { background: #060e22 !important; }
+/* Faint suns and stars, nodding to the flag. */
+:root[data-season="independence"] body::after {
+  opacity: .10;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Ctext x='25' y='60' font-size='30'%3E%26%2311088%3B%3C/text%3E%3Ctext x='150' y='140' font-size='32'%3E%26%239728%3B%26%2365039%3B%3C/text%3E%3Ctext x='60' y='225' font-size='26'%3E%26%2311088%3B%3C/text%3E%3C/svg%3E");
+  background-size: 260px 260px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-season="christmas"] body::after,
+  :root[data-season="newyear"] body::after,
+  :root[data-season="valentines"] body::after { animation: none; }
+}

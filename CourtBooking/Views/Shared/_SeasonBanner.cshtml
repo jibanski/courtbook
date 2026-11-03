@@ -1,0 +1,25 @@
+@using CourtBooking.Services
+@model string
+@{
+    var s = SeasonTheme.All.FirstOrDefault(x => x.Key == Model);
+}
+@if (s.Key != null)
+{
+    <div id="cb-season-banner" data-season-key="@s.Key"
+         style="background:var(--cb-lime-dim);border-bottom:1px solid var(--cb-lime);padding:.45rem 2.5rem .45rem 1rem;text-align:center;position:relative;color:var(--cb-text);font-size:.85rem;">
+        <span class="me-1">@s.Emoji</span>@s.Message
+        <button type="button" aria-label="Dismiss"
+                onclick="try{localStorage.setItem('cb-season-dismissed','@s.Key')}catch(e){}this.parentNode.remove();"
+                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--cb-text-2);font-size:1.1rem;line-height:1;cursor:pointer;">&times;</button>
+    </div>
+    <script>
+        (function () {
+            try {
+                if (localStorage.getItem('cb-season-dismissed') === '@s.Key') {
+                    var b = document.getElementById('cb-season-banner');
+                    if (b) b.remove();
+                }
+            } catch (e) { }
+        })();
+    </script>
+}

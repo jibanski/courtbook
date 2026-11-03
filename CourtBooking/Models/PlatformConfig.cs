@@ -34,4 +34,8 @@ public class PlatformConfig
     public byte[]? LogoData        { get; set; }
     [MaxLength(50)]
     public string? LogoContentType { get; set; }
+
+    // Seasonal look (e.g. "halloween", "christmas"); null/empty = default theme.
+    [MaxLength(30)]
+    public string? ActiveSeason { get; set; }
 }

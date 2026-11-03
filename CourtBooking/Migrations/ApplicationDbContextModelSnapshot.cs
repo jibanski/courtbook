@@ -1107,6 +1107,10 @@ namespace CourtBooking.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ActiveSeason")
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("BpiQrContentType")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");

@@ -1,8 +1,19 @@
 <!DOCTYPE html>
 @using CourtBooking.Data
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
 @inject ApplicationDbContext PlatformDb
+@inject IMemoryCache SeasonCache
 @{
+    // Seasonal look (Dev > Season) — same cached lookup as _Layout.cshtml.
+    var season = await SeasonCache.GetOrCreateAsync(CourtBooking.Services.SeasonTheme.CacheKey, async e =>
+    {
+        e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+        return await PlatformDb.PlatformConfig.AsNoTracking()
+            .Select(p => p.ActiveSeason).FirstOrDefaultAsync() ?? "";
+    });
+    if (!CourtBooking.Services.SeasonTheme.IsValid(season)) season = "";
+
     // Select only the logo columns — avoid pulling the 4 unrelated donation QR blobs too.
     var platformCfg = await PlatformDb.PlatformConfig.AsNoTracking()
         .Where(p => p.Id == 1)
@@ -12,7 +23,7 @@
         ? $"data:{platformCfg.LogoContentType};base64,{Convert.ToBase64String(platformCfg.LogoData)}"
         : null;
 }
-<html lang="en">
+<html lang="en" data-season="@season">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -28,8 +39,13 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
+    @if (!string.IsNullOrEmpty(season))
+    {
+        <link rel="stylesheet" href="~/css/seasons.css" asp-append-version="true" />
+    }
 </head>
 <body class="landing-body">
+    @if (!string.IsNullOrEmpty(season)) { <partial name="_SeasonBanner" model="season" /> }
 
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg cb-navbar sticky-top" style="background:#050D18!important;border-bottom:1px solid rgba(255,255,255,0.07);">
