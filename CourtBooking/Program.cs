@@ -117,6 +117,7 @@ builder.Services.AddHttpClient();                                 // for EmailSe
 builder.Services.AddHostedService<SubscriptionReminderHostedService>();
 builder.Services.AddHostedService<ReservationExpiryCleanupService>();
 builder.Services.AddControllersWithViews();
+builder.Services.AddMemoryCache();
 
 // Compress HTML/CSS/JS/JSON responses (Brotli preferred, gzip fallback) — smaller
 // payloads over the wire on every request, not just static files. Railway terminates

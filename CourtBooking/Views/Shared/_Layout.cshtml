@@ -1,8 +1,10 @@
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Identity
 @inject CourtBooking.Data.ApplicationDbContext _layoutDb
 @inject UserManager<CourtBooking.Models.ApplicationUser> _layoutUsers
+@inject Microsoft.Extensions.Caching.Memory.IMemoryCache _layoutCache
 @{
     // Branding source: for admins, their own facility; for customers, the
     // facility they're pinned to (PreferredFacilitySlug). Guests fall back
@@ -51,9 +53,19 @@
         if (_platformCfg?.LogoData is { Length: > 0 })
             _logoUrl = $"data:{_platformCfg.LogoContentType};base64,{Convert.ToBase64String(_platformCfg.LogoData)}";
     }
+
+    // Seasonal look (Dev > Season). Cached so it doesn't add a query to every page view;
+    // DevController clears the cache key when the season changes.
+    var _season = await _layoutCache.GetOrCreateAsync(CourtBooking.Services.SeasonTheme.CacheKey, async e =>
+    {
+        e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+        return await _layoutDb.PlatformConfig.AsNoTracking()
+            .Select(p => p.ActiveSeason).FirstOrDefaultAsync() ?? "";
+    });
+    if (!CourtBooking.Services.SeasonTheme.IsValid(_season)) _season = "";
 }
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-season="@_season">
 <head>
     <script>
         (function () {
@@ -75,8 +87,13 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/theme.css" asp-append-version="true" />
+    @if (!string.IsNullOrEmpty(_season))
+    {
+        <link rel="stylesheet" href="~/css/seasons.css" asp-append-version="true" />
+    }
 </head>
 <body>
+    @if (!string.IsNullOrEmpty(_season)) { <partial name="_SeasonBanner" model="_season" /> }
     @if (User.HasClaim(c => c.Type == CourtBooking.Controllers.DevController.ImpersonationClaimType))
     {
         <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 py-1 px-2 text-center"

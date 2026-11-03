@@ -4,6 +4,7 @@ using CourtBooking.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace CourtBooking.Controllers;
 
@@ -21,6 +22,7 @@ public class DevController : Controller
     private readonly EmailService _email;
     private readonly ILogger<DevController> _logger;
     private readonly AdminFeeService _adminFee;
+    private readonly IMemoryCache _cache;
     private readonly string _devPassword;
 
     /// <summary>Claim stamped onto the auth cookie by <see cref="Impersonate(string, string)"/> so
@@ -35,8 +37,10 @@ public class DevController : Controller
         EmailService email,
         ILogger<DevController> logger,
         IConfiguration config,
-        AdminFeeService adminFee)
+        AdminFeeService adminFee,
+        IMemoryCache cache)
     {
+        _cache         = cache;
         _keyGen        = keyGen;
         _db            = db;
         _userManager   = userManager;
@@ -689,6 +693,48 @@ public class DevController : Controller
         await _db.SaveChangesAsync();
         TempData["Success"] = "Donation QR codes updated.";
         return RedirectToAction(nameof(DonationQr), new { password });
+    }
+
+    // ── Seasonal theme ────────────────────────────────────────────────────────
+
+    // GET /Dev/Season
+    public async Task<IActionResult> Season(string? password, string? error)
+    {
+        if (!string.IsNullOrEmpty(error)) ViewBag.Error = error;
+        ViewBag.Password   = password ?? "";
+        ViewBag.IsUnlocked = IsValidPassword(password);
+        ViewBag.Config     = await _db.PlatformConfig.AsNoTracking().FirstOrDefaultAsync(p => p.Id == 1);
+        return View();
+    }
+
+    // POST /Dev/Season  (season = "off" turns the seasonal look off)
+    [HttpPost, ValidateAntiForgeryToken, ActionName(nameof(Season))]
+    public async Task<IActionResult> SeasonPost(string password, string? season)
+    {
+        if (!IsValidPassword(password))
+            return RedirectToAction(nameof(Season), new { error = "Invalid password." });
+
+        // Password-only submit (the unlock form) — bounce back so the toggle renders.
+        if (season is null)
+            return RedirectToAction(nameof(Season), new { password });
+
+        var turnOff = season == "off";
+        if (!turnOff && !SeasonTheme.IsValid(season))
+            return RedirectToAction(nameof(Season), new { password, error = "Unknown season." });
+
+        var cfg = await _db.PlatformConfig.FindAsync(1);
+        if (cfg == null)
+        {
+            cfg = new CourtBooking.Models.PlatformConfig { Id = 1 };
+            _db.PlatformConfig.Add(cfg);
+        }
+
+        cfg.ActiveSeason = turnOff ? null : season;
+        await _db.SaveChangesAsync();
+        _cache.Remove(SeasonTheme.CacheKey);
+
+        TempData["Success"] = turnOff ? "Seasonal theme turned off." : $"Seasonal theme set to {season}.";
+        return RedirectToAction(nameof(Season), new { password });
     }
 
     // ── Platform Logo ─────────────────────────────────────────────────────────
