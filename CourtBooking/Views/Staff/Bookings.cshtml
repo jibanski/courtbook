@@ -301,8 +301,9 @@
                                     <td>
                                         @{
                                             bool activeStatus = b.Status == CourtBooking.Models.BookingStatus.Pending || b.Status == CourtBooking.Models.BookingStatus.Confirmed;
-                                            var canReschedule = !b.IsOpenPlay && b.BundleName is null && activeStatus;
-                                            var canRescheduleGroup = !b.IsOpenPlay && b.BundleName is not null && b.BundleGroupId is not null && activeStatus;
+                                            bool allowReschedule = ViewBag.AllowReschedule as bool? ?? true;
+                                            var canReschedule = allowReschedule && !b.IsOpenPlay && b.BundleName is null && activeStatus;
+                                            var canRescheduleGroup = allowReschedule && !b.IsOpenPlay && b.BundleName is not null && b.BundleGroupId is not null && activeStatus;
                                         }
                                         @if (canReschedule)
                                         {

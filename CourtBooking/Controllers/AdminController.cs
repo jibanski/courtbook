@@ -2263,7 +2263,8 @@ public class AdminController : Controller
         if (gotymeQr is { Length: > 0 })
             settings.GoTymeQrCodePath = await SaveQrCodeAsync(gotymeQr, "gotyme", settings.GoTymeQrCodePath);
         settings.PaymentInstructions = model.PaymentInstructions;
-        settings.PayMongoSecretKey   = string.IsNullOrWhiteSpace(model.PayMongoSecretKey)
+        settings.AllowStaffReschedule = model.AllowStaffReschedule;
+        settings.PayMongoSecretKey  = string.IsNullOrWhiteSpace(model.PayMongoSecretKey)
                                        ? null : model.PayMongoSecretKey.Trim();
 
         // Payment methods: keep only the supported ones. Fall back to QRPh

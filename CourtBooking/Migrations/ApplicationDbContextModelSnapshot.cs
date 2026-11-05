@@ -836,6 +836,9 @@ namespace CourtBooking.Migrations
                     b.Property<int>("AdminFeeType")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("AllowStaffReschedule")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("BillingModel")
                         .IsRequired()
                         .HasMaxLength(20)

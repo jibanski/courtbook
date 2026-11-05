@@ -126,6 +126,10 @@ public class FacilitySettings
     [NotMapped]
     public bool IsPubliclyHidden => IsSuspended || IsDeactivated;
 
+    /// <summary>When false, front-desk staff can't reschedule bookings — only the owner/admin can.
+    /// Defaults to true so existing facilities keep current behavior.</summary>
+    public bool AllowStaffReschedule { get; set; } = true;
+
     // ── Billing Model / Admin Fee ─────────────────────────────────────────────
     /// <summary>"Subscription" (default) or "Commission" (the Admin Fee model — a per-booking
     /// fee, fixed or percentage, accrues to <see cref="AdminFeeCharge"/> ledger rows). Internal

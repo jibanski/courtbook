@@ -346,6 +346,24 @@
                     </div>
                 </div>
 
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-people me-2"></i>Staff Permissions
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="AllowStaffReschedule"
+                                   name="AllowStaffReschedule" value="true" @(Model.AllowStaffReschedule ? "checked" : null) />
+                            <input type="hidden" name="AllowStaffReschedule" value="false" />
+                            <label class="form-check-label fw-semibold" for="AllowStaffReschedule">Allow staff to reschedule bookings</label>
+                        </div>
+                        <div class="form-text">
+                            When off, the Reschedule buttons are hidden for your staff and only you can move bookings.
+                            Reschedules are always logged with who made them.
+                        </div>
+                    </div>
+                </div>
+
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-save me-1"></i>Save Settings
