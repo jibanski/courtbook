@@ -66,12 +66,12 @@
                         <div class="table-responsive mb-4">
                             <table class="table table-sm align-middle">
                                 <thead>
-                                    <tr><th>Days</th><th>Hours</th><th>Rate</th><th></th></tr>
+                                    <tr><th>Days</th><th>Hours</th><th>Rate</th><th>Status</th><th></th></tr>
                                 </thead>
                                 <tbody>
                                     @foreach (var t in tiers)
                                     {
-                                        <tr>
+                                        <tr class="@(t.IsActive ? "" : "opacity-50")">
                                             <td>
                                                 @t.DaysOfWeek
                                                 @if (t.IncludeHolidays)
@@ -89,11 +89,29 @@
                                                 }
                                             </td>
                                             <td>₱@t.PricePerHour.ToString("N0")/hr</td>
+                                            <td>
+                                                @if (t.IsActive)
+                                                {
+                                                    <span class="badge bg-primary-subtle text-primary-emphasis">Active</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary-subtle text-secondary-emphasis">Paused</span>
+                                                }
+                                            </td>
                                             <td class="text-end text-nowrap">
                                                 <button type="button" class="btn btn-sm btn-outline-info me-1" title="Edit this rate tier"
                                                         data-bs-toggle="modal" data-bs-target="#editTierModal-@t.Id">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
+                                                <form asp-action="ToggleRateTier" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@t.Id" />
+                                                    <input type="hidden" name="courtId" value="@court.Id" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="@(t.IsActive ? "Pause this rate tier" : "Enable this rate tier")">
+                                                        <i class="bi bi-@(t.IsActive ? "pause-fill" : "play-fill")"></i>
+                                                    </button>
+                                                </form>
                                                 <form asp-action="DeleteRateTier" method="post" onsubmit="return confirm('Remove this rate tier?')" class="d-inline">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="id" value="@t.Id" />

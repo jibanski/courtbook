@@ -700,6 +700,9 @@ namespace CourtBooking.Migrations
                     b.Property<bool>("IncludeHolidays")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
                     b.Property<decimal>("PricePerHour")
                         .HasColumnType("numeric(10,2)");
 

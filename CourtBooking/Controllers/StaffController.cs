@@ -105,6 +105,7 @@ public class StaffController : Controller
         foreach (var court in courts)
         {
             var tiers = (await _bookingService.GetRateTiersAsync(court.Id))
+                .Where(t => t.IsActive)
                 .OrderBy(t => t.StartHour).ThenBy(t => t.EndHour).ThenBy(t => t.DaysOfWeek).ToList();
             var blocks = (await _bookingService.GetScheduleBlocksAsync(court.Id))
                 .OrderBy(b => b.StartHour).ThenBy(b => b.EndHour).ThenBy(b => b.DaysOfWeek).ToList();
@@ -511,7 +512,7 @@ public class StaffController : Controller
         ViewBag.RateRanges = await _bookingService.GetRateRangesAsync(myCourts);
         var myCourtIds = myCourts.Select(c => c.Id).ToList();
         ViewBag.CourtRateTiers = await _db.CourtRateTiers
-            .Where(t => myCourtIds.Contains(t.CourtId))
+            .Where(t => t.IsActive && myCourtIds.Contains(t.CourtId))
             .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
             .ToListAsync();
         ViewBag.CourtBundleRows = await _bookingService.GetBundleScheduleRowsAsync(myCourtIds);

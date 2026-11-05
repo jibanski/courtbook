@@ -43,7 +43,7 @@ public static class ScheduleRules
 
     public static decimal ResolveHourlyRate(IEnumerable<CourtRateTier> tiers, decimal fallback, DateOnly date, bool isHoliday, int hour)
     {
-        var match = ResolveMatch(tiers, date, isHoliday, hour,
+        var match = ResolveMatch(tiers.Where(t => t.IsActive), date, isHoliday, hour,
             t => t.StartHour, t => t.EndHour, t => t.DaysOfWeek, t => t.IncludeHolidays);
         return match?.PricePerHour ?? fallback;
     }

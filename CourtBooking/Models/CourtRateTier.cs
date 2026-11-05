@@ -28,4 +28,7 @@ public class CourtRateTier
     [Column(TypeName = "numeric(10,2)")]
     [Range(0, 100000)]
     public decimal PricePerHour { get; set; }
+
+    /// <summary>When false, this tier is paused — rate resolution skips it as if it didn't exist (falls back to the court's base rate).</summary>
+    public bool IsActive { get; set; } = true;
 }
