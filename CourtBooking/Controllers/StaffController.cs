@@ -64,6 +64,16 @@ public class StaffController : Controller
     private async Task<string?> GetEmployerOwnerIdAsync() =>
         (await _userManager.GetUserAsync(User))?.EmployerOwnerId;
 
+    /// <summary>Whether the employer's facility lets staff reschedule bookings (owner-controlled setting).</summary>
+    private async Task<bool> StaffMayRescheduleAsync()
+    {
+        var employerOwnerId = await GetEmployerOwnerIdAsync();
+        if (employerOwnerId is null) return false;
+        var allowed = await _db.FacilitySettings.Where(s => s.OwnerId == employerOwnerId)
+            .Select(s => (bool?)s.AllowStaffReschedule).FirstOrDefaultAsync();
+        return allowed ?? true;
+    }
+
     private async Task<IQueryable<Court>> MyCourtsAsync()
     {
         var employerOwnerId = await GetEmployerOwnerIdAsync();
@@ -175,6 +185,7 @@ public class StaffController : Controller
         ViewBag.SelectedDateFrom = dateFrom;
         ViewBag.SelectedDateTo   = dateTo;
         ViewBag.Search           = search;
+        ViewBag.AllowReschedule = await StaffMayRescheduleAsync();
         // For the Reschedule modal's "move to court" dropdown.
         ViewBag.Courts = await (await MyCourtsAsync()).Where(c => c.IsActive).OrderBy(c => c.Name)
             .Select(c => new { c.Id, c.Name }).ToListAsync();
@@ -191,6 +202,11 @@ public class StaffController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> RescheduleBooking(int id, int courtId, DateOnly newDate, int startHour, int endHour)
     {
+        if (!await StaffMayRescheduleAsync())
+        {
+            TempData["Error"] = "Rescheduling is turned off for staff at this facility. Please ask the owner.";
+            return RedirectToAction(nameof(Bookings));
+        }
         var courtIds = await GetMyCourtIdsAsync();
         var booking = await _db.Bookings
             .Include(b => b.Court).Include(b => b.User).Include(b => b.AddOns)
@@ -285,6 +301,11 @@ public class StaffController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> RescheduleBundleGroup(Guid groupId, DateOnly newDate, int startHour, int endHour)
     {
+        if (!await StaffMayRescheduleAsync())
+        {
+            TempData["Error"] = "Rescheduling is turned off for staff at this facility. Please ask the owner.";
+            return RedirectToAction(nameof(Bookings));
+        }
         if (endHour <= startHour || startHour < 0 || endHour > 48)
         {
             TempData["Error"] = "Invalid time range.";
