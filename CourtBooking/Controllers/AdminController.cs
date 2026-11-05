@@ -1345,6 +1345,28 @@ public class AdminController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleRateTier(int id, int courtId)
+    {
+        var myCourtIds = await GetMyCourtIdsAsync();
+        var tier = await _db.CourtRateTiers.FirstOrDefaultAsync(t => t.Id == id && myCourtIds.Contains(t.CourtId));
+        if (tier is null)
+        {
+            TempData["Error"] = "Rate tier not found or you no longer have access to it.";
+            return RedirectToAction(nameof(Schedule), new { id = courtId });
+        }
+
+        tier.IsActive = !tier.IsActive;
+        await _db.SaveChangesAsync();
+        courtId = tier.CourtId;
+        var resynced = await _bookingService.ResyncUnpaidPricesAsync(courtId);
+
+        var message = tier.IsActive ? "Rate tier enabled." : "Rate tier paused.";
+        if (resynced > 0) message += $" {resynced} unpaid booking(s) updated to the new rate.";
+        TempData["Success"] = message;
+        return RedirectToAction(nameof(Schedule), new { id = courtId });
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> EditRateTier(int id, int courtId, string[] days, bool includeHolidays, int startHour, int endHour, decimal pricePerHour)
     {
         var myCourtIds = await GetMyCourtIdsAsync();
@@ -3543,7 +3565,7 @@ public class AdminController : Controller
         ViewBag.RateRanges = await _bookingService.GetRateRangesAsync(myCourts);
         var myCourtIds = myCourts.Select(c => c.Id).ToList();
         ViewBag.CourtRateTiers = await _db.CourtRateTiers
-            .Where(t => myCourtIds.Contains(t.CourtId))
+            .Where(t => t.IsActive && myCourtIds.Contains(t.CourtId))
             .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
             .ToListAsync();
         ViewBag.CourtBundleRows = await _bookingService.GetBundleScheduleRowsAsync(myCourtIds);

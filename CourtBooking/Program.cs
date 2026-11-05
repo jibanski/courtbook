@@ -401,6 +401,8 @@ using (var scope = app.Services.CreateScope())
                 )
             ");
             await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"CourtRateTiers\" ADD COLUMN IF NOT EXISTS \"IsActive\" boolean NOT NULL DEFAULT TRUE");
+            await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN IF NOT EXISTS \"IsActive\" boolean NOT NULL DEFAULT TRUE");
             await db.Database.ExecuteSqlRawAsync(
                 "ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN IF NOT EXISTS \"Description\" character varying(200) NULL");
@@ -441,6 +443,7 @@ using (var scope = app.Services.CreateScope())
                     FOREIGN KEY (""CourtId"") REFERENCES ""Courts"" (""Id"") ON DELETE CASCADE
                 )
             ");
+            try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtRateTiers\" ADD COLUMN \"IsActive\" INTEGER NOT NULL DEFAULT 1"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN \"IsActive\" INTEGER NOT NULL DEFAULT 1"); } catch { }
             try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"CourtScheduleBlocks\" ADD COLUMN \"Description\" TEXT NULL"); } catch { }
             await db.Database.ExecuteSqlRawAsync(@"

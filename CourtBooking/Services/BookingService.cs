@@ -540,7 +540,7 @@ public class BookingService
     public async Task<(decimal Min, decimal Max)> GetRateRangeAsync(Court court)
     {
         var tiers = await GetRateTiersAsync(court.Id);
-        var prices = tiers.Select(t => t.PricePerHour).Append(court.PricePerHour).ToList();
+        var prices = tiers.Where(t => t.IsActive).Select(t => t.PricePerHour).Append(court.PricePerHour).ToList();
         foreach (var bundle in await GetBundlesForCourtAsync(court.Id))
             foreach (var block in (await GetBundleRateBlocksAsync(bundle.Id)).Where(b => b.IsActive))
                 prices.Add(BundleBlockHourlyRate(block));
@@ -553,7 +553,7 @@ public class BookingService
     {
         var courtList = courts as IList<Court> ?? courts.ToList();
         var courtIds = courtList.Select(c => c.Id).ToList();
-        var tiersByCourtId = (await _db.CourtRateTiers.Where(t => courtIds.Contains(t.CourtId)).ToListAsync())
+        var tiersByCourtId = (await _db.CourtRateTiers.Where(t => t.IsActive && courtIds.Contains(t.CourtId)).ToListAsync())
             .GroupBy(t => t.CourtId)
             .ToDictionary(g => g.Key, g => g.Select(t => t.PricePerHour).ToList());
 

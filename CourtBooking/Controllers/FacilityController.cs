@@ -81,7 +81,7 @@ public class FacilityController : Controller
 
         var courtIds = courts.Select(c => c.Id).ToList();
         ViewBag.CourtRateTiers = await _db.CourtRateTiers
-            .Where(t => courtIds.Contains(t.CourtId))
+            .Where(t => t.IsActive && courtIds.Contains(t.CourtId))
             .OrderBy(t => t.CourtId).ThenBy(t => t.StartHour)
             .ToListAsync();
         ViewBag.CourtBundleRows = await _bookingService.GetBundleScheduleRowsAsync(courtIds);
