@@ -833,7 +833,6 @@ public class AdminController : Controller
 
         booking.Status           = BookingStatus.Cancelled;
         booking.PaymentReference = null;
-        booking.PaymentProofPath = null;
         await _db.SaveChangesAsync();
 
         if (!string.IsNullOrWhiteSpace(customerEmail))
@@ -2001,7 +2000,6 @@ public class AdminController : Controller
         {
             booking.Status           = BookingStatus.Cancelled;
             booking.PaymentReference = null;
-            booking.PaymentProofPath = null;
         }
         await _db.SaveChangesAsync();
 
@@ -2147,7 +2145,6 @@ public class AdminController : Controller
 
         signup.Status           = BookingStatus.Cancelled;
         signup.PaymentReference = null;
-        signup.PaymentProofPath = null;
         await _db.SaveChangesAsync();
 
         if (!string.IsNullOrWhiteSpace(customerEmail))
@@ -4535,7 +4532,6 @@ public class AdminController : Controller
 
         rental.Status           = BookingStatus.Cancelled;
         rental.PaymentReference = null;
-        rental.PaymentProofPath = null;
         await _db.SaveChangesAsync();
 
         TempData["Error"] = $"Add-on rental #{id} rejected and cancelled.";
