@@ -630,7 +630,7 @@
                                         {
                                             <span class="badge bg-success"><i class="bi bi-check me-1"></i>Paid</span>
                                         }
-                                        else if (b.HasPaymentProof)
+                                        else if (b.HasPaymentProof && b.Status == CourtBooking.Models.BookingStatus.Pending)
                                         {
                                             <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Submitted</span>
                                         }
