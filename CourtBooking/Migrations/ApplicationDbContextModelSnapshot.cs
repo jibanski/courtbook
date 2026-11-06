@@ -201,6 +201,55 @@ namespace CourtBooking.Migrations
                     b.ToTable("AdminFeeCharges");
                 });
 
+            modelBuilder.Entity("CourtBooking.Models.AdminFeePayment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PaidOn")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RecordedByName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("VoidedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VoidedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "IsVoided");
+
+                    b.ToTable("AdminFeePayments");
+                });
+
             modelBuilder.Entity("CourtBooking.Models.AdminFeeSettlement", b =>
                 {
                     b.Property<int>("Id")
@@ -208,6 +257,9 @@ namespace CourtBooking.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("CreditApplied")
                         .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("OwnerId")

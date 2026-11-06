@@ -168,6 +168,102 @@
             </div>
         }
 
+        <!-- Record a payment received outside the app -->
+        <div class="dev-card p-4 mb-4">
+            <h6 class="fw-bold mb-1"><i class="bi bi-cash-coin me-1 text-success"></i>Record a Payment</h6>
+            <p class="text-secondary small mb-3">
+                For money received outside the app (e.g. an initial payment). It reduces the facility's outstanding balance;
+                anything above what's owed carries forward as credit against future fees.
+            </p>
+            <form asp-action="RecordAdminFeePayment" method="post" class="row g-2 align-items-end">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="password" value="@password" />
+                <div class="col-md-3">
+                    <label class="form-label small text-secondary mb-1">Facility</label>
+                    <select name="facilityId" class="form-select form-select-sm" required>
+                        <option value="">Select facility…</option>
+                        @if (facilityOptions != null)
+                        {
+                            foreach (var opt in facilityOptions)
+                            {
+                                <option value="@opt.Id">@opt.FacilityName</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-secondary mb-1">Amount (&#8369;)</label>
+                    <input type="number" name="amount" step="0.01" min="0.01" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-secondary mb-1">Date received</label>
+                    <input type="date" name="paidOn" value="@DateTime.UtcNow.AddHours(8).ToString("yyyy-MM-dd")" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-secondary mb-1">Note</label>
+                    <input type="text" name="note" maxlength="300" class="form-control form-control-sm" placeholder="e.g. Initial payment via GCash" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-secondary mb-1">Your name</label>
+                    <input type="text" name="recordedByName" maxlength="200" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-sm btn-success"
+                            onclick="return confirm('Record this payment? It will reduce the facility\'s balance right away.')">
+                        <i class="bi bi-plus-circle me-1"></i>Record Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Recorded payments -->
+        @if (Model.RecentPayments is { Count: > 0 })
+        {
+            var namesByOwner = ViewBag.FacilityNamesByOwner as Dictionary<string, string>;
+            <div class="dev-card p-4 mb-4">
+                <h6 class="fw-bold mb-3"><i class="bi bi-journal-check me-1 text-success"></i>Recorded Payments</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr class="text-secondary small">
+                                <th>Facility</th><th>Received</th><th class="text-end">Amount</th><th>Note</th><th>Recorded by</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in Model.RecentPayments)
+                            {
+                                <tr class="@(p.IsVoided ? "opacity-50" : "")">
+                                    <td class="fw-semibold">@(namesByOwner != null && namesByOwner.TryGetValue(p.OwnerId, out var fname) ? fname : p.OwnerId)</td>
+                                    <td class="small">@p.PaidOn.ToString("MMM d, yyyy")</td>
+                                    <td class="text-end @(p.IsVoided ? "text-decoration-line-through" : "")">&#8369;@p.Amount.ToString("N2")</td>
+                                    <td class="small text-secondary">@(p.Note ?? "—")</td>
+                                    <td class="small text-secondary">@p.RecordedByName<br />@p.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")</td>
+                                    <td class="text-end">
+                                        @if (p.IsVoided)
+                                        {
+                                            <span class="badge bg-secondary" title="@p.VoidReason">Voided by @p.VoidedByName</span>
+                                        }
+                                        else
+                                        {
+                                            <form asp-action="VoidAdminFeePayment" method="post" class="d-inline-flex gap-1 align-items-center">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="password" value="@password" />
+                                                <input type="hidden" name="paymentId" value="@p.Id" />
+                                                <input type="text" name="voidedByName" class="form-control form-control-sm" placeholder="Your name" required style="width:120px;" />
+                                                <input type="text" name="reason" class="form-control form-control-sm" placeholder="Reason" style="width:130px;" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                        onclick="return confirm('Void this payment? The balance will be restored.')">Void</button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
         <!-- Per-facility table -->
         <div class="dev-card p-3">
             <div class="table-responsive">
@@ -180,6 +276,7 @@
                             <th class="text-end">Paid</th>
                             <th class="text-end">Outstanding</th>
                             <th class="text-end">Pending</th>
+                            <th class="text-end">Credit</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -195,12 +292,13 @@
                                 <td class="text-end">&#8369;@row.Paid.ToString("N2")</td>
                                 <td class="text-end">&#8369;@row.Outstanding.ToString("N2")</td>
                                 <td class="text-end">&#8369;@row.PendingVerification.ToString("N2")</td>
+                                <td class="text-end @(row.CreditBalance > 0 ? "text-success" : "text-secondary")">&#8369;@row.CreditBalance.ToString("N2")</td>
                                 <td><span class="badge @badge">@status</span></td>
                             </tr>
                         }
                         @if (!Model.Rows.Any())
                         {
-                            <tr><td colspan="7" class="text-center text-secondary py-3">No admin-fee-enabled facilities found.</td></tr>
+                            <tr><td colspan="8" class="text-center text-secondary py-3">No admin-fee-enabled facilities found.</td></tr>
                         }
                     </tbody>
                 </table>

@@ -398,6 +398,52 @@ public class DevController : Controller
         return RedirectToActionAdminFees(password);
     }
 
+    // POST /Dev/RecordAdminFeePayment — records a payment received outside the app (e.g. an initial
+    // payment) as credit against a facility's admin fee balance.
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RecordAdminFeePayment(string password, int facilityId, decimal amount, DateTime? paidOn, string? note, string recordedByName)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        var facility = await _db.FacilitySettings.FirstOrDefaultAsync(f => f.Id == facilityId && f.BillingModel == "Commission");
+        if (facility?.OwnerId is null)
+        {
+            TempData["Error"] = "Pick an admin-fee facility to record the payment for.";
+            return RedirectToActionAdminFees(password);
+        }
+
+        try
+        {
+            await _adminFee.RecordPaymentAsync(facility.OwnerId, amount, paidOn ?? DateTime.UtcNow, note, recordedByName);
+            _logger.LogWarning("[AdminFee] Payment of {Amount:0.00} recorded for facility #{FacilityId} by {By}", amount, facilityId, recordedByName);
+            TempData["Success"] = $"Recorded ₱{amount:N2} payment for \"{facility.FacilityName}\". Their outstanding balance has been reduced.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+        return RedirectToActionAdminFees(password);
+    }
+
+    // POST /Dev/VoidAdminFeePayment
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> VoidAdminFeePayment(string password, int paymentId, string voidedByName, string? reason)
+    {
+        if (!IsValidPassword(password)) return Unauthorized("Invalid developer password.");
+
+        try
+        {
+            await _adminFee.VoidPaymentAsync(paymentId, voidedByName, reason);
+            _logger.LogWarning("[AdminFee] Payment #{PaymentId} voided by {By}", paymentId, voidedByName);
+            TempData["Success"] = "Payment voided — the balance has been restored.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+        return RedirectToActionAdminFees(password);
+    }
+
     // GET /Dev/AdminFees
     public async Task<IActionResult> AdminFees()
     {
@@ -438,12 +484,17 @@ public class DevController : Controller
             .ToListAsync();
         ViewBag.FacilityNamesByOwner = facilityNamesByOwner;
 
-        return View(new DevAdminFeeViewModel(rows, pending));
+        var recentPayments = await _adminFee.GetRecentPaymentsAsync(facilityId.HasValue
+            ? (await _db.FacilitySettings.FindAsync(facilityId.Value))?.OwnerId
+            : null);
+
+        return View(new DevAdminFeeViewModel(rows, pending, recentPayments));
     }
 
     public record DevAdminFeeViewModel(
         List<AdminFeePlatformRow> Rows,
-        List<AdminFeeSettlement> PendingSettlements);
+        List<AdminFeeSettlement> PendingSettlements,
+        List<AdminFeePayment>? RecentPayments = null);
 
     // After a suspend/lock POST we need to land back on the unlocked list. We
     // stash the dev password in TempData (single-use, server-side) and then

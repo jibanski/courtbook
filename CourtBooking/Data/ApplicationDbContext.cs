@@ -30,6 +30,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Voucher> Vouchers { get; set; }
     public DbSet<AdminFeeCharge> AdminFeeCharges { get; set; }
     public DbSet<AdminFeeSettlement> AdminFeeSettlements { get; set; }
+    public DbSet<AdminFeePayment> AdminFeePayments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -209,5 +210,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<AdminFeeCharge>().HasIndex(c => new { c.OwnerId, c.SettlementId });
         builder.Entity<AdminFeeCharge>().HasIndex(c => c.BundleGroupId);
         builder.Entity<AdminFeeSettlement>().HasIndex(s => new { s.OwnerId, s.Status });
+        builder.Entity<AdminFeePayment>().HasIndex(p => new { p.OwnerId, p.IsVoided });
     }
 }

@@ -22,9 +22,15 @@ public class AdminFeeSettlement
     [Required]
     public string OwnerId { get; set; } = string.Empty;
 
-    /// <summary>The full outstanding balance at the moment this settlement was submitted.</summary>
+    /// <summary>The cash amount the owner had to pay when this settlement was submitted — the
+    /// outstanding balance after any recorded-payment credit was applied.</summary>
     [Column(TypeName = "numeric(18,2)")]
     public decimal Amount { get; set; }
+
+    /// <summary>How much recorded-payment credit (<see cref="AdminFeePayment"/>) this settlement used
+    /// up. Charges settled = <see cref="Amount"/> + this. Ignored if the settlement is rejected.</summary>
+    [Column(TypeName = "numeric(18,2)")]
+    public decimal CreditApplied { get; set; }
 
     [MaxLength(100)]
     public string? PaymentReference { get; set; }
