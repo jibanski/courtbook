@@ -71,7 +71,7 @@ public class AdminController : Controller
         var totalBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status != BookingStatus.Cancelled);
         var todayBookings   = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.BookingDate == PhtClock.Today && b.Status != BookingStatus.Cancelled)
                             + await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.BookingDate == PhtClock.Today && s.Status != BookingStatus.Cancelled);
-        var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice);
+        var totalRevenue    = await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => b.TotalPrice - b.AdminFeeAmount); // net of admin fee (owed to CourtBook)
         var activeCourts    = await MyCourts.CountAsync(c => c.IsActive);
         var awaitingPayment    = await _db.Bookings.CountAsync(b => courtIds.Contains(b.CourtId) && b.Status == BookingStatus.Pending && b.PaymentProofSubmittedAt != null);
         var awaitingSignups    = await _db.OpenPlaySignups.CountAsync(s => courtIds.Contains(s.CourtId) && s.Status == BookingStatus.Pending && s.PaymentProofSubmittedAt != null);
@@ -301,11 +301,14 @@ public class AdminController : Controller
         // though the booking itself might still read Completed (e.g. a post-play dispute refund).
         // A PartiallyRefunded row stays in these sums, but nets out only the refunded portion
         // (TotalPrice - RefundAmount) rather than either the full price or zero.
-        var todayRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && b.PaidAt != null && b.PaidAt >= todayDt && b.PaymentStatus != PaymentStatus.Refunded).SumAsync(b => (decimal?)(b.PaymentStatus == PaymentStatus.PartiallyRefunded ? b.TotalPrice - (b.RefundAmount ?? 0m) : b.TotalPrice)) ?? 0m)
-                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && s.PaidAt != null && s.PaidAt >= todayDt && s.PaymentStatus != PaymentStatus.Refunded).SumAsync(s => (decimal?)(s.PaymentStatus == PaymentStatus.PartiallyRefunded ? s.TotalPrice - (s.RefundAmount ?? 0m) : s.TotalPrice)) ?? 0m)
+        // Revenue everywhere below is NET of the admin fee (Booking/OpenPlaySignup.AdminFeeAmount):
+        // the fee is collected from the customer but is owed to CourtBook, not owner revenue. It's
+        // tracked separately in the Admin Fees section.
+        var todayRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && b.PaidAt != null && b.PaidAt >= todayDt && b.PaymentStatus != PaymentStatus.Refunded).SumAsync(b => (decimal?)((b.PaymentStatus == PaymentStatus.PartiallyRefunded ? b.TotalPrice - (b.RefundAmount ?? 0m) : b.TotalPrice) - b.AdminFeeAmount)) ?? 0m)
+                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && s.PaidAt != null && s.PaidAt >= todayDt && s.PaymentStatus != PaymentStatus.Refunded).SumAsync(s => (decimal?)((s.PaymentStatus == PaymentStatus.PartiallyRefunded ? s.TotalPrice - (s.RefundAmount ?? 0m) : s.TotalPrice) - s.AdminFeeAmount)) ?? 0m)
                          + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && r.PaidAt != null && r.PaidAt >= todayDt && r.PaymentStatus != PaymentStatus.Refunded).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
-        var totalRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed) && b.PaymentStatus != PaymentStatus.Refunded).SumAsync(b => (decimal?)(b.PaymentStatus == PaymentStatus.PartiallyRefunded ? b.TotalPrice - (b.RefundAmount ?? 0m) : b.TotalPrice)) ?? 0m)
-                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed) && s.PaymentStatus != PaymentStatus.Refunded).SumAsync(s => (decimal?)(s.PaymentStatus == PaymentStatus.PartiallyRefunded ? s.TotalPrice - (s.RefundAmount ?? 0m) : s.TotalPrice)) ?? 0m)
+        var totalRevenue = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed) && b.PaymentStatus != PaymentStatus.Refunded).SumAsync(b => (decimal?)((b.PaymentStatus == PaymentStatus.PartiallyRefunded ? b.TotalPrice - (b.RefundAmount ?? 0m) : b.TotalPrice) - b.AdminFeeAmount)) ?? 0m)
+                         + (await _db.OpenPlaySignups.Where(s => courtIds.Contains(s.CourtId) && (s.Status == BookingStatus.Confirmed || s.Status == BookingStatus.Completed) && s.PaymentStatus != PaymentStatus.Refunded).SumAsync(s => (decimal?)((s.PaymentStatus == PaymentStatus.PartiallyRefunded ? s.TotalPrice - (s.RefundAmount ?? 0m) : s.TotalPrice) - s.AdminFeeAmount)) ?? 0m)
                          + (courtId.HasValue ? 0m : (await _db.AddOnRentals.Where(r => r.OwnerId == CurrentUserId && (r.Status == BookingStatus.Confirmed || r.Status == BookingStatus.Completed) && r.PaymentStatus != PaymentStatus.Refunded).SumAsync(r => (decimal?)r.TotalPrice) ?? 0m));
         // AddOnRentals have no voucher support (walk-ins never accept a voucher code), so this total is Bookings + OpenPlaySignups only.
         var totalDiscountGiven = (await _db.Bookings.Where(b => courtIds.Contains(b.CourtId) && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Completed)).SumAsync(b => (decimal?)b.DiscountAmount) ?? 0m)
@@ -344,11 +347,11 @@ public class AdminController : Controller
             .Where(b => courtIds.Contains(b.CourtId)
                      && ((b.PaidAt != null && b.PaidAt >= rangeFromUtc && b.PaidAt < rangeToExclusiveUtc)
                          || (b.PaidAt == null && b.BookingDate >= rangeFrom && b.BookingDate <= rangeTo)))
-            .Select(b => new { b.Id, b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
+            .Select(b => new { b.Id, b.BookingDate, NetPrice = b.TotalPrice - b.AdminFeeAmount, b.Status, b.PaymentStatus,
                 b.PaidAt, HasProof = b.PaymentProofSubmittedAt != null, b.PaymentReference, b.PaymentMethod,
                 b.CourtId, b.LoggedByStaffId, b.VoucherCode, b.DiscountAmount, b.BundleGroupId, b.RefundAmount })
             .ToListAsync())
-            .Select(b => new AnalyticsRow(b.BookingDate, b.TotalPrice, b.Status, b.PaymentStatus,
+            .Select(b => new AnalyticsRow(b.BookingDate, b.NetPrice, b.Status, b.PaymentStatus,
                 b.PaidAt, b.HasProof, b.PaymentReference, b.PaymentMethod,
                 b.CourtId, b.LoggedByStaffId, b.VoucherCode, b.DiscountAmount,
                 // A cart checkout splits one voucher redemption across several Booking rows (one
@@ -360,11 +363,11 @@ public class AdminController : Controller
             .Where(s => courtIds.Contains(s.CourtId)
                      && ((s.PaidAt != null && s.PaidAt >= rangeFromUtc && s.PaidAt < rangeToExclusiveUtc)
                          || (s.PaidAt == null && s.BookingDate >= rangeFrom && s.BookingDate <= rangeTo)))
-            .Select(s => new { s.Id, s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
+            .Select(s => new { s.Id, s.BookingDate, NetPrice = s.TotalPrice - s.AdminFeeAmount, s.Status, s.PaymentStatus,
                 s.PaidAt, HasProof = s.PaymentProofSubmittedAt != null, s.PaymentReference, s.PaymentMethod,
                 s.CourtId, s.LoggedByStaffId, s.VoucherCode, s.DiscountAmount, s.RefundAmount })
             .ToListAsync())
-            .Select(s => new AnalyticsRow(s.BookingDate, s.TotalPrice, s.Status, s.PaymentStatus,
+            .Select(s => new AnalyticsRow(s.BookingDate, s.NetPrice, s.Status, s.PaymentStatus,
                 s.PaidAt, s.HasProof, s.PaymentReference, s.PaymentMethod,
                 s.CourtId, s.LoggedByStaffId, s.VoucherCode, s.DiscountAmount, "s:" + s.Id, s.RefundAmount))
             .ToList();
@@ -542,6 +545,60 @@ public class AdminController : Controller
             .OrderByDescending(g => g.discount)
             .ToList();
 
+        // Admin fee tracking — its own section so the owner can see every fee charged (walk-in,
+        // online and cash alike) separately from court/add-on revenue. Sums are done in memory
+        // since SQLite can't aggregate decimals server-side; charge rows are small.
+        var feeSettings = await GetMySettingsAsync();
+        bool adminFeeEnabled = feeSettings?.IsAdminFeeEnabled == true;
+        decimal adminFeeRange = 0m, adminFeeAllTime = 0m;
+        int adminFeeRangeCount = 0;
+        var adminFeeRows = new List<object>();
+        if (adminFeeEnabled)
+        {
+            var chargeQuery = _db.AdminFeeCharges.AsNoTracking().Where(c => c.OwnerId == CurrentUserId);
+            if (courtId.HasValue)
+                chargeQuery = chargeQuery.Where(c => (c.Booking != null && courtIds.Contains(c.Booking.CourtId))
+                                                  || (c.OpenPlaySignup != null && courtIds.Contains(c.OpenPlaySignup.CourtId)));
+
+            var allCharges = await chargeQuery
+                .Select(c => new
+                {
+                    c.Id, c.AccruedAt, c.Amount, c.OriginalAmount, c.ReversedAt, c.SettlementId,
+                    SettlementStatus = c.Settlement != null ? (AdminFeeSettlementStatus?)c.Settlement.Status : null,
+                    BookingId = c.BookingId, SignupId = c.OpenPlaySignupId,
+                    c.BundleGroupId,
+                    CourtName = c.Booking != null ? c.Booking.CourtName : (c.OpenPlaySignup != null ? c.OpenPlaySignup.CourtName : null),
+                    Customer = c.Booking != null ? c.Booking.CustomerName : (c.OpenPlaySignup != null ? c.OpenPlaySignup.CustomerName : null),
+                    Staff = c.Booking != null ? c.Booking.LoggedByStaffName : null
+                })
+                .ToListAsync();
+
+            adminFeeAllTime = allCharges.Sum(c => c.Amount);
+            var inRange = allCharges
+                .Where(c => c.AccruedAt >= rangeFromUtc && c.AccruedAt < rangeToExclusiveUtc)
+                .OrderByDescending(c => c.AccruedAt)
+                .ToList();
+            adminFeeRange = inRange.Sum(c => c.Amount);
+            adminFeeRangeCount = inRange.Count;
+            adminFeeRows = inRange.Take(100).Select(c => (object)new
+            {
+                date      = DateOnly.FromDateTime(c.AccruedAt.AddHours(8)).ToString("yyyy-MM-dd"),
+                reference = c.BookingId.HasValue ? $"Booking #{c.BookingId}" : c.SignupId.HasValue ? $"Sign-up #{c.SignupId}" : "—",
+                court     = c.CourtName ?? "—",
+                customer  = c.Customer ?? "—",
+                source    = c.Staff != null ? "Staff walk-in" : "Online",
+                amount    = c.Amount,
+                original  = c.OriginalAmount,
+                reduced   = c.ReversedAt.HasValue,
+                status    = c.SettlementStatus switch
+                {
+                    AdminFeeSettlementStatus.Verified  => "Paid",
+                    AdminFeeSettlementStatus.Submitted => "Awaiting verification",
+                    _                                  => "Outstanding"
+                }
+            }).ToList();
+        }
+
         return Json(new
         {
             generatedAt = DateTime.UtcNow,
@@ -562,8 +619,13 @@ public class AdminController : Controller
                 courtRentalRevenue,
                 addOnsRevenue,
                 totalDiscountGiven,
-                rangeDiscountGiven
+                rangeDiscountGiven,
+                adminFeeEnabled,
+                adminFeeRange,
+                adminFeeRangeCount,
+                adminFeeAllTime
             },
+            adminFeeRows,
             revenueByDay,
             methodBreakdown = methodRows.Select(r => new
             {
