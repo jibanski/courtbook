@@ -18,7 +18,7 @@ A complete guide for facility owners and customers using the CourtBook online co
 10. [Frequently Asked Questions](#10-frequently-asked-questions)
 11. [Support](#11-support)
 
-> **What's new:** Guest booking (no account required), Open Play public sign-ups, bundled multi-court packages, a recurring weekly schedule with rate tiers, multiple instant payment methods, times now shown in 12-hour format (AM/PM) everywhere, and bulk multi-court blocking (shared or per-court timing) with in-place block editing. See the relevant sections below.
+> **What's new:** Guest booking (no account required), Open Play public sign-ups, bundled multi-court packages, a recurring weekly schedule with rate tiers, multiple instant payment methods, times now shown in 12-hour format (AM/PM) everywhere, and bulk multi-court blocking (shared or per-court timing) with in-place block editing, pausing individual rate tiers, bundle prices shown as a total with the hours covered, an owner switch for staff rescheduling, and more consistent Admin Fee recording. See the relevant sections below.
 
 ---
 
@@ -168,6 +168,8 @@ If you don't generate any time slots, the system falls back to hourly slots betw
 Click **Default Schedule & Rates** on a court to set a recurring *weekly* default — no need to re-enter it every week. Date-specific slots and blocks (above) always override this default when both apply.
 
 - **Rate tiers** — set a different price per hour for specific days of the week and hour ranges (e.g. *weekends, 6–10 PM, ₱500/hr* vs. the court's normal rate). Add as many tiers as you need; you can also include holidays in a tier.
+  - **Pause / Enable a tier** — click the pause button on a tier to switch it off temporarily (e.g. during a promo or off-season) without deleting it. A paused tier shows a **Paused** badge and is ignored: its hours are charged at the court's base rate and it isn't counted in the price ranges customers see. Click the play button to turn it back on. Pausing or enabling a tier also updates the price of any unpaid bookings on that court.
+  - Recurring Open Play blocks have the same pause / enable button.
 - **Open Play blocks** — reserve a day-of-week + hour range as **Admin-Hosted Open Play** instead of regular hourly booking. Turn on **Allow Public Sign-up** to let individual players join (see [Open Play Sign-ups](#55-open-play-sign-ups) below) by setting a **Max Players** count and a **Price Per Head**.
 - **Holidays** — mark specific dates as holidays under Admin → Settings; any rate tier or schedule block with "+ Holidays" ticked also applies on those dates, even if they fall on a normal weekday.
 
@@ -178,6 +180,8 @@ Click **Default Schedule & Rates** on a court to set a recurring *weekly* defaul
 1. **Create a bundle** — give it a name and pick the member courts.
 2. **Add Peak Windows** — on the bundle's page, add recurring day-of-week + hour ranges (optionally including holidays) with a flat price for the whole package.
 3. Once a window is added, customers booking any member court during that window are offered the bundle option automatically. Some windows can be marked **Bundle Only**, meaning that hour range isn't bookable as an individual court at all during that time — only as part of the bundle.
+
+On the court cards shown to customers and staff, a bundle window is displayed as its **total price and the hours it covers** (e.g. *₱1,500 / 3 hrs*) instead of a per-hour rate, since a bundle is one flat price for the whole window. Like rate tiers, individual windows can be paused and re-enabled from the bundle's page.
 
 A bundle purchase creates one linked booking per member court, sharing the same total split evenly, so each court's booking still shows correctly in **Admin → Bookings**.
 
@@ -204,8 +208,9 @@ For each booking you can:
 
 - **View payment proof** — see the screenshot and reference number the customer submitted
 - **Confirm Payment** — marks the booking as paid and confirmed
-- **Reject Payment** — sends the booking back to *Pending* with a note for the customer
-- **Update Status** — Pending → Confirmed → Completed, or Cancel (works for Open Play rows too)
+- **Reject Payment** — cancels the booking, frees the slot, and notifies the customer. The payment screenshot stays on the booking for your records (the reference number is cleared)
+- **Update Status** — Pending → Confirmed → Completed, or Cancel (works for Open Play rows too). Setting a booking to Confirmed or Completed this way marks it paid and records its Admin Fee
+- **Refund** — records a manual refund (full or partial). A full refund cancels the booking, and the payment screenshot stays visible afterward. See [5.9 Admin Fee](#59-admin-fee) for how refunds affect the fee
 
 > 🔒 You can only see and act on bookings for courts you own. Other facilities' bookings are not visible.
 
@@ -217,7 +222,7 @@ For each booking you can:
 2. Customer pays via GCash/Maya/GoTyme (or instantly by card/e-wallet if you've enabled PayMongo) → submits reference + screenshot → status `Awaiting Verification` (instant payments confirm automatically, skipping this step).
 3. **You** check your GCash/Maya/GoTyme app for the matching reference number.
 4. If valid → click **Confirm Payment**. Booking is now `Confirmed`.
-5. If invalid or duplicate → click **Reject Payment**. Customer is notified and can resubmit.
+5. If invalid or duplicate → click **Reject Payment**. The booking is cancelled and the customer is notified; they can make a new booking. The submitted screenshot is kept for your records.
 
 ### 5.8 Blocking Courts (Maintenance & Closures)
 
@@ -247,6 +252,37 @@ Both the single-court and multi-court block pages list **Active & Upcoming Block
 - Click the **trash icon** to remove a block immediately — customers can book those hours again right away.
 
 A collapsible **Past Blocks** section further down keeps a history of blocks that have already ended.
+
+### 5.9 Admin Fee
+
+Facilities on the Admin Fee billing model are charged a small fee per paid booking made through CourtBook. The fee is recorded when a booking becomes **Confirmed and Paid**, whichever way that happens:
+
+- online checkout (including when the customer lands back on the confirmation page before the payment notification arrives)
+- you or your staff clicking **Confirm Payment**
+- staff logging a cash walk-in, bundle, cart, or Open Play sign-up
+- setting a booking or sign-up to Confirmed/Completed from the status dropdown
+
+How it is applied:
+
+- **Online bookings** — the fee is shown to the customer as its own line at checkout and is part of their total.
+- **Walk-in, cash and staff-logged bookings** — the fee is recorded against your facility but is **not** added to the customer's price.
+- **Once per transaction** — a bundle or multi-court cart pays one fee for the whole checkout, not one per court.
+- **Never twice** — confirming the same booking again, or a late payment notification, will not add a second fee.
+- **Unpaid bookings** (expired, rejected, or cancelled before payment) are never charged.
+- **Refunds** — a refund reduces the fee in proportion to the amount refunded; a full refund reduces it to ₱0. Cancelling a *paid* booking without recording a refund does not reduce the fee.
+
+Your balance, monthly history and settlement submissions are under **Admin → Analytics** and **Subscription → Admin Fee**.
+
+### 5.10 Staff Accounts & Permissions
+
+Staff accounts get a limited Front Desk area: book walk-ins, log and confirm payments, and look up bookings. They cannot see Settings, Rates, Courts, Analytics, or billing.
+
+Under **Admin → Settings → Staff Permissions** you control whether staff may **reschedule bookings**:
+
+- **On (default)** — staff see Reschedule / Reschedule Bundle buttons and can move a booking to a new court, date, or time. The customer is emailed automatically.
+- **Off** — the buttons are hidden and the action is refused if attempted; only you can reschedule.
+
+Every reschedule is logged on the booking with who made it, when, and the original court, date and time, so you can always review staff changes.
 
 ---
 
@@ -421,7 +457,7 @@ A: No. Your data is kept — but customer-facing features are restricted until y
 A: It's safer to deactivate. Hard delete is only available if the court has no bookings.
 
 **Q: Does CourtBook take a percentage of my bookings?**
-A: No. All money goes directly from your customer to your configured payment account (GCash/Maya/GoTyme for manual flows, or your connected PayMongo checkout for instant flows). CourtBook only charges the subscription fee.
+A: All booking money goes directly from your customer to your configured payment account (GCash/Maya/GoTyme for manual flows, or your connected PayMongo checkout for instant flows) — CourtBook never holds it. Facilities on the Admin Fee model owe CourtBook a small fee per paid booking, recorded separately (see [5.9 Admin Fee](#59-admin-fee)); facilities on the subscription model pay only the subscription.
 
 **Q: Can I change my URL slug later?**
 A: Yes, but old shared links will stop working. Make sure to re-share the new link.
@@ -446,6 +482,24 @@ A: All times across the app (booking grids, schedules, admin pages, emails) now 
 
 **Q: What can I do to keep the booking pages fast and responsive?**
 A: Keep schedules simple where possible. Fewer overlapping bundle windows, fewer repeated rate tiers, and fewer separate Open Play blocks on the same court all help the booking page stay quick. CourtBook now caches recurring schedule lookups per request and groups consecutive Open Play hours, but the cleanest schedules still render the fastest.
+
+**Q: Can I temporarily switch off a rate tier without deleting it?**
+A: Yes. On a court's [Default Schedule & Rates](#default-schedule--rates), click the pause button next to the tier. Its hours revert to the court's base rate until you click play to enable it again. Unpaid bookings on that court are re-priced automatically.
+
+**Q: Why does a bundle show a total price and hours instead of a rate per hour?**
+A: A bundle is one flat price for the whole window, so court cards now show the total and how many hours it covers (e.g. *₱1,500 / 3 hrs*). Hover over it to see the approximate per-hour equivalent.
+
+**Q: Can I stop my staff from rescheduling bookings?**
+A: Yes — turn off **Allow staff to reschedule bookings** under Admin → Settings → Staff Permissions. Only you can reschedule then. While it's on, every staff reschedule is logged with the staff member's name and the original date/time. See [5.10](#510-staff-accounts--permissions).
+
+**Q: Is the Admin Fee charged on bookings my staff makes?**
+A: Yes. Any booking made through CourtBook is recorded once it's confirmed and paid, including staff walk-ins, cash payments, bundles, and Open Play sign-ups, and including payments confirmed by staff or via the status dropdown. For staff-logged bookings the fee is recorded against your facility and is not added to the customer's price; online customers see it as a line item at checkout. See [5.9](#59-admin-fee).
+
+**Q: If a booking is cancelled, is the Admin Fee still charged?**
+A: Only if it had been paid. A booking cancelled before payment is never charged. If a paid booking is refunded, the fee is reduced in proportion to the refund (full refund = ₱0). Cancelling a paid booking without recording a refund leaves the fee in place, so record a refund whenever money is returned.
+
+**Q: Where did the payment screenshot go after I rejected or refunded a booking?**
+A: It's kept. Rejecting a payment cancels the booking but leaves the screenshot viewable on it, and refunds never remove it. Bookings paid online by card/e-wallet, or logged in cash by staff, have no screenshot because none was uploaded.
 
 **Q: Can I close several courts at once instead of blocking each one individually?**
 A: Yes — go to **Admin → Courts → Block Multiple Courts**. Pick the courts to close and either apply one shared date/hour range to all of them, or switch to "Different timing per court" to give each court its own range in the same submission. See [5.8 Blocking Courts](#58-blocking-courts-maintenance--closures).

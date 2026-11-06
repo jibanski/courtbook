@@ -2855,6 +2855,7 @@ public class AdminController : Controller
             // No payment-method input on this dropdown, so default to Cash (same as the null==Cash
             // convention used by the payment-method selector/log) instead of leaving it "Unknown" in Analytics.
             booking.PaymentMethod ??= "Cash";
+            await _adminFee.AccrueForBookingAsync(booking, await GetMySettingsAsync());
         }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Booking status updated.";
@@ -3154,6 +3155,7 @@ public class AdminController : Controller
             signup.PaymentStatus = PaymentStatus.Paid;
             signup.PaidAt ??= DateTime.UtcNow;
             signup.PaymentMethod ??= "Cash";
+            await _adminFee.AccrueForSignupAsync(signup, await GetMySettingsAsync());
         }
         await _db.SaveChangesAsync();
         TempData["Success"] = "Sign-up status updated.";
