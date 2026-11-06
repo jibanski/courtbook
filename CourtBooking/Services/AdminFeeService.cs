@@ -16,7 +16,9 @@ public record AdminFeeOwnerSummary(
     decimal ThisMonthGenerated,
     int ThisMonthChargeCount,
     List<AdminFeeMonthlyRow> MonthlyHistory,
-    List<AdminFeeSettlement> RecentSettlements);
+    List<AdminFeeSettlement> RecentSettlements,
+    decimal CreditBalance = 0m,
+    List<AdminFeePayment>? RecentPayments = null);
 
 public record AdminFeePlatformRow(
     int FacilitySettingsId,
@@ -25,7 +27,8 @@ public record AdminFeePlatformRow(
     decimal Generated,
     decimal Paid,
     decimal Outstanding,
-    decimal PendingVerification);
+    decimal PendingVerification,
+    decimal CreditBalance = 0m);
 
 /// <summary>
 /// Owns the platform Admin Fee ledger: accruing a charge when a qualifying booking/sign-up is
@@ -184,6 +187,62 @@ public class AdminFeeService
         charge.ReversedAt ??= DateTime.UtcNow;
     }
 
+    /// <summary>Credit a facility has left from manually recorded payments: active (non-voided)
+    /// <see cref="AdminFeePayment"/> amounts minus whatever its non-rejected settlements already used.
+    /// Summed client-side so it also works on the SQLite dev database (no server-side decimal SUM).</summary>
+    private async Task<decimal> GetCreditAsync(string ownerId)
+    {
+        var paid = (await _db.AdminFeePayments.Where(p => p.OwnerId == ownerId && !p.IsVoided)
+            .Select(p => p.Amount).ToListAsync()).Sum();
+        var used = (await _db.AdminFeeSettlements
+            .Where(s => s.OwnerId == ownerId && s.Status != AdminFeeSettlementStatus.Rejected)
+            .Select(s => s.CreditApplied).ToListAsync()).Sum();
+        return Math.Max(0m, paid - used);
+    }
+
+    /// <summary>Records a payment received outside the app. It becomes credit: outstanding drops by
+    /// this amount, and any excess carries forward against future fees.</summary>
+    public async Task<AdminFeePayment> RecordPaymentAsync(string ownerId, decimal amount, DateTime paidOn, string? note, string recordedByName)
+    {
+        if (amount <= 0) throw new InvalidOperationException("Payment amount must be greater than zero.");
+        if (string.IsNullOrWhiteSpace(recordedByName)) throw new InvalidOperationException("Please enter your name.");
+
+        var payment = new AdminFeePayment
+        {
+            OwnerId = ownerId,
+            Amount = Math.Round(amount, 2),
+            PaidOn = DateTime.SpecifyKind(paidOn, DateTimeKind.Utc),
+            Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
+            RecordedByName = recordedByName.Trim(),
+            CreatedAt = DateTime.UtcNow,
+        };
+        _db.AdminFeePayments.Add(payment);
+        await _db.SaveChangesAsync();
+        return payment;
+    }
+
+    /// <summary>Voids a recorded payment (kept in history, marked voided). Refused if part of it has
+    /// already been used up by a settlement, since voiding would then leave the balance wrong.</summary>
+    public async Task VoidPaymentAsync(int paymentId, string voidedByName, string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(voidedByName)) throw new InvalidOperationException("Please enter your name.");
+
+        var payment = await _db.AdminFeePayments.FirstOrDefaultAsync(p => p.Id == paymentId)
+            ?? throw new InvalidOperationException("Payment not found.");
+        if (payment.IsVoided) throw new InvalidOperationException("This payment is already voided.");
+
+        var credit = await GetCreditAsync(payment.OwnerId);
+        if (payment.Amount > credit + 0.01m)
+            throw new InvalidOperationException(
+                "This payment can't be voided because part of it was already applied to a settlement.");
+
+        payment.IsVoided = true;
+        payment.VoidedAt = DateTime.UtcNow;
+        payment.VoidedByName = voidedByName.Trim();
+        payment.VoidReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        await _db.SaveChangesAsync();
+    }
+
     public async Task<AdminFeeOwnerSummary> GetOwnerSummaryAsync(string ownerId)
     {
         var charges = await _db.AdminFeeCharges
@@ -197,22 +256,49 @@ public class AdminFeeService
             .AsNoTracking()
             .ToListAsync();
 
-        var outstanding = charges.Where(c => c.SettlementId == null).Sum(c => c.Amount);
-        var pendingVerification = charges.Where(c => c.Settlement?.Status == AdminFeeSettlementStatus.Submitted).Sum(c => c.Amount);
+        var payments = await _db.AdminFeePayments
+            .Where(p => p.OwnerId == ownerId)
+            .OrderByDescending(p => p.PaidOn).ThenByDescending(p => p.Id)
+            .AsNoTracking()
+            .ToListAsync();
+
+        var credit = await GetCreditAsync(ownerId);
+        var unsettled = charges.Where(c => c.SettlementId == null).Sum(c => c.Amount);
+        var outstanding = Math.Max(0m, unsettled - credit);
+        var creditBalance = Math.Max(0m, credit - unsettled);
+        // Pending is what the owner actually submitted as cash (the settlement's own Amount), not the
+        // linked charges' total, since part of those charges may have been covered by recorded credit.
+        var pendingVerification = settlements.Where(s => s.Status == AdminFeeSettlementStatus.Submitted).Sum(s => s.Amount);
         // Paid is read off the settlement's own recorded Amount, not the charges it happens to
         // link to — a settlement is authoritative proof of what was actually paid, independent of
         // whether every linked charge survives (e.g. a historical backfill settlement with no
-        // linked charges at all still represents a real payment that must count as paid).
-        var totalPaid = settlements.Where(s => s.Status == AdminFeeSettlementStatus.Verified).Sum(s => s.Amount);
+        // linked charges at all still represents a real payment that must count as paid). Manually
+        // recorded (non-voided) payments count as paid too.
+        var totalPaid = settlements.Where(s => s.Status == AdminFeeSettlementStatus.Verified).Sum(s => s.Amount)
+                      + payments.Where(p => !p.IsVoided).Sum(p => p.Amount);
 
         var now = DateTime.UtcNow;
         var thisMonth = charges.Where(c => c.AccruedAt.Year == now.Year && c.AccruedAt.Month == now.Month).ToList();
 
+        // Credit is applied to the oldest unsettled fees first, so each month's Outstanding adds up
+        // to the headline balance.
+        var remainingCredit = credit;
+        var outstandingByMonth = new Dictionary<(int Year, int Month), decimal>();
+        foreach (var c in charges.Where(c => c.SettlementId == null).OrderBy(c => c.AccruedAt))
+        {
+            var used = Math.Min(remainingCredit, c.Amount);
+            remainingCredit -= used;
+            var key = (c.AccruedAt.Year, c.AccruedAt.Month);
+            outstandingByMonth[key] = outstandingByMonth.GetValueOrDefault(key) + (c.Amount - used);
+        }
+
         var generatedByMonth = charges.GroupBy(c => (c.AccruedAt.Year, c.AccruedAt.Month))
-            .ToDictionary(g => g.Key, g => (Count: g.Count(), Generated: g.Sum(c => c.OriginalAmount), Outstanding: g.Where(c => c.SettlementId == null).Sum(c => c.Amount)));
+            .ToDictionary(g => g.Key, g => (Count: g.Count(), Generated: g.Sum(c => c.OriginalAmount)));
         var paidByMonth = settlements.Where(s => s.Status == AdminFeeSettlementStatus.Verified)
-            .GroupBy(s => (s.SubmittedAt.Year, s.SubmittedAt.Month))
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.Amount));
+            .Select(s => (Date: s.SubmittedAt, s.Amount))
+            .Concat(payments.Where(p => !p.IsVoided).Select(p => (Date: p.PaidOn, p.Amount)))
+            .GroupBy(x => (x.Date.Year, x.Date.Month))
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
 
         var monthly = generatedByMonth.Keys.Union(paidByMonth.Keys)
             .Select(key => new AdminFeeMonthlyRow(
@@ -220,7 +306,7 @@ public class AdminFeeService
                 ChargeCount: generatedByMonth.TryGetValue(key, out var g) ? g.Count : 0,
                 Generated: generatedByMonth.TryGetValue(key, out var g2) ? g2.Generated : 0,
                 Paid: paidByMonth.GetValueOrDefault(key),
-                Outstanding: generatedByMonth.TryGetValue(key, out var g3) ? g3.Outstanding : 0))
+                Outstanding: outstandingByMonth.GetValueOrDefault(key)))
             .OrderByDescending(m => m.Year).ThenByDescending(m => m.Month)
             .ToList();
 
@@ -229,7 +315,9 @@ public class AdminFeeService
             ThisMonthGenerated: thisMonth.Sum(c => c.OriginalAmount),
             ThisMonthChargeCount: thisMonth.Count,
             MonthlyHistory: monthly,
-            RecentSettlements: settlements.Take(20).ToList());
+            RecentSettlements: settlements.Take(20).ToList(),
+            CreditBalance: creditBalance,
+            RecentPayments: payments.Take(20).ToList());
     }
 
     /// <summary>Submits the facility's full current outstanding balance for settlement. Throws
@@ -245,14 +333,22 @@ public class AdminFeeService
         var outstandingCharges = await _db.AdminFeeCharges
             .Where(c => c.OwnerId == ownerId && c.SettlementId == null && c.Amount > 0)
             .ToListAsync();
-        var outstanding = outstandingCharges.Sum(c => c.Amount);
-        if (outstanding <= 0)
+        var unsettled = outstandingCharges.Sum(c => c.Amount);
+        if (unsettled <= 0)
             throw new InvalidOperationException("You have no outstanding admin fee balance to pay.");
+
+        // Net out any credit from manually recorded payments; the settlement is only for the rest.
+        var credit = await GetCreditAsync(ownerId);
+        var creditApplied = Math.Min(credit, unsettled);
+        var payable = unsettled - creditApplied;
+        if (payable <= 0)
+            throw new InvalidOperationException("Your balance is fully covered by payments already recorded — nothing to pay right now.");
 
         var settlement = new AdminFeeSettlement
         {
             OwnerId = ownerId,
-            Amount = outstanding,
+            Amount = payable,
+            CreditApplied = creditApplied,
             PaymentReference = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim(),
             ProofPath = proofPath,
             SubmittedAt = DateTime.UtcNow,
@@ -326,20 +422,66 @@ public class AdminFeeService
         if (month.HasValue) settlementsQuery = settlementsQuery.Where(s => s.SubmittedAt.Month == month);
         var verifiedSettlements = await settlementsQuery.ToListAsync();
 
+        // Manually recorded payments (credit). Counted as Paid when received in the selected period.
+        var allPayments = await _db.AdminFeePayments
+            .Where(p => ownerIds.Contains(p.OwnerId) && !p.IsVoided)
+            .AsNoTracking().ToListAsync();
+        var paymentsInPeriod = allPayments
+            .Where(p => (!year.HasValue || p.PaidOn.Year == year) && (!month.HasValue || p.PaidOn.Month == month))
+            .ToList();
+
+        // Credit left per owner and every unsettled charge (ignoring the period filter), so credit can be
+        // applied to the oldest fees first and the period then reports only what is still owed in it.
+        var usedByOwner = (await _db.AdminFeeSettlements
+                .Where(s => ownerIds.Contains(s.OwnerId) && s.Status != AdminFeeSettlementStatus.Rejected)
+                .AsNoTracking().ToListAsync())
+            .GroupBy(s => s.OwnerId).ToDictionary(g => g.Key, g => g.Sum(s => s.CreditApplied));
+        var allUnsettled = await _db.AdminFeeCharges
+            .Where(c => ownerIds.Contains(c.OwnerId) && c.SettlementId == null)
+            .AsNoTracking().ToListAsync();
+
         var owners = await _db.Users.Where(u => ownerIds.Contains(u.Id)).AsNoTracking().ToListAsync();
 
         return facilities.Select(f =>
         {
             var mine = charges.Where(c => c.OwnerId == f.OwnerId).ToList();
+
+            var credit = Math.Max(0m,
+                allPayments.Where(p => p.OwnerId == f.OwnerId).Sum(p => p.Amount) - usedByOwner.GetValueOrDefault(f.OwnerId ?? ""));
+            var remaining = credit;
+            decimal outstandingInPeriod = 0m;
+            foreach (var c in allUnsettled.Where(c => c.OwnerId == f.OwnerId).OrderBy(c => c.AccruedAt))
+            {
+                var used = Math.Min(remaining, c.Amount);
+                remaining -= used;
+                bool inPeriod = (!year.HasValue || c.AccruedAt.Year == year) && (!month.HasValue || c.AccruedAt.Month == month);
+                if (inPeriod) outstandingInPeriod += c.Amount - used;
+            }
+
             return new AdminFeePlatformRow(
                 FacilitySettingsId: f.Id,
                 FacilityName: f.FacilityName,
                 OwnerEmail: owners.FirstOrDefault(u => u.Id == f.OwnerId)?.Email ?? "(no owner)",
                 Generated: mine.Sum(c => c.OriginalAmount),
-                Paid: verifiedSettlements.Where(s => s.OwnerId == f.OwnerId).Sum(s => s.Amount),
-                Outstanding: mine.Where(c => c.SettlementId == null).Sum(c => c.Amount),
-                PendingVerification: mine.Where(c => c.Settlement?.Status == AdminFeeSettlementStatus.Submitted).Sum(c => c.Amount));
+                Paid: verifiedSettlements.Where(s => s.OwnerId == f.OwnerId).Sum(s => s.Amount)
+                      + paymentsInPeriod.Where(p => p.OwnerId == f.OwnerId).Sum(p => p.Amount),
+                Outstanding: outstandingInPeriod,
+                // Grouped by settlement id: with AsNoTracking each charge carries its own copy of the
+                // settlement, so a plain Distinct() over the objects would count a settlement per charge.
+                PendingVerification: mine.Where(c => c.Settlement?.Status == AdminFeeSettlementStatus.Submitted)
+                                         .GroupBy(c => c.SettlementId)
+                                         .Sum(g => g.First().Settlement!.Amount),
+                CreditBalance: remaining);
         }).ToList();
+    }
+
+    /// <summary>Recent manually recorded payments (including voided ones, for history) across all
+    /// facilities, or just one owner's.</summary>
+    public async Task<List<AdminFeePayment>> GetRecentPaymentsAsync(string? ownerId = null, int take = 50)
+    {
+        var query = _db.AdminFeePayments.AsQueryable();
+        if (ownerId != null) query = query.Where(p => p.OwnerId == ownerId);
+        return await query.OrderByDescending(p => p.CreatedAt).Take(take).AsNoTracking().ToListAsync();
     }
 
     /// <summary>Settlements awaiting Dev Admin verification, across all facilities (or one).</summary>

@@ -273,6 +273,8 @@ How it is applied:
 
 Your balance, monthly history and settlement submissions are under **Admin → Analytics** and **Subscription → Admin Fee**.
 
+**Payments received outside the app** — if you've already paid CourtBook directly (for example an initial payment), the CourtBook team can record it against your facility. It reduces your outstanding balance straight away, shows under **Payments Received by CourtBook** on your Admin Fee page, and counts toward your total paid. If the amount is more than you currently owe, the extra is kept as **credit** and applied to your upcoming fees; when you next submit a payment, only the balance after that credit is due. A payment recorded by mistake is voided (not deleted), which restores the balance and leaves a visible record.
+
 ### 5.10 Staff Accounts & Permissions
 
 Staff accounts get a limited Front Desk area: book walk-ins, log and confirm payments, and look up bookings. They cannot see Settings, Rates, Courts, Analytics, or billing.
