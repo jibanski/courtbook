@@ -90,8 +90,9 @@ public class AdminFeeService
         // Online self-checkout already collected the fee from the customer at booking time
         // (Booking.AdminFeeAmount, baked into TotalPrice) — use that locked-in amount rather than
         // recomputing a percentage off TotalPrice, which now already includes the fee itself and
-        // would double-dip. Walk-in/cash bookings never set AdminFeeAmount, so they fall through
-        // to the original owner-absorbed calculation, computed fresh off TotalPrice.
+        // would double-dip. Walk-in bookings now bake the fee in too; only rows that never set
+        // AdminFeeAmount (older walk-ins, Open Play, status-dropdown changes) fall through to the
+        // owner-absorbed calculation, computed fresh off TotalPrice.
         var collectedAtCheckout = bookings.Sum(b => b.AdminFeeAmount);
         decimal amount;
         if (collectedAtCheckout > 0)

@@ -2,6 +2,9 @@
     ViewData["Title"] = "Confirm Walk-in Cart";
     var addOns = ViewBag.AddOns as List<CourtBooking.Models.AddOnItem> ?? new List<CourtBooking.Models.AddOnItem>();
     var paymentMethods = ViewBag.PaymentMethods as List<string> ?? new List<string> { "Cash" };
+    bool feeOn      = ViewBag.AdminFeeEnabled as bool? ?? false;
+    bool feeIsFixed = ViewBag.AdminFeeIsFixed as bool? ?? false;
+    decimal feeValue = ViewBag.AdminFeeValue as decimal? ?? 0m;
 }
 
 <div class="cb-page-header">
@@ -38,10 +41,25 @@
                     <div class="card-body">
                         <div id="cbCartItems"></div>
                         <hr class="my-2">
+                        @if (feeOn)
+                        {
+                            <div class="d-flex justify-content-between small">
+                                <span>Subtotal</span>
+                                <span id="cbCartSubtotal">₱0</span>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-2">
+                                <span>Admin fee (once per cart)</span>
+                                <span id="cbCartAdminFee">₱0.00</span>
+                            </div>
+                        }
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="fw-bold">Amount Due</span>
+                            <span class="fw-bold">Total Amount Due</span>
                             <span class="fw-bold fs-5" id="cbCartGrandTotal">₱0</span>
                         </div>
+                        @if (feeOn)
+                        {
+                            <div class="small text-muted mt-1">Collect the total above (cash or online). Any voucher discount is applied when you confirm.</div>
+                        }
                     </div>
                 </div>
 
@@ -120,6 +138,9 @@
 <script>
     (function () {
         var addOnCatalog = JSON.parse(document.getElementById('cbAddOnsData').textContent || '[]');
+        var feeOn = @(feeOn ? "true" : "false");
+        var feeIsFixed = @(feeIsFixed ? "true" : "false");
+        var feeValue = @feeValue.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         // A virtual start hour >=24 (only reachable on an overnight-spanning court) means the slot
         // is entirely after midnight — mirrors TimeDisplay.ResolveBookingDate so the date shown here
@@ -207,7 +228,12 @@
                 container.appendChild(row);
             });
 
-            document.getElementById('cbCartGrandTotal').textContent = money(grandTotal);
+            var cartFee = !feeOn ? 0 : feeIsFixed ? feeValue : Math.round(grandTotal * feeValue) / 100;
+            var subEl = document.getElementById('cbCartSubtotal');
+            var feeEl = document.getElementById('cbCartAdminFee');
+            if (subEl) subEl.textContent = money(grandTotal);
+            if (feeEl) feeEl.textContent = '₱' + cartFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('cbCartGrandTotal').textContent = money(Math.round(grandTotal + cartFee));
         }
 
         document.addEventListener('click', function (e) {

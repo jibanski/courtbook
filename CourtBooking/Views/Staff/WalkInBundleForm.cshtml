@@ -7,6 +7,10 @@
     int endHour = ViewBag.EndHour;
     decimal totalPrice = ViewBag.TotalPrice;
     var paymentMethods = ViewBag.PaymentMethods as List<string> ?? new List<string> { "Cash" };
+    bool feeOn      = ViewBag.AdminFeeEnabled as bool? ?? false;
+    bool feeIsFixed = ViewBag.AdminFeeIsFixed as bool? ?? false;
+    decimal feeValue = ViewBag.AdminFeeValue as decimal? ?? 0m;
+    decimal initialFee = !feeOn ? 0m : feeIsFixed ? feeValue : Math.Round(totalPrice * feeValue / 100m, 2);
 }
 
 <div class="cb-page-header">
@@ -87,10 +91,25 @@
                         </div>
 
                         <div class="alert alert-primary">
+                            @if (feeOn)
+                            {
+                                <div class="d-flex justify-content-between small">
+                                    <span>Bundle price</span>
+                                    <span>₱@totalPrice.ToString("N0")</span>
+                                </div>
+                                <div class="d-flex justify-content-between small mb-2">
+                                    <span>Admin fee @(feeIsFixed ? "" : $"({feeValue:0.##}%)")</span>
+                                    <span>₱@initialFee.ToString("N2")</span>
+                                </div>
+                            }
                             <div class="d-flex justify-content-between align-items-center">
-                                <span><i class="bi bi-cash-coin me-2"></i><strong>Amount Due</strong></span>
-                                <span class="fs-5 fw-bold">₱@totalPrice.ToString("N0")</span>
+                                <span><i class="bi bi-cash-coin me-2"></i><strong>Total Amount Due</strong></span>
+                                <span class="fs-5 fw-bold">₱@((totalPrice + initialFee).ToString("N0"))</span>
                             </div>
+                            @if (feeOn)
+                            {
+                                <div class="small text-muted mt-1">Collect the total above (cash or online). Any voucher discount is applied when you confirm.</div>
+                            }
                         </div>
 
                         <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">

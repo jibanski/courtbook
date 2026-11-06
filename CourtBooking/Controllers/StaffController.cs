@@ -677,8 +677,27 @@ public class StaffController : Controller
             : new List<AddOnItem>();
 
         ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(employerOwnerId);
+        SetAdminFeeViewBag(await GetEmployerSettingsAsync(employerOwnerId));
 
         return View();
+    }
+
+    private async Task<FacilitySettings?> GetEmployerSettingsAsync(string? employerOwnerId) =>
+        employerOwnerId != null
+            ? await _db.FacilitySettings.AsNoTracking().FirstOrDefaultAsync(s => s.OwnerId == employerOwnerId)
+            : null;
+
+    /// <summary>Exposes the facility's admin-fee config to the walk-in forms so they can show the
+    /// fee line and the full amount due live. Fee is never shown when the facility isn't on the
+    /// Admin Fee model.</summary>
+    private void SetAdminFeeViewBag(FacilitySettings? settings)
+    {
+        bool on = settings?.IsAdminFeeEnabled == true;
+        ViewBag.AdminFeeEnabled = on;
+        ViewBag.AdminFeeIsFixed = on && settings!.AdminFeeType == AdminFeeType.Fixed;
+        ViewBag.AdminFeeValue   = on
+            ? (settings!.AdminFeeType == AdminFeeType.Fixed ? settings.AdminFeeFixedAmount : settings.AdminFeeRate)
+            : 0m;
     }
 
     private async Task<List<string>> GetAvailablePaymentMethodsAsync(string? employerOwnerId)
@@ -833,6 +852,11 @@ public class StaffController : Controller
             discountAmount = voucherResult.DiscountAmount;
         }
 
+        // Admin fee is added on top of what the walk-in customer pays (same as online checkout),
+        // so staff collect the full amount due. Zero when the facility isn't on the Admin Fee model.
+        var feeSettings = await GetEmployerSettingsAsync(employerOwnerId);
+        var adminFeeAmount = _adminFee.PreviewFee(subtotal - discountAmount, feeSettings);
+
         // Optional proof-of-payment screenshot for GCash/Maya walk-ins — not required (staff has
         // already confirmed the payment in person), but kept for the owner's records if provided.
         string? proofPath;
@@ -863,10 +887,11 @@ public class StaffController : Controller
             BookingDate   = bookingDate,
             StartTime     = startTime,
             EndTime       = endTime,
-            TotalPrice    = subtotal - discountAmount,
+            TotalPrice    = subtotal - discountAmount + adminFeeAmount,
             VoucherId     = appliedVoucher?.Id,
             VoucherCode   = appliedVoucher?.Code,
             DiscountAmount = discountAmount,
+            AdminFeeAmount = adminFeeAmount,
             Notes         = notes,
             Status        = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
             PaymentStatus = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -1003,6 +1028,7 @@ public class StaffController : Controller
             ? await _bookingService.GetActiveAddOnsAsync(employerOwnerId)
             : new List<AddOnItem>();
         ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(employerOwnerId);
+        SetAdminFeeViewBag(await GetEmployerSettingsAsync(employerOwnerId));
         return View();
     }
 
@@ -1202,12 +1228,17 @@ public class StaffController : Controller
             ? VoucherService.AllocateDiscounts(appliedVoucher, rowSubtotals)
             : new List<decimal>(new decimal[resolved.Count]);
 
+        // One admin fee for the whole cart (a Fixed fee must not be multiplied per row), added to
+        // the customer's total and folded into the last row — same convention as CartController.
+        var cartAdminFee = _adminFee.PreviewFee(cartSubtotal - rowDiscounts.Sum(), await GetEmployerSettingsAsync(employerOwnerId));
+
         for (int i = 0; i < resolved.Count; i++)
         {
             var (item, court, bookingDate, start, end, slotPrice, bundle) = resolved[i];
             var (addOns, addOnsTotal) = itemAddOns[i];
 
             decimal rowDiscount = rowDiscounts[i];
+            decimal rowAdminFee = i == resolved.Count - 1 ? cartAdminFee : 0m;
 
             bookings.Add(new Booking
             {
@@ -1219,10 +1250,11 @@ public class StaffController : Controller
                 BookingDate          = bookingDate,
                 StartTime            = start,
                 EndTime              = end,
-                TotalPrice           = rowSubtotals[i] - rowDiscount,
+                TotalPrice           = rowSubtotals[i] - rowDiscount + rowAdminFee,
                 VoucherId            = appliedVoucher?.Id,
                 VoucherCode          = appliedVoucher?.Code,
                 DiscountAmount       = rowDiscount,
+                AdminFeeAmount       = rowAdminFee,
                 Notes                = notes,
                 Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
                 PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,
@@ -1457,6 +1489,7 @@ public class StaffController : Controller
 
         var employerOwnerId = await GetEmployerOwnerIdAsync();
         ViewBag.PaymentMethods = await GetAvailablePaymentMethodsAsync(employerOwnerId);
+        SetAdminFeeViewBag(await GetEmployerSettingsAsync(employerOwnerId));
 
         return View();
     }
@@ -1548,6 +1581,9 @@ public class StaffController : Controller
 
         bool isCash = IsCashPayment(paymentMethod);
 
+        // Admin fee on top of the bundle price, so staff collect the full amount due.
+        var bundleAdminFee = _adminFee.PreviewFee(bundleMatch.Value.Price - discountAmount, await GetEmployerSettingsAsync(employerOwnerId));
+
         var booking = new Booking
         {
             CourtId              = courtId,
@@ -1558,10 +1594,11 @@ public class StaffController : Controller
             BookingDate          = bookingDate,
             StartTime            = start,
             EndTime              = end,
-            TotalPrice           = bundleMatch.Value.Price - discountAmount,
+            TotalPrice           = bundleMatch.Value.Price - discountAmount + bundleAdminFee,
             VoucherId            = appliedVoucher?.Id,
             VoucherCode          = appliedVoucher?.Code,
             DiscountAmount       = discountAmount,
+            AdminFeeAmount       = bundleAdminFee,
             Notes                = notes,
             Status               = isCash ? BookingStatus.Confirmed : BookingStatus.Pending,
             PaymentStatus        = isCash ? PaymentStatus.Paid : PaymentStatus.Unpaid,

@@ -265,7 +265,8 @@ Facilities on the Admin Fee billing model are charged a small fee per paid booki
 How it is applied:
 
 - **Online bookings** — the fee is shown to the customer as its own line at checkout and is part of their total.
-- **Walk-in, cash and staff-logged bookings** — the fee is recorded against your facility but is **not** added to the customer's price.
+- **Walk-in bookings (single, bundle and cart)** — the fee is added on top of the price, exactly like online checkout. The walk-in screen shows the subtotal, the admin fee and the **Total Amount Due**, so staff collect the full amount whether the customer pays cash or online.
+- **Other staff-logged items (such as Open Play sign-ups) and status changes** — the fee is recorded against your facility but is **not** added to the customer's price.
 - **Once per transaction** — a bundle or multi-court cart pays one fee for the whole checkout, not one per court.
 - **Never twice** — confirming the same booking again, or a late payment notification, will not add a second fee.
 - **Unpaid bookings** (expired, rejected, or cancelled before payment) are never charged.
@@ -495,7 +496,7 @@ A: A bundle is one flat price for the whole window, so court cards now show the 
 A: Yes — turn off **Allow staff to reschedule bookings** under Admin → Settings → Staff Permissions. Only you can reschedule then. While it's on, every staff reschedule is logged with the staff member's name and the original date/time. See [5.10](#510-staff-accounts--permissions).
 
 **Q: Is the Admin Fee charged on bookings my staff makes?**
-A: Yes. Any booking made through CourtBook is recorded once it's confirmed and paid, including staff walk-ins, cash payments, bundles, and Open Play sign-ups, and including payments confirmed by staff or via the status dropdown. For staff-logged bookings the fee is recorded against your facility and is not added to the customer's price; online customers see it as a line item at checkout. See [5.9](#59-admin-fee).
+A: Yes. Any booking made through CourtBook is recorded once it's confirmed and paid, including staff walk-ins, cash payments, bundles, and Open Play sign-ups, and including payments confirmed by staff or via the status dropdown. On walk-in bookings the fee is shown to staff as part of the Total Amount Due, and online customers see it as a line item at checkout. You can track every fee charged in the **Admin Fees** section of Analytics. See [5.9](#59-admin-fee).
 
 **Q: If a booking is cancelled, is the Admin Fee still charged?**
 A: Only if it had been paid. A booking cancelled before payment is never charged. If a paid booking is refunded, the fee is reduced in proportion to the refund (full refund = ₱0). Cancelling a paid booking without recording a refund leaves the fee in place, so record a refund whenever money is returned.
