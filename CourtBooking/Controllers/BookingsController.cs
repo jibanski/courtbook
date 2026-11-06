@@ -534,6 +534,9 @@ public class BookingsController : Controller
                     booking.PaymentMethod    = FormatMethodLabel(methodUsed);
                     booking.PaymentReference = sessionId;
                     booking.PaidAt           = DateTime.UtcNow;
+                    // The webhook only accrues while the booking is still Unpaid, so if this return
+                    // page wins the race the fee must be recorded here (idempotent either way).
+                    await _adminFee.AccrueForBookingAsync(booking, settings);
                     await _db.SaveChangesAsync();
 
                     _ = Task.Run(() => SendCustomerConfirmationAsync(booking));

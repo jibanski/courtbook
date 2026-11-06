@@ -109,6 +109,25 @@ public class AdminFeeService
         _db.AdminFeeCharges.Add(charge);
     }
 
+    /// <summary>Convenience wrapper for call sites that flip a single booking to Paid (staff/admin confirm,
+    /// status dropdown, checkout return page). If the booking belongs to a bundle/cart group, the whole
+    /// group is passed through so the one-fee-per-transaction rule is computed off the group's combined
+    /// total rather than just this row. Idempotent — a no-op if a charge already exists.</summary>
+    public async Task AccrueForBookingAsync(Booking booking, FacilitySettings? settings)
+    {
+        if (settings?.IsAdminFeeEnabled != true) return;
+
+        var rows = new List<Booking> { booking };
+        if (booking.BundleGroupId.HasValue)
+        {
+            var siblings = await _db.Bookings
+                .Where(b => b.BundleGroupId == booking.BundleGroupId && b.Id != booking.Id)
+                .ToListAsync();
+            rows.AddRange(siblings);
+        }
+        await AccrueForBookingsAsync(rows, settings);
+    }
+
     /// <summary>Sign-up equivalent of <see cref="AccrueForBookingsAsync"/> — sign-ups are never
     /// grouped into one transaction, so this always charges a single sign-up individually.</summary>
     public async Task AccrueForSignupAsync(OpenPlaySignup signup, FacilitySettings? settings)

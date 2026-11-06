@@ -1784,6 +1784,13 @@ public class StaffController : Controller
         booking.Status        = BookingStatus.Confirmed;
         booking.PaymentStatus = PaymentStatus.Paid;
         booking.PaidAt        = DateTime.UtcNow;
+
+        // Accrue the platform admin fee — same as the owner-side ConfirmPayment, otherwise a
+        // payment confirmed by staff would never be charged.
+        var employerOwnerId  = await GetEmployerOwnerIdAsync();
+        var employerSettings = await _db.FacilitySettings.FirstOrDefaultAsync(s => s.OwnerId == employerOwnerId);
+        await _adminFee.AccrueForBookingAsync(booking, employerSettings);
+
         await _db.SaveChangesAsync();
 
         TempData["Success"] = $"Booking #{id} confirmed.";
